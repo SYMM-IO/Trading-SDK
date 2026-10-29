@@ -86,13 +86,15 @@ getTimelockPolicyChange(policy: TimelockPolicyReport, parameters?: { delay?: big
 
 This pure helper assesses the proposed setup from an existing policy report. It makes no
 network requests and needs no wallet. The proposed unlocker comes from the report's
-capability; delay still defaults to `max(providerMinimum, contractMinimum)`.
+capability; delay defaults to the greatest of the provider minimum, contract minimum,
+and the existing selector delays, so a routine repair does not shorten protection.
 It rejects an explicit delay below that minimum.
 
 New locks, unchanged locks and increases with the same unlocker need no policy-change
 authorization. Shortening an existing delay or replacing its unlocker needs the **current**
-unlocker's approval, or a schedule for the exact setup calldata. The helper does not
-silently preserve a longer delay or choose a recovery route.
+unlocker's approval, or a schedule for the exact setup calldata. Callers can explicitly
+request a shorter delay above the minimum; the helper reports its authorization needs
+and does not choose a recovery route.
 
 `TimelockPolicyChange` contains:
 

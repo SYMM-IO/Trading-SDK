@@ -1,7 +1,8 @@
-import { SymmApiError, SymmError, TimelockSolverError } from "@symmio/trading-core";
+import { accountLayerAbi, SymmApiError, SymmError, TimelockSolverError } from "@symmio/trading-core";
 import {
   BaseError,
   ContractFunctionRevertedError,
+  encodeErrorResult,
   HttpRequestError,
   InsufficientFundsError,
   TransactionExecutionError,
@@ -12,6 +13,20 @@ import { normalizeSymmError } from "./normalize-symm-error";
 import { SymmioRequestError } from "./symmio-request-error";
 
 describe("normalizeSymmError", () => {
+  it("identifies a decoded timelock revert without changing other contract errors", () => {
+    const data = encodeErrorResult({
+      abi: accountLayerAbi,
+      errorName: "TimelockOpNotApprovedOrScheduled",
+      args: ["0x0000000000000000000000000000000000000001", `0x${"12".repeat(32)}`],
+    });
+    const error = new ContractFunctionRevertedError({ abi: accountLayerAbi, data, functionName: "addMargin" });
+    expect(normalizeSymmError(error)).toMatchObject({
+      kind: "contract-revert",
+      code: "TIMELOCK_REQUIRED",
+      reason: "TimelockOpNotApprovedOrScheduled",
+      cause: error,
+    });
+  });
   it("preserves typed timelock diagnostics and the original response", () => {
     const body = {
       code: 3711,

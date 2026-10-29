@@ -33,7 +33,7 @@ describe("policy-change requirements", () => {
       { selector: "0x44444444", unlocker: zeroAddress, delay: 0n, status: "missing" },
       { selector: "0x55555555", unlocker: UNLOCKER, delay: 600n, status: "ok" },
     ];
-    const change = getTimelockPolicyChange(policy);
+    const change = getTimelockPolicyChange(policy, { delay: 600n });
     expect(change).toMatchObject({
       delay: 600n,
       requiresAuthorization: true,
@@ -47,6 +47,17 @@ describe("policy-change requirements", () => {
       functionName: "setupTimelocks",
       args: [ROOT, UNLOCKER, 600n, policy.selectors.map((item) => item.selector)],
     });
+  });
+
+  it("preserves longer existing protection when the minimum increases", async () => {
+    const { config, capability } = timelockRig();
+    const policy = await getTimelockPolicy(config, { account: VA, capability });
+    policy.requiredDelay = 900n;
+    policy.selectors = [
+      { selector: "0x11111111", unlocker: UNLOCKER, delay: 300n, status: "delay-too-short" },
+      { selector: "0x22222222", unlocker: UNLOCKER, delay: 1200n, status: "ok" },
+    ];
+    expect(getTimelockPolicyChange(policy)).toMatchObject({ delay: 1200n, requiresAuthorization: false });
   });
 
   it("requires the old unlocker even when rotation increases the delay", async () => {

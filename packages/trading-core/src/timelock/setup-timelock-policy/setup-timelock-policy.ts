@@ -17,7 +17,7 @@ export interface TimelockPolicyIndexer {
   getStatus(policy: TimelockPolicyReport, receipt: TransactionReceipt): Promise<TimelockIndexingStatus>;
 }
 
-/** Setup defaults to the full selector policy and the larger minimum. Explicit delay may only increase it. */
+/** Setup defaults to the full selector policy and preserves longer existing delays. */
 export type SetupTimelockPolicyParameters = GetTimelockPolicyParameters &
   TimelockWriteParameters & {
     delay?: bigint;

@@ -3,6 +3,7 @@ export type IntegrationFlowId =
   | "setup"
   | "deposit"
   | "withdraw"
+  | "timelock"
   | "instant-open"
   | "instant-close"
   | "close-all"
@@ -62,6 +63,20 @@ export const INTEGRATION_FLOW_GROUPS = {
     },
   ],
   collateral: [
+    {
+      id: "timelock",
+      label: "Timelock",
+      summary: "Configure root protection, withdraw with one solver approval, or schedule and cancel delayed recovery.",
+      keywords: [
+        "useTimelockPolicy",
+        "useSetupTimelockPolicy",
+        "useEarlyWithdraw",
+        "useScheduleTimelockOp",
+        "useCancelTimelockOp",
+        "useExecuteTimelockOp",
+        "cooldown",
+      ],
+    },
     {
       id: "deposit",
       label: "Deposit",

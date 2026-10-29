@@ -4,6 +4,7 @@ import type { Config } from "../../../core/config";
 import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
+import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { simulateAddMargin } from "./simulate-add-margin";
 
@@ -13,6 +14,8 @@ import { simulateAddMargin } from "./simulate-add-margin";
 export type AddMarginParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for a timelocked selector. */
+      timelock?: TimelockAuthorization;
       /**
        * The virtual account (VA) to add margin to. The connected wallet must be
        * the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
@@ -54,6 +57,15 @@ export type AddMarginReturnType = Hash;
  */
 export async function addMargin(config: Config, parameters: AddMarginParameters): Promise<AddMarginReturnType> {
   const { chainId, virtualAccount, amount, from } = parameters;
+
+  if (parameters.timelock)
+    return executeProtectedCall(config, {
+      ...parameters,
+      account: virtualAccount,
+      target: "account-layer",
+      timelock: parameters.timelock,
+      callData: encodeFunctionData({ abi: accountLayerAbi, functionName: "addMargin", args: [virtualAccount, amount] }),
+    });
 
   const { addresses } = config.getChainConfig(chainId);
 

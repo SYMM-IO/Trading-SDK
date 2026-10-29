@@ -20,6 +20,7 @@ import type { SignedOperation } from "../solvers/instant-open/shared/types";
 import { accountLayerAbi } from "../symmio-contracts/abi/v0.8.6/account-layer";
 import type { SignedTimelockApproval } from "../symmio-contracts/account-layer/types";
 import { TimelockSolverError } from "./errors";
+import { assertTimelockSupported } from "./support";
 
 /** Solver-advertised, deployment-specific public timelock capability. */
 export interface TimelockApprovalCapability {
@@ -195,6 +196,7 @@ export async function prepareTimelockApprovalRequest(
   config: Config,
   parameters: PrepareTimelockApprovalRequestParameters,
 ): Promise<PreparedTimelockApprovalRequest> {
+  assertTimelockSupported(config, parameters.chainId);
   const chain = config.getChainConfig(parameters.chainId);
   const domainChainId = Number(parameters.capability.requestDomain.chainId);
   if (

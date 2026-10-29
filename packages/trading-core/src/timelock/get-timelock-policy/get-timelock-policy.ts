@@ -10,6 +10,7 @@ import {
 } from "../../symmio-contracts/account-layer/actions/timelock";
 import type { TimelockApprovalCapability } from "../approval";
 import { INSTANT_OPEN_TIMELOCK_SELECTORS, requiredTimelockDelay } from "../policy";
+import { assertTimelockSupported } from "../support";
 
 /** One selector's primary correction. The observed values remain available to show all differences. */
 export type TimelockSelectorStatus = "ok" | "missing" | "wrong-unlocker" | "delay-too-short";
@@ -37,6 +38,7 @@ export async function resolveTimelockCapability(
   config: Config,
   parameters: GetTimelockPolicyParameters,
 ): Promise<TimelockApprovalCapability> {
+  assertTimelockSupported(config, parameters.chainId);
   const capability = parameters.capability ?? (await getSolverInfo(config, parameters)).timelockApproval;
   if (!capability)
     throw new SymmError(
@@ -69,6 +71,7 @@ export async function getTimelockPolicy(
   config: Config,
   parameters: GetTimelockPolicyParameters,
 ): Promise<TimelockPolicyReport> {
+  assertTimelockSupported(config, parameters.chainId);
   const [capability, rootAccount, contractMinimum] = await Promise.all([
     resolveTimelockCapability(config, parameters),
     resolveTimelockRootAccount(config, parameters),

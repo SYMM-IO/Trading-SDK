@@ -315,6 +315,27 @@ The hook reads `useSymmioWalletClient()` under the hood. If the user is disconne
 
 ## Account timelocks
 
+For protected writes, pass the optional `timelock` mutation variable to
+`useAllocate`, `useDeallocate`, `useAddMargin`, `useRemoveMargin`, or
+`useDeleteSubAccount`. Omitting it preserves the ordinary write. `useProtectedCall`
+executes one raw Core or AccountLayer call; `useTimelockApprovalProvider` creates
+the standard HTTP provider for the selected solver, and `useTimelockSelector`
+looks up an SDK policy selector by function name. `useScheduledCallMatch`
+checks that a single scheduled raw call matches its execution payload. See the
+[execution reference](/core/account-layer/timelocks/execution) for one-attempt
+authorization, receipt recovery and Muon-signature handling.
+
+`useProtectedFunction` executes any of the 22 named functions with ABI-typed
+arguments and explicit timelock authorization. `useProtectedFunctionCatalog`
+provides their target and ABI inputs to build an inspector. Successful receipts
+refresh the affected reads; approval requests are never automatically retried.
+`useProtectedFunctionEncoder` exposes the same pure encoder for preflight validation
+before the app creates an attempt or shows a wallet prompt.
+
+`useExecuteAccountCalls` executes named Core calls atomically and accepts the
+optional per-call batch `timelock` authorization. It waits for a receipt by default,
+does not retry automatically and refreshes affected reads only after confirmation.
+
 The React package exposes the same provider-neutral timelock flow as core:
 
 | Hook                         | Purpose                                                                                      |
@@ -442,6 +463,8 @@ deletion completed. The unwrapped `useDeleteSubAccount` hook remains unchanged;
 it does not acquire timelock approvals on the caller's behalf.
 
 The approval hook never retries the provider POST. Treat a timeout as ambiguous unless the provider offers an explicit reconciliation mechanism. See the full [core workflow](/core/account-layer/timelocks) for root-versus-VA handling, fallback scheduling, independent Core cooldown, and gasless delegation.
+
+If a decoded contract revert reports `TimelockOpNotApprovedOrScheduled`, React normalizes it to a `contract-revert` with code `TIMELOCK_REQUIRED`, preserving the original error as its cause. Other contract reverts retain their existing classification.
 
 ## Account creation: recovery and cache ownership
 

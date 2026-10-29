@@ -1,9 +1,24 @@
-import { encodeFunctionData, isAddressEqual, keccak256, sliceHex, type Address, type Hash, type Hex } from "viem";
+import {
+  decodeFunctionData,
+  encodeFunctionData,
+  getAbiItem,
+  isAddressEqual,
+  keccak256,
+  sliceHex,
+  toFunctionSelector,
+  zeroAddress,
+  type Abi,
+  type AbiFunction,
+  type Address,
+  type Hash,
+  type Hex,
+} from "viem";
 import type { Config } from "../../../core/config";
 import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
+import { assertTimelockSupported } from "../../../timelock/support";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import type { SelectorTimelock, SignedTimelockApproval, TimelockApproval, TimelockSchedule } from "../types";
 import { getVirtualAccount } from "./get-virtual-account";
@@ -52,6 +67,8 @@ export interface GetSelectorTimelockParameters {
   chainId?: number;
   account: Address;
   selector: Hex;
+  /** Optional block snapshot for a consistent group of reads. */
+  blockNumber?: bigint;
 }
 
 /** Inputs for reading the schedule keyed by exact operation calldata. */
@@ -59,6 +76,8 @@ export interface GetTimelockScheduleParameters {
   chainId?: number;
   account: Address;
   callData: Hex;
+  /** Optional block snapshot for a consistent group of reads. */
+  blockNumber?: bigint;
 }
 
 /** Inputs for deriving a schedule's ready and expiry timestamps. */
@@ -75,6 +94,8 @@ export interface TimelockScheduleState {
   gracePeriod: bigint;
   readyAt: bigint | null;
   expiresAt: bigint | null;
+  /** For policy changes, false means no existing protection requires a schedule. */
+  requiresSchedule?: boolean;
 }
 
 /**
@@ -113,12 +134,14 @@ export async function getSelectorTimelock(
   config: Config,
   parameters: GetSelectorTimelockParameters,
 ): Promise<SelectorTimelock> {
+  assertTimelockSupported(config, parameters.chainId);
   const { addresses } = config.getChainConfig(parameters.chainId);
   const raw = await config.getClient({ chainId: parameters.chainId }).readContract({
     address: addresses.accountLayerAddress,
     abi: accountLayerAbi,
     functionName: "getSelectorTimelock",
     args: [parameters.account, selectorOf(parameters.selector)],
+    ...(parameters.blockNumber !== undefined ? { blockNumber: parameters.blockNumber } : {}),
   });
   return { unlocker: raw.unlocker, delay: raw.delay };
 }
@@ -134,12 +157,14 @@ export async function getTimelockSchedule(
   config: Config,
   parameters: GetTimelockScheduleParameters,
 ): Promise<TimelockSchedule> {
+  assertTimelockSupported(config, parameters.chainId);
   const { addresses } = config.getChainConfig(parameters.chainId);
   const raw = await config.getClient({ chainId: parameters.chainId }).readContract({
     address: addresses.accountLayerAddress,
     abi: accountLayerAbi,
     functionName: "getSchedule",
     args: [parameters.account, keccak256(parameters.callData)],
+    ...(parameters.blockNumber !== undefined ? { blockNumber: parameters.blockNumber } : {}),
   });
   return { scheduledAt: raw.scheduledAt, nonce: raw.nonce };
 }
@@ -152,6 +177,7 @@ export async function getTimelockSchedule(
  * @returns The minimum delay in seconds.
  */
 export async function getMinTimelockDelay(config: Config, parameters: { chainId?: number } = {}): Promise<bigint> {
+  assertTimelockSupported(config, parameters.chainId);
   const { addresses } = config.getChainConfig(parameters.chainId);
   return config.getClient({ chainId: parameters.chainId }).readContract({
     address: addresses.accountLayerAddress,
@@ -169,13 +195,15 @@ export async function getMinTimelockDelay(config: Config, parameters: { chainId?
  */
 export async function getTimelockScheduleGracePeriod(
   config: Config,
-  parameters: { chainId?: number } = {},
+  parameters: { chainId?: number; blockNumber?: bigint } = {},
 ): Promise<bigint> {
+  assertTimelockSupported(config, parameters.chainId);
   const { addresses } = config.getChainConfig(parameters.chainId);
   return config.getClient({ chainId: parameters.chainId }).readContract({
     address: addresses.accountLayerAddress,
     abi: accountLayerAbi,
     functionName: "scheduleGracePeriod",
+    ...(parameters.blockNumber !== undefined ? { blockNumber: parameters.blockNumber } : {}),
   });
 }
 
@@ -190,6 +218,7 @@ export async function hashTimelockApproval(
   config: Config,
   parameters: { chainId?: number; approval: TimelockApproval },
 ): Promise<Hex> {
+  assertTimelockSupported(config, parameters.chainId);
   const { addresses } = config.getChainConfig(parameters.chainId);
   return config.getClient({ chainId: parameters.chainId }).readContract({
     address: addresses.accountLayerAddress,
@@ -210,6 +239,7 @@ export async function isTimelockApprovalUsed(
   config: Config,
   parameters: { chainId?: number; approvalHash: Hex },
 ): Promise<boolean> {
+  assertTimelockSupported(config, parameters.chainId);
   const { addresses } = config.getChainConfig(parameters.chainId);
   return config.getClient({ chainId: parameters.chainId }).readContract({
     address: addresses.accountLayerAddress,
@@ -225,22 +255,83 @@ export async function isTimelockApprovalUsed(
  * @param config - SDK configuration used for policy and schedule reads.
  * @param parameters - Root account and exact raw operation calldata.
  * @returns The stored schedule, policy, grace period, and derived timestamps.
+ * @remarks For policy changes this is the window when executing without approvals. Partial approvals can change it.
  */
 export async function getTimelockScheduleState(
   config: Config,
   parameters: GetTimelockScheduleStateParameters,
 ): Promise<TimelockScheduleState> {
+  assertTimelockSupported(config, parameters.chainId);
   const operationCallData = parameters.operationCallData ?? parameters.callData;
-  const [schedule, policy, gracePeriod] = await Promise.all([
-    getTimelockSchedule(config, parameters),
-    getSelectorTimelock(config, {
+  const blockNumber =
+    parameters.blockNumber ?? (await config.getClient({ chainId: parameters.chainId }).getBlockNumber());
+  const policySelectors = ["setupTimelocks", "clearTimelocks"].map((name) =>
+    toFunctionSelector(getAbiItem({ abi: accountLayerAbi as Abi, name }) as AbiFunction),
+  );
+  const isPolicyChange = operationCallData.length >= 10 && policySelectors.includes(sliceHex(operationCallData, 0, 4));
+  const scheduledPolicyChange =
+    parameters.callData.length >= 10 && policySelectors.includes(sliceHex(parameters.callData, 0, 4));
+  if (
+    (isPolicyChange || scheduledPolicyChange) &&
+    operationCallData.toLowerCase() !== parameters.callData.toLowerCase()
+  )
+    throw new SymmError(
+      "validation",
+      "TIMELOCK_POLICY_CALL_MISMATCH",
+      "A policy schedule must use the exact policy calldata.",
+    );
+  let policyRead: Promise<SelectorTimelock>;
+  let requiresSchedule: boolean | undefined;
+  if (isPolicyChange) {
+    const decoded = decodeFunctionData({ abi: accountLayerAbi, data: operationCallData });
+    if (decoded.functionName !== "setupTimelocks" && decoded.functionName !== "clearTimelocks")
+      throw new SymmError("validation", "TIMELOCK_POLICY_CALL_INVALID", "Invalid timelock policy calldata.");
+    if (!isAddressEqual(decoded.args[0], parameters.account))
+      throw new SymmError(
+        "validation",
+        "TIMELOCK_POLICY_ACCOUNT_MISMATCH",
+        "The scheduled policy change targets a different root account.",
+      );
+    const selectors = decoded.functionName === "setupTimelocks" ? decoded.args[3] : decoded.args[1];
+    policyRead = Promise.all(
+      selectors.map((selector) =>
+        getSelectorTimelock(config, {
+          chainId: parameters.chainId,
+          account: parameters.account,
+          selector,
+          blockNumber,
+        }),
+      ),
+    ).then((policies) => {
+      const affected = policies.filter((policy) => {
+        if (isAddressEqual(policy.unlocker, zeroAddress)) return false;
+        return (
+          decoded.functionName !== "setupTimelocks" ||
+          !isAddressEqual(policy.unlocker, decoded.args[1]) ||
+          policy.delay > decoded.args[2]
+        );
+      });
+      requiresSchedule = affected.length > 0;
+      return affected.reduce<SelectorTimelock>((max, policy) => (policy.delay > max.delay ? policy : max), {
+        unlocker: zeroAddress,
+        delay: 0n,
+      });
+    });
+  } else {
+    policyRead = getSelectorTimelock(config, {
       chainId: parameters.chainId,
       account: parameters.account,
       selector: operationCallData,
-    }),
-    getTimelockScheduleGracePeriod(config, { chainId: parameters.chainId }),
+      blockNumber,
+    });
+  }
+  const [schedule, policy, gracePeriod] = await Promise.all([
+    getTimelockSchedule(config, { ...parameters, blockNumber }),
+    policyRead,
+    getTimelockScheduleGracePeriod(config, { chainId: parameters.chainId, blockNumber }),
   ]);
-  const readyAt = schedule.scheduledAt === 0n ? null : schedule.scheduledAt + policy.delay;
+  const readyAt =
+    schedule.scheduledAt === 0n || requiresSchedule === false ? null : schedule.scheduledAt + policy.delay;
   return {
     callDataHash: keccak256(parameters.callData),
     schedule,
@@ -248,6 +339,7 @@ export async function getTimelockScheduleState(
     gracePeriod,
     readyAt,
     expiresAt: readyAt === null ? null : readyAt + gracePeriod,
+    ...(requiresSchedule === undefined ? {} : { requiresSchedule }),
   };
 }
 
@@ -356,6 +448,7 @@ async function writeTimelock(
   functionName: "setupTimelocks" | "clearTimelocks" | "scheduleTimelockOp" | "cancelTimelockOp" | "executeTimelockOp",
   args: readonly unknown[],
 ): Promise<Hash> {
+  assertTimelockSupported(config, parameters.chainId);
   const rootAccount = await resolveTimelockRootAccount(config, parameters);
   if (!isAddressEqual(rootAccount, parameters.account)) {
     throw new SymmError(

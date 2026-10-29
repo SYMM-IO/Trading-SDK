@@ -1,6 +1,7 @@
 import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 import type { WithdrawReceiverPart } from "../types";
@@ -11,6 +12,8 @@ import type { WithdrawReceiverPart } from "../types";
 export type InitiateWithdrawParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for a timelocked selector. */
+      timelock?: TimelockAuthorization;
       /**
        * The subaccount initiating the withdrawal. The call is routed through the
        * AccountLayer `_call` proxy so the core sees this subaccount as the caller;
@@ -90,6 +93,14 @@ export async function initiateWithdraw(
   const { chainId, account, parts, speedUp = false, providerData = "0x" } = parameters;
 
   const data = encodeInitiateWithdrawCall({ parts, speedUp, providerData });
+
+  if (parameters.timelock)
+    return executeProtectedCall(config, {
+      ...parameters,
+      callData: data,
+      target: "core",
+      timelock: parameters.timelock,
+    });
 
   return callAsSubAccount(config, {
     account,

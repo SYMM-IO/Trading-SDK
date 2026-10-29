@@ -13,6 +13,7 @@ import {
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import type { Address } from "viem";
 import { useSubAccount } from "../account-layer/use-sub-account";
+import { normalizeProtectedWriteError } from "../errors/normalize-protected-write-error";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
@@ -111,13 +112,14 @@ export function useWithdraw(parameters: UseWithdrawParameters = {}): UseWithdraw
           throw new SymmError("validation", "MISSING_ACCOUNT", "useWithdraw: `account` must be set on the hook.");
         }
         const hash = await base.mutationFn({ ...variables, account, chainId: resolvedChainId, isolationType });
-        return resolveWriteResult(config, hash, {
+        const result = resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,
           confirmations: parameters.confirmations,
         });
+        return variables.timelock ? await result : result;
       } catch (err) {
-        throw normalizeSymmError(err);
+        throw variables.timelock ? normalizeProtectedWriteError(err, variables.timelock) : normalizeSymmError(err);
       }
     },
     onSuccess: (result) => {

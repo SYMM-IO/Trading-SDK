@@ -2,6 +2,11 @@ import { Callout } from "nextra/components";
 
 # Gasless hooks
 
+Protected `useApproveOperationalFee` and `useApproveOperationalFeeAllowance`
+writes accept the optional `timelock` mutation variable. Delegated protected writes
+require gasless execution without wallet fallback and the effective inner selector's
+delegation. See [timelock execution](/core/account-layer/timelocks/execution).
+
 React bindings for the [gasless slice](/core/gasless): relay account actions through the GaslessQ relayer — the user signs EIP-712, the relayer pays the gas, and the GaslessLayer charges the fee from SYMMIO collateral.
 
 The **transparent execution mode needs no hooks from this page**: the relayable write hooks accept the core `gasless` variable and keep returning `{ hash, receipt }` — receipt-waiting and invalidation run unchanged, because the relayed broadcast hash behaves exactly like a wallet-submitted one.

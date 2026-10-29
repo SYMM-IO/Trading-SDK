@@ -3,6 +3,8 @@
 import { WalletPanel } from "@/features/inspector/wallet-panel";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import { useSessionKeyDelegation } from "@/features/session-keys/use-session-key-delegation";
+import { TimelockPolicyPanel } from "@/features/timelock/timelock-policy-panel";
+import { useTimelockContext } from "@/features/timelock/use-timelock-context";
 import { formatUsd } from "@/lib/format";
 import {
   useAccountBalanceInfo,
@@ -64,6 +66,7 @@ export function SetupFlow({
   onStartTrading,
 }: Props) {
   const relayerAvailable = useSupportsGaslessService();
+  const timelock = useTimelockContext(subAccount);
   const [chosenTrack, setChosenTrack] = useState<SetupTrack>();
   const [step, setStep] = useState(0);
   const [withdraw, setWithdraw] = useState(false);
@@ -215,11 +218,14 @@ export function SetupFlow({
             hasSessionKey={sessionKeyReady}
           />
         ) : activeStep === "ready" ? (
-          <SetupReadyStep
-            track={track}
-            complete={stepIds.every((id) => id === "ready" || done[id])}
-            onStartTrading={onStartTrading}
-          />
+          <>
+            {!timelock.unsupported ? <TimelockPolicyPanel key={timelock.scope} context={timelock} /> : null}
+            <SetupReadyStep
+              track={track}
+              complete={timelock.ready && stepIds.every((id) => id === "ready" || done[id])}
+              onStartTrading={onStartTrading}
+            />
+          </>
         ) : null}
       </FlowLayout>
     </div>

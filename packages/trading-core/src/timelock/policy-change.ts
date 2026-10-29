@@ -32,7 +32,7 @@ export interface TimelockPolicyChange {
 /**
  * Assess a setup from an observed policy without signing, submitting, or selecting a recovery route.
  * @param policy - Report from getTimelockPolicy; its capability supplies the proposed unlocker.
- * @param parameters - Optional proposed delay; defaults to the report's required minimum.
+ * @param parameters - Optional proposed delay; defaults to the greater of the minimum and existing selector delays.
  * @returns Exact calldata and authorization requirements, not proof of current chain readiness.
  * @throws {RangeError} If the proposed delay is below the report's required minimum.
  * @example const change = getTimelockPolicyChange(policy, { delay: 600n });
@@ -41,7 +41,9 @@ export function getTimelockPolicyChange(
   policy: TimelockPolicyReport,
   parameters: { delay?: bigint } = {},
 ): TimelockPolicyChange {
-  const delay = parameters.delay ?? policy.requiredDelay;
+  const delay =
+    parameters.delay ??
+    policy.selectors.reduce((highest, item) => (item.delay > highest ? item.delay : highest), policy.requiredDelay);
   if (delay < policy.requiredDelay)
     throw new RangeError(`setupTimelocks: delay ${delay} is below the required minimum ${policy.requiredDelay}.`);
   const unlocker = policy.capability.unlocker;

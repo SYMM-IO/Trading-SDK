@@ -1,6 +1,7 @@
-import { keccak256, type Address, type Hex } from "viem";
+import { encodeFunctionData, keccak256, type Address, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
+import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import {
   cancelTimelockOp,
   executeTimelockOp,
@@ -25,6 +26,61 @@ function rootRig() {
 }
 
 describe("AccountLayer timelock writes", () => {
+  it("derives policy-change schedule windows from affected existing selector delays", async () => {
+    const { config, readContract } = rootRig();
+    readContract.mockImplementation(({ functionName, args }) => {
+      if (functionName === "getSchedule") return { scheduledAt: 100n, nonce: 1 };
+      if (functionName === "scheduleGracePeriod") return 60n;
+      if (functionName === "getSelectorTimelock")
+        return { unlocker: UNLOCKER, delay: args[1] === "0x12345678" ? 1200n : 300n };
+      throw new Error(`unexpected read ${functionName}`);
+    });
+    const callData = encodeFunctionData({
+      abi: accountLayerAbi,
+      functionName: "clearTimelocks",
+      args: [ROOT, ["0x12345678", "0x11223344"]],
+    });
+    await expect(getTimelockScheduleState(config, { account: ROOT, callData })).resolves.toMatchObject({
+      policy: { delay: 1200n },
+      readyAt: 1300n,
+      expiresAt: 1360n,
+    });
+    const setup = encodeFunctionData({
+      abi: accountLayerAbi,
+      functionName: "setupTimelocks",
+      args: [ROOT, UNLOCKER, 600n, ["0x12345678", "0x11223344"]],
+    });
+    await expect(getTimelockScheduleState(config, { account: ROOT, callData: setup })).resolves.toMatchObject({
+      policy: { delay: 1200n },
+      readyAt: 1300n,
+      expiresAt: 1360n,
+      requiresSchedule: true,
+    });
+    const increase = encodeFunctionData({
+      abi: accountLayerAbi,
+      functionName: "setupTimelocks",
+      args: [ROOT, UNLOCKER, 1500n, ["0x12345678", "0x11223344"]],
+    });
+    await expect(getTimelockScheduleState(config, { account: ROOT, callData: increase })).resolves.toMatchObject({
+      requiresSchedule: false,
+      readyAt: null,
+      expiresAt: null,
+    });
+    expect(readContract.mock.calls.every(([call]) => call.blockNumber === 1n)).toBe(true);
+    await expect(getTimelockScheduleState(config, { account: VIRTUAL_ACCOUNT, callData: setup })).rejects.toMatchObject(
+      {
+        code: "TIMELOCK_POLICY_ACCOUNT_MISMATCH",
+      },
+    );
+  });
+  it("reports unsupported deployments before attempting reads or writes", async () => {
+    const { config, readContract, writeContract } = rootRig();
+    await expect(
+      scheduleTimelockOp(config, { account: ROOT, callData: CALL_DATA, chainId: 8453 }),
+    ).rejects.toMatchObject({ code: "TIMELOCK_NOT_SUPPORTED" });
+    expect(readContract).not.toHaveBeenCalled();
+    expect(writeContract).not.toHaveBeenCalled();
+  });
   it("checks both minimum delays and configures selectors on the root account", async () => {
     const { config, writeContract } = rootRig();
     const hash = await setupTimelocks(config, {

@@ -1,10 +1,13 @@
 "use client";
 
 import { Field } from "@/components/field";
-import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { ResultError, ResultNote, ResultSuccess, ResultWarning } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useFlowWriteOption, type GaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { SessionKeySignerNote } from "@/features/gasless/session-key-signer-note";
+import { TimelockPolicyPanel } from "@/features/timelock/timelock-policy-panel";
+import { useTimelockAttempt } from "@/features/timelock/use-timelock-attempt";
+import { useTimelockContext } from "@/features/timelock/use-timelock-context";
 import { formatUsd } from "@/lib/format";
 import { SubAccountIsolationType, WithdrawStatus, type WithdrawRequest } from "@symmio/trading-core";
 import {
@@ -14,6 +17,7 @@ import {
   usePendingWithdrawRequests,
   useRequestCancelWithdraw,
   useSubAccount,
+  useTimelockSelector,
   useWithdraw,
   useWithdrawableTime,
 } from "@symmio/trading-react";
@@ -70,6 +74,9 @@ export function WithdrawFlow({
   const [step, setStep] = useState(0);
   const [amount, setAmount] = useState<string>("");
   const [receiver, setReceiver] = useState<string>("");
+  const timelock = useTimelockContext(subAccount);
+  const journal = useTimelockAttempt(timelock, owner);
+  const [timelockError, setTimelockError] = useState<string>();
 
   const withdrawableTime = useWithdrawableTime({ user: subAccount });
   const withdraw = useWithdraw({ account: subAccount, chainId });
@@ -83,6 +90,19 @@ export function WithdrawFlow({
   const subAccountQuery = useSubAccount({ account: subAccount, query: { staleTime: Infinity } });
   const isolationType = subAccountQuery.data?.isolationType;
   const isCustom = isolationType === SubAccountIsolationType.CUSTOM;
+  const initiateSelector = useTimelockSelector("initiateWithdraw");
+  const deallocateSelector = useTimelockSelector("deallocate");
+  const selectorPolicies = timelock.policy.data?.selectors;
+  const initiatePolicy = selectorPolicies?.find((item) => item.selector === initiateSelector);
+  const deallocatePolicy = selectorPolicies?.find((item) => item.selector === deallocateSelector);
+  const neededPolicies = isCustom ? [deallocatePolicy, initiatePolicy] : [initiatePolicy];
+  const policiesKnown = neededPolicies.every((item) => item !== undefined);
+  const lockedPolicies = neededPolicies.filter((item) => item && item.status !== "missing");
+  const protectedReady =
+    policiesKnown &&
+    lockedPolicies.every((item) => item?.status === "ok") &&
+    (!lockedPolicies.length ||
+      (timelock.indexingAcknowledged && journal.loaded && !journal.recovery && !journal.error));
 
   // Balance shown on the withdraw step, per isolation: CUSTOM reads the allocated
   // balance (funds live in margin); the VA modes read the available balance.
@@ -94,7 +114,19 @@ export function WithdrawFlow({
 
   const parsed = parseAmount(amount, decimals);
   const validReceiver = isAddress(receiver) ? (receiver as Address) : undefined;
-  const canInitiate = Boolean(subAccount && parsed !== undefined && validReceiver && chainId !== undefined);
+  const canInitiate = Boolean(
+    (timelock.chainUnsupported || (journal.loaded && !journal.recovery && !journal.error)) &&
+    (timelock.unsupported ||
+      (timelock.capability &&
+        !timelock.info.error &&
+        !timelock.policy.error &&
+        protectedReady &&
+        isolationType !== undefined)) &&
+    subAccount &&
+    parsed !== undefined &&
+    validReceiver &&
+    chainId !== undefined,
+  );
 
   const maxStep = !ready ? 0 : !subAccount ? 1 : 2;
   const current = Math.min(step, maxStep);
@@ -103,12 +135,37 @@ export function WithdrawFlow({
     setStep((previous) => Math.max(previous, maxStep));
   }, [maxStep]);
 
-  function onInitiate() {
+  async function onInitiate() {
+    if (!canInitiate) return;
     if (!subAccount || parsed === undefined || !validReceiver || chainId === undefined) return;
     // `account`/`chainId` are bound on the hook (which resolves the subaccount's
     // isolation via useSubAccount); `parsed` is in the collateral token's decimals
     // and the hook builds the part + scales the deallocate amount.
-    withdraw.mutate({ amount: parsed, receiver: validReceiver, ...initiateWrite });
+    if (timelock.unsupported || lockedPolicies.length === 0) {
+      withdraw.mutate({ amount: parsed, receiver: validReceiver, ...initiateWrite });
+      return;
+    }
+    try {
+      setTimelockError(undefined);
+      await journal.run(async () => {
+        const authorizations = await journal.begin(lockedPolicies.length);
+        let next = 0;
+        const authorization = isCustom
+          ? { calls: neededPolicies.map((item) => (item?.status === "missing" ? undefined : authorizations[next++])) }
+          : authorizations[0]!;
+        const result = await withdraw.mutateAsync({
+          amount: parsed,
+          receiver: validReceiver,
+          ...initiateWrite,
+          timelock: authorization,
+        });
+        if (result.receipt?.status === "success") journal.clear();
+        else journal.submitted(result.hash);
+      });
+    } catch (error) {
+      journal.failed(error);
+      setTimelockError(error instanceof Error ? error.message : String(error));
+    }
   }
 
   const steps: FlowStep[] = [
@@ -142,6 +199,27 @@ export function WithdrawFlow({
       ) : (
         <>
           <WithdrawableReadout query={withdrawableTime} />
+          {!timelock.unsupported ? <TimelockPolicyPanel key={timelock.scope} context={timelock} /> : null}
+          {journal.error || timelockError ? <ResultError message={journal.error ?? timelockError ?? ""} /> : null}
+          {journal.recovery ? (
+            <ResultWarning>
+              An earlier protected operation needs reconciliation before a new attempt.
+              <details>
+                <summary>Saved recovery details</summary>
+                <pre className="max-h-64 overflow-auto text-xs break-all whitespace-pre-wrap">{journal.recovery}</pre>
+              </details>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (window.confirm("Have you reconciled every listed approval and transaction?"))
+                    void journal.clearReviewed();
+                }}
+              >
+                Clear after reconciliation
+              </Button>
+            </ResultWarning>
+          ) : null}
 
           <AmountField
             id="integration-withdraw-amount"
@@ -185,7 +263,7 @@ export function WithdrawFlow({
             type="button"
             size="lg"
             disabled={!canInitiate || withdraw.isPending}
-            onClick={onInitiate}
+            onClick={() => void onInitiate()}
             data-testid="button-initiate-withdraw"
             className="w-full"
           >

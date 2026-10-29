@@ -2,6 +2,11 @@ import { Callout } from "nextra/components";
 
 # Withdraw hooks
 
+On protected accounts, `useWithdraw` and `useInitiateWithdraw` accept an optional
+`timelock` mutation variable. CUSTOM withdrawal requires per-leg authorizations
+and remains atomic. An unprotected withdrawal omits it. See the
+[timelock execution reference](/core/account-layer/timelocks/execution) for recovery.
+
 Withdraw request lifecycle — initiate, cancel, finalize, plus reads for the pending queue.
 
 Reach for **`useWithdraw`** first: it is the **high-level** entry point that takes

@@ -20,7 +20,9 @@ describe("policy setup", () => {
       call.functionName === "getSchedule" ? { scheduledAt, nonce: 1 } : originalRead(call),
     );
     const wallet = vi.spyOn(config, "getWalletClient");
-    const failure = await setupTimelockPolicy(config, { account: VA, capability }).catch((error: unknown) => error);
+    const failure = await setupTimelockPolicy(config, { account: VA, capability, delay: 600n }).catch(
+      (error: unknown) => error,
+    );
     expect(failure).toBeInstanceOf(TimelockPolicyChangeAuthorizationError);
     expect(failure).toMatchObject({
       code: "TIMELOCK_POLICY_CHANGE_AUTHORIZATION_REQUIRED",
@@ -46,7 +48,7 @@ describe("policy setup", () => {
         state.delay = 600n;
         return TEST_TX_HASH;
       });
-      await setupTimelockPolicy(config, { account: VA, capability });
+      await setupTimelockPolicy(config, { account: VA, capability, delay: 600n });
       expect(writeContract).toHaveBeenCalledOnce();
       expect(writeContract).toHaveBeenCalledWith(
         expect.objectContaining({

@@ -1,4 +1,19 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SDK web application
+
+This Next.js app consumes the workspace SDK through its React hooks. When an SDK change affects an existing flow or needs an interactive example, update this app alongside the package and public documentation.
+
+## Timelock integration
+
+Open `/integration?flow=timelock` to check and configure the root policy, request an approval, execute protected account actions and Core batches, or schedule, cancel and execute an exact call. Virtual-account policy and recovery resolve to the root while Core execution preserves the selected account. Setup, Instant Open, Withdraw and the protected inspector cards use the SDK's timelock APIs. An unlocked selector keeps its ordinary write path; a locked withdrawal uses an approval for each locked leg.
+
+- Deployment metadata, selector checks, approval validation and transaction execution come from SDK hooks. No contract or approval implementation is duplicated in the app.
+- A complete on-chain policy does not prove solver indexing. There is no indexing-status endpoint configured here. The console requires explicit acknowledgement of independent indexing verification; it never spends an approval to probe readiness.
+- The early-withdrawal card uses the owner wallet and inherits configured gasless dispatch. Its five-minute request deadline is an application choice, separate from the solver's advertised approval validity. The card does not deallocate margin; the main Withdraw flow also supports the atomic deallocate-and-initiate path. Core cooldown and finalization still apply to initiation.
+- Delayed recovery is an advanced exact-calldata tool, not automatic fallback. Supply the raw operation and matching AccountLayer execution encoding. It uses owner-funded transactions, checks the chain clock, and preserves the exact calldata in browser storage. Policy-change windows use the affected selector delays and assume no approvals. Do not schedule short-lived Muon signatures.
+- Browser-local recovery records prevent automatic reissuance after refresh or an unknown result. An operator must reconcile uncertain transactions/approvals before clearing a record. A confirmed scheduled operation can be continued or cancelled. This is console behavior, not SDK persistence policy.
+- Inspector cards for allocation, deallocation, margin, deletion and fee allowance detect their selected policy and use an explicit SDK authorization when needed. The named-function card covers all 22 SDK functions with ABI-driven arguments; the exact-call card accepts raw calldata.
+
+`e2e/timelock.read.spec.ts` uses mocked RPC/solver responses to check policy, recovery, approval and receipt paths without broadcasting transactions. Run it with `pnpm --filter @symmio/web exec playwright test e2e/timelock.read.spec.ts`. Real-wallet signing and staging execution remain separate integration checks.
 
 ## Getting Started
 

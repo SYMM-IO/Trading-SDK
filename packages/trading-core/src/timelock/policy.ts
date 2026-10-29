@@ -2,6 +2,7 @@ import { getAbiItem, toFunctionSelector, type Address, type Hex } from "viem";
 import type { Config } from "../core/config";
 import { accountLayerAbi } from "../symmio-contracts/abi/v0.8.6/account-layer";
 import { symmioAbi } from "../symmio-contracts/abi/v0.8.6/symmio";
+import { assertTimelockSupported } from "./support";
 
 /** Core operations whose AccountLayer policy must cover for wrapped instant opens. */
 export const INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS = [
@@ -58,6 +59,7 @@ export async function isTimelockPolicyConfigured(
     selectors: readonly Hex[];
   },
 ): Promise<boolean> {
+  assertTimelockSupported(config, parameters.chainId);
   const { addresses } = config.getChainConfig(parameters.chainId);
   return config.getClient({ chainId: parameters.chainId }).readContract({
     address: addresses.accountLayerAddress,

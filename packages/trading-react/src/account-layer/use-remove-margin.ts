@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  assertTimelockAuthorizationUnused,
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
   getDeallocateUpnlSig,
@@ -9,6 +10,7 @@ import {
   type SingleUpnlSig,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+import { normalizeProtectedWriteError } from "../errors/normalize-protected-write-error";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
@@ -72,6 +74,7 @@ export function useRemoveMargin(parameters: UseRemoveMarginParameters = {}): Use
     mutationKey: base.mutationKey,
     mutationFn: async (variables) => {
       try {
+        if (variables.timelock) assertTimelockAuthorizationUnused(variables.timelock);
         const resolvedChainId = variables.chainId ?? chainId;
         const upnlSig =
           variables.upnlSig ??
@@ -80,13 +83,14 @@ export function useRemoveMargin(parameters: UseRemoveMarginParameters = {}): Use
             chainId: resolvedChainId,
           }));
         const hash = await base.mutationFn({ ...variables, upnlSig, chainId: resolvedChainId });
-        return resolveWriteResult(config, hash, {
+        const result = resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,
           confirmations: parameters.confirmations,
         });
+        return variables.timelock ? await result : result;
       } catch (err) {
-        throw normalizeSymmError(err);
+        throw variables.timelock ? normalizeProtectedWriteError(err, variables.timelock) : normalizeSymmError(err);
       }
     },
     onSuccess: (_result, variables) => {

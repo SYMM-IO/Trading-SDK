@@ -39,6 +39,8 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "depositForAccountMutationOptions",
     "editAccountNameMutationOptions",
     "earlyWithdrawMutationOptions",
+    "executeAccountCallsMutationOptions",
+    "executeProtectedFunctionMutationOptions",
     "executeTimelockOpMutationOptions",
     "finalizeRevokeDelegationMutationOptions",
     "finalizeWithdrawRequestMutationOptions",
@@ -79,6 +81,8 @@ import { useDeleteSubAccount } from "../account-layer/use-delete-sub-account";
 import { useDeposit } from "../account-layer/use-deposit";
 import { useDepositAndAllocate } from "../account-layer/use-deposit-and-allocate";
 import { useEditAccountName } from "../account-layer/use-edit-account-name";
+import { useExecuteAccountCalls } from "../account-layer/use-execute-account-calls";
+import { useProtectedFunction } from "../account-layer/use-protected-function";
 import { useRemoveMargin } from "../account-layer/use-remove-margin";
 import { useRequestToRegisterAffiliate } from "../account-layer/use-request-to-register-affiliate";
 import {
@@ -248,6 +252,44 @@ const PROBES: Probe<never>[] = [
     acceptsGasless: true,
     useWrite: (config) => useEditAccountName({ config, waitForReceipt: false }),
     variables: { account: ACCOUNT, name: "probe" },
+  }),
+  probe({
+    file: "account-layer/use-execute-account-calls.ts",
+    name: "useExecuteAccountCalls",
+    acceptsGasless: true,
+    useWrite: (config) => useExecuteAccountCalls({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, calls: [{ functionName: "allocate", args: [1n] }] },
+  }),
+  probe({
+    file: "account-layer/use-protected-function.ts",
+    name: "useProtectedFunction",
+    acceptsGasless: true,
+    useWrite: (config) => useProtectedFunction({ config, waitForReceipt: false }),
+    variables: {
+      account: ACCOUNT,
+      target: "core",
+      functionName: "allocate",
+      args: [1n],
+      timelock: {
+        capability: {
+          unlocker: ACCOUNT,
+          validitySeconds: 60,
+          minTimelockDelaySeconds: 600,
+          requestDomain: {
+            name: "SymmioTimelockApprovalRequest",
+            version: "1",
+            chainId: 42161,
+            verifyingContract: ACCOUNT,
+          },
+        },
+        provider: {
+          requestApproval: async () => {
+            throw new Error("not called");
+          },
+        },
+        deadline: 2000000000n,
+      },
+    },
   }),
   probe({
     file: "account-layer/use-timelock.ts",

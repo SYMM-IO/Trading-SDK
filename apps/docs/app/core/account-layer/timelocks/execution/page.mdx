@@ -6,9 +6,98 @@ Writes return a transaction `Hash`, not a receipt. Their parameters include norm
 SDK chain, `from`, simulation and `gasless` controls. None automatically retries.
 Wallet execution rejects a chain mismatch before simulation or broadcast.
 
+An explicitly configured `timelockSupported: false` produces `TIMELOCK_NOT_SUPPORTED`
+before a timelock read, approval request or write. The built-in Base deployment is
+marked unsupported based on its AccountLayer selector mapping at block 53214315.
+When an operator verifies a deployment upgrade, override that field in its chain
+config. An omitted field means unknown; RPC errors are never interpreted as proof
+that timelocks are unsupported.
+
 `encodeInitiateWithdrawCall({ parts, speedUp?, providerData? }): Hex` builds the raw
 Core calldata for scheduling or approval. `parts` is `readonly WithdrawReceiverPart[]`;
 defaults are `speedUp: false` and `providerData: "0x"`. The encoder does not sign or submit.
+
+## Optional authorization on existing writes
+
+`allocate`, `deallocate`, `initiateWithdraw`, `addMargin`, `removeMargin`,
+`deleteSubAccount`, `approveOperationalFee` and `approveOperationalFeeAllowance`
+accept an optional `timelock` authorization. Omit it to keep the ordinary write.
+For a protected selector, provide either `{ capability, provider, deadline, onApproval? }`
+or `{ approval }`. The provider is injected by the caller; the SDK does not choose a solver.
+
+```ts
+await addMargin(config, {
+  virtualAccount,
+  amount,
+  timelock: { capability, provider, deadline, onApproval: persistApproval },
+});
+```
+
+Each authorization object represents one attempt. If the request times out or the
+transaction outcome is unknown, reconcile it before deliberately creating another
+authorization. Automatic retries with the same object do not request or submit again.
+After issuance, `TimelockExecutionError` carries the signed approval and exact raw
+calldata; after submission, `getTimelockExecutionRecovery(authorization)` also exposes
+the transaction hash. Persist approvals before submission with `onApproval`.
+When a call contains a short-lived Muon signature, reuse the exact original calldata
+and signature when recovering; a newly fetched signature needs a new approval.
+
+`withdraw` and `withdrawAuto` accept a single authorization for an initiate-only
+withdrawal. A CUSTOM withdrawal accepts `{ calls: [deallocationAuthorization,
+withdrawalAuthorization] }`, using `undefined` for an unlocked leg. Each locked leg
+is independently approved; the two calls remain one atomic transaction. A partial
+issuance or execution failure raises `TimelockBatchExecutionError` with the obtained
+approvals and exact calldata. `getTimelockBatchRecovery` returns the hash after
+submission. The helpers reject a separately locked outer `_call` before requesting
+approval. Reconcile the receipt before reusing any authorization.
+`executeAccountCalls` accepts the same per-call batch authorization for other
+atomic Core batches.
+
+`executeProtectedCall(config, { account, callData, target, timelock, ...writeOptions })`
+exposes the same flow for any one raw Core or AccountLayer call. Core targets preserve
+the original account inside `_call`; AccountLayer calls are passed directly. Its
+mutation factory is `executeProtectedCallMutationOptions(config)` and sets `retry: false`.
+
+`executeProtectedFunction(config, { account, target, functionName, args, timelock })`
+accepts ABI-typed arguments for all 22 documented functions. It encodes the raw
+call and uses the same explicit approval, execution, and recovery path. Its mutation
+factory is `executeProtectedFunctionMutationOptions(config)` and never retries.
+`encodeProtectedFunction({ target, functionName, args })` validates and returns the
+same raw calldata without signing or submitting. AccountLayer functions must target
+the selected account as their first argument; the execution helper rejects a mismatch.
+
+```ts
+const hash = await executeProtectedFunction(config, {
+  account,
+  target: "core",
+  functionName: "allocate",
+  args: [amount18],
+  timelock,
+});
+```
+
+`assertTimelockAuthorizationUnused` and `assertTimelockBatchUnused` reject re-entry
+before fetching short-lived inputs. The React equivalents include `useProtectedCall`,
+`useTimelockApprovalProvider` and `useTimelockSelector`.
+
+Core retains the original viem contract error when an unprotected call reverts.
+The React error normalizer maps a decoded `TimelockOpNotApprovedOrScheduled`
+revert to `TIMELOCK_REQUIRED` and retains the original error as its cause.
+
+For `setupTimelocks` and `clearTimelocks`, `getTimelockScheduleState` derives the
+window from the longest affected existing selector delay, assuming execution **without
+approvals**. Partial approvals can change both ends of that window; re-read the policy
+and simulate the exact execution before sending it. All reads use one block snapshot.
+For policy changes `requiresSchedule: false` means no existing protection needs a
+schedule; the `policy` field otherwise identifies the affected selector with the
+largest delay, not every affected unlocker.
+
+Do not schedule calldata containing a short-lived Muon signature, such as deallocation or
+margin removal: the signature may expire before the cooldown finishes. Rebuilding that
+calldata would change its hash and therefore would not match the scheduled operation.
+`matchesScheduledCall(account, rawCallData, innerCallData)` checks a direct call or
+an `_call` containing exactly that one raw Core call for the original account;
+`useScheduledCallMatch` exposes the same check to React consumers.
 
 ## Writes
 
