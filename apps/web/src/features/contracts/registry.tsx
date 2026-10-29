@@ -1,8 +1,10 @@
 import type { ComponentType } from "react";
+import { InfoExecuteAccountCalls } from "../inspector/info-execute-account-calls";
 import { ReadAccountBalanceInfo } from "../inspector/read-account-balance-info";
 import { ReadAccountBalanceOf } from "../inspector/read-account-balance-of";
 import { ReadCollateralAllowance } from "../inspector/read-collateral-allowance";
 import { ReadCollateralBalance } from "../inspector/read-collateral-balance";
+import { ReadDeallocateDebounceTime } from "../inspector/read-deallocate-debounce-time";
 import { ReadDeallocateUpnlSig } from "../inspector/read-deallocate-upnl-sig";
 import { ReadDelegationReads } from "../inspector/read-delegation-reads";
 import { ReadFeeForUser } from "../inspector/read-fee-for-user";
@@ -27,6 +29,7 @@ import { ReadLastWithdrawRequestId } from "../inspector/read-last-withdraw-reque
 import { ReadOnchainContractMarkets } from "../inspector/read-onchain-contract-markets";
 import { ReadPendingWithdrawRequests } from "../inspector/read-pending-withdraw-requests";
 import { ReadQuotePriceHistory } from "../inspector/read-quote-price-history";
+import { ReadWithdrawCooldownOf } from "../inspector/read-withdraw-cooldown-of";
 import { ReadWithdrawableTime } from "../inspector/read-withdrawable-time";
 import { WriteAddMargin } from "../inspector/write-add-margin";
 import { WriteAllocate } from "../inspector/write-allocate";
@@ -452,5 +455,29 @@ export const METHOD_REGISTRY: readonly MethodEntry[] = [
     abi: "symmio-core",
     groups: ["withdraw"],
     Component: ReadWithdrawableTime,
+  },
+  {
+    id: "getWithdrawCooldownOf",
+    summary: "When a subaccount was last deallocated, and when it can deallocate next.",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["withdraw", "margin"],
+    Component: ReadWithdrawCooldownOf,
+  },
+  {
+    id: "getDeallocateDebounceTime",
+    summary: "The minimum gap the protocol enforces between two deallocations.",
+    kind: "read",
+    abi: "symmio-core",
+    groups: ["withdraw", "margin"],
+    Component: ReadDeallocateDebounceTime,
+  },
+  {
+    id: "executeAccountCalls",
+    summary: "How to run several core writes atomically as one subaccount (reference only).",
+    kind: "write",
+    abi: "symmio-core",
+    groups: ["withdraw", "margin"],
+    Component: InfoExecuteAccountCalls,
   },
 ];
