@@ -46,7 +46,7 @@ export interface UseInstantOpenWithTpSlData {
   instantOpen: InstantOpenReturnType;
   /** Set when the TP/SL leg was attempted and succeeded. */
   tpsl?: SetQuoteTpSlReturnType;
-  /** Set when the TP/SL leg was attempted and failed — instant open still landed. */
+  /** Set when TP/SL attachment could not be submitted or failed — instant open still landed. */
   tpslError?: SymmioRequestError;
   /** Resolved attachment inputs, including on failure. Contains no signature. */
   tpslParameters?: SetQuoteTpSlParameters;
@@ -140,7 +140,9 @@ export function useInstantOpenWithTpSl(
         return { instantOpen: openResult };
       }
 
-      const tempIdNumber = Number(openResult.tempQuoteId);
+      // Check the original decimal integer syntax before Number can round a fractional ID.
+      const tempId = openResult.tempQuoteId;
+      const tempIdNumber = typeof tempId === "string" && /^-?\d+$/.test(tempId) ? Number(tempId) : NaN;
       if (!Number.isSafeInteger(tempIdNumber) || tempIdNumber === 0) {
         setPhase("success");
         return {

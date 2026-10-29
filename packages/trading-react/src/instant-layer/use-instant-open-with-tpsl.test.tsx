@@ -183,20 +183,53 @@ describe("useInstantOpenWithTpSl", () => {
     expect(useTpSlStore.getState().get(-1001n)).toBeUndefined();
   });
 
-  it.each(["9007199254740993", "0", "not-an-id"])(
-    "does not attach using an invalid identifier %s",
+  it.each([
+    "9007199254740993",
+    "-9007199254740993",
+    "0",
+    "not-an-id",
+    "1.0000000000000001",
+    "-1.0000000000000001",
+    "9007199254740990.5",
+    "-9007199254740990.5",
+    "1.5",
+    "1e3",
+    "0x10",
+    " 1 ",
+    "",
+  ])("does not attach using an invalid identifier %s", async (tempQuoteId) => {
+    const { config } = createMockSymmioConfig();
+    mockOpen(vi.fn().mockResolvedValue({ ...OPEN_OK, tempQuoteId }));
+    const attach = vi.fn();
+    mockTpSl(attach);
+    const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config }));
+    await act(async () => {
+      await result.current.mutateAsync({ ...OPEN_VARS, tpsl: TPSL_BLOCK });
+    });
+    expect(attach).not.toHaveBeenCalled();
+    expect(result.current.data?.instantOpen.tempQuoteId).toBe(tempQuoteId);
+    expect(result.current.data?.tpslError?.code).toBe("INSTANT_OPEN_TPSL_INVALID_ID");
+    expect(result.current.phase).toBe("success");
+    expect(result.current.data?.tpslParameters).toBeUndefined();
+  });
+
+  it.each(["9007199254740991", "-9007199254740991"])(
+    "preserves the exact safe integer identifier %s",
     async (tempQuoteId) => {
       const { config } = createMockSymmioConfig();
       mockOpen(vi.fn().mockResolvedValue({ ...OPEN_OK, tempQuoteId }));
-      const attach = vi.fn();
+      const attach = vi.fn().mockResolvedValue(TPSL_OK);
       mockTpSl(attach);
       const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config }));
       await act(async () => {
         await result.current.mutateAsync({ ...OPEN_VARS, tpsl: TPSL_BLOCK });
       });
-      expect(attach).not.toHaveBeenCalled();
-      expect(result.current.data?.instantOpen.tempQuoteId).toBe(tempQuoteId);
-      expect(result.current.data?.tpslError?.code).toBe("INSTANT_OPEN_TPSL_INVALID_ID");
+      expect(attach).toHaveBeenCalledExactlyOnceWith({
+        ...TPSL_BLOCK,
+        chainId: arbitrum.id,
+        quoteId: BigInt(tempQuoteId),
+      });
+      expect(result.current.data?.tpslError).toBeUndefined();
     },
   );
 
