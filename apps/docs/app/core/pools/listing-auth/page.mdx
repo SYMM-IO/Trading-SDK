@@ -142,3 +142,11 @@ Exported as `GetListingSignInMessageParameters`.
 - [`resolveListingService`](/core/pools/resolve-listing-service) — the availability gate every auth call runs first.
 - [Pools](/core/pools) — the slice overview.
 - [Errors](/core/concepts/errors) — the `SymmError` / `SymmApiError` hierarchy these codes belong to.
+
+## Prefetched challenges
+
+Pass an SDK-issued `signInMessage` to reuse a challenge fetched before signing. A cached challenge for another wallet, deployment, origin or statement, or one past its expiry, is discarded and fetched again. Fresh backend challenges are signed as issued: empty statements and backend URI normalization do not trigger local rejection. The backend validates signatures, nonces and expiry. The SDK owns the token exchange.
+
+`getListingSignInMessageQueryOptions(config, options)` and `getListingSignInMessageQueryKey` identify a challenge by deployment configuration, wallet, domain, URI and statement. Options use `GetListingSignInMessageOptions`; required action inputs stay required. React consumers should use `useAuthenticateListing({ prefetchChallenge: true })` instead of managing this lifecycle themselves.
+
+Bind async completion to the wallet and deployment that started it. Discard it when either changes. Listing SIWE uses the actual wallet, not a trading session-key signer.

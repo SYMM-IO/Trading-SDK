@@ -2,6 +2,9 @@ import { Callout } from "nextra/components";
 
 # allocate
 
+For a locked selector, pass the optional `timelock` authorization described in
+the [timelock execution reference](/core/account-layer/timelocks/execution).
+
 Move a subaccount's available balance into its **classic-pool** allocated balance — the margin classic (non-instant) positions trade against. The call is routed through the AccountLayer `_call` proxy so the SYMMIO core attributes it to the subaccount; the connected wallet must be the subaccount's on-chain `owner`. The subaccount must not be suspended or in liquidation as Party A.
 
 <Callout type="warning">

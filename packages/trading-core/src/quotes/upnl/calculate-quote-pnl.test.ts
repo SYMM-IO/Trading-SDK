@@ -5,6 +5,18 @@ import { calculateQuotePnl } from "./calculate-quote-pnl";
 const ONE = 10n ** 18n;
 
 describe("calculateQuotePnl", () => {
+  it("preserves a one-wei close-price difference before converting for presentation", () => {
+    for (const positionType of [PositionType.LONG, PositionType.SHORT]) {
+      const result = calculateQuotePnl({
+        positionType,
+        closedAmount: ONE,
+        openedPrice: 100n * ONE,
+        closedPrice: 100n * ONE + 1n,
+        leverage: "1",
+      });
+      expect(result.pnl).toBe(positionType === PositionType.LONG ? "0.000000000000000001" : "-0.000000000000000001");
+    }
+  });
   it("computes LONG pnl: closedAmount × (closed − open) × +1", () => {
     const { pnl, pnlPercent } = calculateQuotePnl({
       positionType: PositionType.LONG,

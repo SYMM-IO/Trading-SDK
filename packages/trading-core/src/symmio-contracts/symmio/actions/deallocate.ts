@@ -3,6 +3,11 @@ import type { Config } from "../../../core/config";
 import { withGaslessAttemptStart } from "../../../gasless/dispatch/attempt-start";
 import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import {
+  assertTimelockAuthorizationUnused,
+  executeProtectedCall,
+  type TimelockAuthorization,
+} from "../../../timelock/execute-protected-call";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import type { SingleUpnlSig } from "../../account-layer/types";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
@@ -13,6 +18,8 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
 export type DeallocateParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for a timelocked selector. */
+      timelock?: TimelockAuthorization;
       /**
        * The subaccount to deallocate from. The call is routed through the
        * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
@@ -76,6 +83,7 @@ export type DeallocateReturnType = Hash;
  */
 export async function deallocate(config: Config, parameters: DeallocateParameters): Promise<DeallocateReturnType> {
   const { chainId, account, amount } = parameters;
+  if (parameters.timelock) assertTimelockAuthorizationUnused(parameters.timelock);
   /** The Muon fetch below counts against the gasless signature lifetime. */
   const gasless = withGaslessAttemptStart(parameters.gasless);
 
@@ -87,6 +95,15 @@ export async function deallocate(config: Config, parameters: DeallocateParameter
     functionName: "deallocate",
     args: [amount, upnlSig],
   });
+
+  if (parameters.timelock)
+    return executeProtectedCall(config, {
+      ...parameters,
+      gasless,
+      callData: data,
+      target: "core",
+      timelock: parameters.timelock,
+    });
 
   return callAsSubAccount(config, {
     account,

@@ -1,0 +1,169 @@
+import { Callout } from "nextra/components";
+
+# getQuoteFundingSettlements
+
+One entity per funding settlement on a quote, from the analytics subgraph's `quoteFundingSettlements` collection: what PartyA paid or received, the open amount it applied to, the funding index before and after, and the epochs paid through. Reach for it when the summed totals of [`getQuoteFunding`](/core/subgraph/get-quote-funding) are not enough — a per-settlement audit, or one of the raw inputs of a per-epoch funding timeline.
+
+```ts
+import { getQuoteFundingSettlements } from "@symmio/trading-core";
+
+// Every settlement of one quote, oldest first.
+const { rows, hasMore } = await getQuoteFundingSettlements(config, {
+  quoteIds: [7334n],
+  orderDirection: "asc",
+});
+```
+
+Every filter is optional and applied only when passed; an empty list filter reads nothing. One call returns one page — see [Filters and paging](/core/subgraph#filters-and-paging) for the shared rules and for [paging by cursor](/core/subgraph#paging-by-cursor).
+
+<Callout type="info">
+  **Settled to date, signs as indexed.** These are the settlements the subgraph has indexed; funding accrued since a
+  quote's last settlement is on-chain only — read it with
+  [`getQuotePendingFunding`](/core/symmio-contract/get-quote-pending-funding). `signedAmount` keeps the subgraph's sign
+  and is never re-signed. To net a row the SDK way (income-positive), use `receivedByPartyA − paidByPartyA`.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="quoteIds" type="readonly bigint[]" optional>
+    On-chain quote ids.
+  </Property>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (the subgraph's `source`).
+  </Property>
+  <Property name="partyAs" type="readonly Address[]" optional>
+    PartyA accounts.
+  </Property>
+  <Property name="startTime" type="number" optional>
+    Lower bound on the block timestamp (unix seconds, inclusive).
+  </Property>
+  <Property name="endTime" type="number" optional>
+    Upper bound on the block timestamp (unix seconds, inclusive).
+  </Property>
+  <Property name="first" type="number" default="1000">
+    Page size, 1–1000.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Rows to skip. The Graph rejects values above 5000.
+  </Property>
+  <Property name="orderBy" type='"timestamp" | "id"' default="timestamp">
+    Sort field. Defaults to `"id"` when `idGt` is set.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction. Defaults to `"asc"` when `idGt` is set.
+  </Property>
+  <Property name="idGt" type="string" optional>
+    Cursor: only settlements whose `id` sorts after this one. Sorts by `id` ascending unless a sort is passed; any other
+    sort throws `INVALID_SUBGRAPH_CURSOR`. See [Paging by cursor](/core/subgraph#paging-by-cursor).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetQuoteFundingSettlementsReturnType">
+  <Property name="rows" type="QuoteFundingSettlementRow[]">
+    The decoded settlements of this page.
+  </Property>
+  <Property name="hasMore" type="boolean">
+    `true` when the page came back full, so another page may exist.
+  </Property>
+</Returns>
+
+### `QuoteFundingSettlementRow`
+
+Amounts are 18-decimal wei `bigint`.
+
+<Returns type="QuoteFundingSettlementRow">
+  <Property name="id" type="string">
+    Subgraph entity id — stable; use it as a row key or `idGt` cursor.
+  </Property>
+  <Property name="source" type="Address">
+    Diamond address the settlement was indexed from.
+  </Property>
+  <Property name="quoteId" type="bigint">
+    On-chain quote id.
+  </Property>
+  <Property name="partyA" type="Address">
+    PartyA of the quote.
+  </Property>
+  <Property name="partyB" type="Address">
+    PartyB (the solver) of the quote.
+  </Property>
+  <Property name="symbolId" type="number">
+    Market id.
+  </Property>
+  <Property name="positionType" type="PositionType">
+    Long or short.
+  </Property>
+  <Property name="trigger" type="string">
+    What triggered the settlement, as indexed.
+  </Property>
+  <Property name="openAmount" type="bigint">
+    Open amount the settlement applied to.
+  </Property>
+  <Property name="signedAmount" type="bigint">
+    Settled amount, signed as indexed.
+  </Property>
+  <Property name="paidByPartyA" type="bigint">
+    Amount PartyA paid.
+  </Property>
+  <Property name="receivedByPartyA" type="bigint">
+    Amount PartyA received.
+  </Property>
+  <Property name="previousAccumulatedPaidFunding" type="bigint">
+    Funding index before the settlement.
+  </Property>
+  <Property name="newAccumulatedPaidFunding" type="bigint">
+    Funding index after the settlement.
+  </Property>
+  <Property name="fundingDeltaPerUnit" type="bigint">
+    Funding index change per unit.
+  </Property>
+  <Property name="previousLastFundingPaymentTimestamp" type="number">
+    Last payment time before the settlement, unix seconds.
+  </Property>
+  <Property name="newLastFundingPaymentTimestamp" type="number">
+    Last payment time after the settlement, unix seconds.
+  </Property>
+  <Property name="previousPaidThroughEpoch" type="bigint | null">
+    Epoch paid through before the settlement; `null` when not indexed.
+  </Property>
+  <Property name="newPaidThroughEpoch" type="bigint | null">
+    Epoch paid through after the settlement; `null` when not indexed.
+  </Property>
+  <Property name="balanceChanged" type="boolean">
+    Whether the settlement moved a balance.
+  </Property>
+  <Property name="timestamp" type="number">
+    Block timestamp, unix seconds.
+  </Property>
+  <Property name="blockNumber" type="bigint">
+    Block number.
+  </Property>
+  <Property name="transaction" type="Hex">
+    Transaction hash.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getQuoteFundingSettlementsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getQuoteFundingSettlementsQueryOptions(config, { quoteIds: [7334n] }));
+```
+
+The query is disabled while `quoteIds` or `partyAs` is an empty array.
+
+## Related
+
+- [`getFundingIndexCheckpoints`](/core/subgraph/get-funding-index-checkpoints) — the market's funding index between settlements.
+- [`getQuoteFunding`](/core/subgraph/get-quote-funding) — the summed totals per quote.
+- [`getQuotesEventsByType`](/core/subgraph/get-quotes-events-by-type) — the `CHARGE_*` funding events, with their decoded metadata.
+- [Funding](/core/concepts/funding) — settled vs pending, and every sign convention.
+- [React `useQuoteFundingSettlements`](/react/subgraph#usequotefundingsettlements) — the hook over this action.

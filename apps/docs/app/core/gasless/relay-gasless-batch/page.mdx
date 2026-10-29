@@ -171,6 +171,10 @@ The batch takes every nonce stream it signs on at once, so a concurrent relay on
 
 The signatures' deadline is fixed when the call starts, so an attempt started at `T` can never execute after `T + GASLESS_SIGNATURE_LIFETIME_SECONDS` (20 minutes).
 
+For a shorter-lived delegation or authorization, pass `deadline` as an absolute Unix timestamp in seconds (`bigint`). It applies to every operation in the batch and must be in the future, at most 20 minutes from call time. Without it, the existing 20-minute default is unchanged. Explicit deadlines are checked again before signing and submission; an expiry during a wallet prompt prevents this attempt from being posted.
+
+Persist the absolute deadline alongside your recovery inputs and idempotency key. Do not replace it with a fresh timestamp on retry. Expiry does not prove that an earlier attempt failed: confirm an accepted request by its saved `requestId` using `confirmGaslessRequest`, independently of signature expiry. An expired deadline cannot be used for a fresh `relayGaslessBatch` attempt.
+
 Pass `idempotencyKey` — one per user action — to make the batch retryable. A later call under the same key never waits for its own earlier submit, returns that submit's receipt when this config saw it accepted, and is otherwise accepted by the service at most once. Without a key, one is generated for this call alone; replay a submit whose response was lost with [`resubmitGaslessRequest`](/core/gasless/resubmit-gasless-request), never by signing the batch again under a new key. See [Recovering gasless writes](/core/gasless/recovering-writes).
 
 <Callout type="warning">
@@ -211,6 +215,9 @@ Pass `idempotencyKey` — one per user action — to make the batch retryable. A
   <Property name="metadata" type="Record<string, unknown>" optional>
     Non-secret client correlation data stored with the request.
   </Property>
+  <Property name="deadline" type="bigint" optional>
+    Absolute signature expiry in Unix seconds for every batch operation. Defaults to call time plus 20 minutes; an explicit value can shorten, but never lengthen, that window.
+  </Property>
   <Property name="from" type="Address" optional>
     The signer to resolve the wallet client with — a session key, for example.
   </Property>
@@ -233,6 +240,9 @@ Pass `idempotencyKey` — one per user action — to make the batch retryable. A
 </Returns>
 
 ## Throws
+
+- `SymmError("validation", "GASLESS_BATCH_DEADLINE_INVALID")`: an explicit deadline is not a future bigint Unix timestamp within 20 minutes. Rejected before network calls or prompts.
+- `SymmError("validation", "GASLESS_BATCH_DEADLINE_EXPIRED")`: the explicit deadline elapsed during preparation or signing. This attempt was not submitted; an earlier attempt must still be reconciled.
 
 - `SymmError("validation", "GASLESS_IDEMPOTENCY_KEY_INVALID")`: the key is blank or longer than 128 characters. Thrown before any network call.
 - `SymmError("config", "GASLESS_NOT_CONFIGURED")` / `("config", "GASLESS_UNSUPPORTED_CONTRACTS_VERSION")`.

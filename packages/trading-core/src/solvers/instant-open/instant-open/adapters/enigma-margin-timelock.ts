@@ -1,67 +1,14 @@
 import { isAxiosError } from "axios";
-import {
-  encodeFunctionData,
-  getAbiItem,
-  hexToBigInt,
-  isAddress,
-  keccak256,
-  sliceHex,
-  toFunctionSelector,
-  zeroAddress,
-  type Address,
-  type Hex,
-} from "viem";
+import { encodeFunctionData, hexToBigInt, keccak256, sliceHex, type Address, type Hex } from "viem";
 import { SymmApiError, SymmError } from "../../../../shared/errors/symm-error";
 import { accountLayerAbi } from "../../../../symmio-contracts/abi/v0.8.6/account-layer";
-import { symmioAbi } from "../../../../symmio-contracts/abi/v0.8.6/symmio";
+import { resolveTimelockRootAccount } from "../../../../symmio-contracts/account-layer/actions/timelock";
+import { INSTANT_OPEN_TIMELOCK_SELECTORS } from "../../../../timelock/policy";
+import { parseTimelockInfo } from "../../../get-solver-info/parse-timelock-info";
 import { getInfo } from "../../../types/generated/enigma-solver";
 import { generateSalt } from "../../shared/operations";
 import type { FlexField } from "../../shared/types";
 import type { InstantOpenAdapterContext } from "./context";
-
-/** The approvable selector policy published by Enigma's /timelock-approval schema. */
-const REQUIRED_CORE_SELECTORS = [
-  "withdraw",
-  "withdrawTo",
-  "initiateWithdraw",
-  "internalTransfer",
-  "allocate",
-  "externalTransfer",
-  "virtualExternalTransfer",
-  "transferToBridge",
-  "deallocate",
-  "safeDeallocate",
-  "depositToReserveVault",
-  "approveOperationalFee",
-  "approveOperationalFeeWithMultiplier",
-] as const;
-const REQUIRED_ACCOUNT_SELECTORS = [
-  "addMargin",
-  "addMarginToNextVA",
-  "removeMargin",
-  "safeRemoveMargin",
-  "emergencyRecoverMargin",
-  "transferSubAccountOwnership",
-  "deleteSubAccount",
-  "setSingleVAMode",
-  "createCustomVirtualAccount",
-] as const;
-const REQUIRED_TIMELOCK_SELECTORS = [
-  ...REQUIRED_CORE_SELECTORS.map((name) => toFunctionSelector(getAbiItem({ abi: symmioAbi, name }))),
-  ...REQUIRED_ACCOUNT_SELECTORS.map((name) => toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name }))),
-];
-
-interface TimelockMetadata {
-  unlocker: Address;
-  validitySeconds: number;
-  minimumDelay: bigint;
-}
-
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
 
 function invalidMetadata(): never {
   throw new SymmError(
@@ -69,37 +16,6 @@ function invalidMetadata(): never {
     "INVALID_INSTANT_OPEN_TIMELOCK_METADATA",
     "instantOpen: the solver's timelock metadata is invalid or belongs to a different chain or AccountLayer.",
   );
-}
-
-function parseMetadata(data: unknown, context: InstantOpenAdapterContext): TimelockMetadata | undefined {
-  const info = record(data);
-  if (!info) return invalidMetadata();
-  // Older Enigma deployments do not advertise this capability. A failed fetch
-  // or an explicitly malformed capability must never select the legacy path.
-  if (!("timelock_approval" in info)) return undefined;
-  const metadata = record(info.timelock_approval);
-  const domain = record(metadata?.request_domain);
-  const unlocker = metadata?.unlocker;
-  const validity = metadata?.validity_seconds;
-  const delay = metadata?.min_timelock_delay_seconds;
-  if (
-    typeof unlocker !== "string" ||
-    !isAddress(unlocker, { strict: false }) ||
-    unlocker.toLowerCase() === zeroAddress ||
-    typeof validity !== "number" ||
-    !Number.isSafeInteger(validity) ||
-    validity < 30 ||
-    typeof delay !== "number" ||
-    !Number.isSafeInteger(delay) ||
-    delay < 0 ||
-    domain?.name !== "SymmioTimelockApprovalRequest" ||
-    domain.version !== "1" ||
-    domain.chainId !== String(context.chainConfig.chainId) ||
-    typeof domain.verifyingContract !== "string" ||
-    domain.verifyingContract.toLowerCase() !== context.chainConfig.addresses.accountLayerAddress.toLowerCase()
-  )
-    return invalidMetadata();
-  return { unlocker: unlocker.toLowerCase() as Address, validitySeconds: validity, minimumDelay: BigInt(delay) };
 }
 
 /** Locate only the reserved signature bytes; every ABI word remains signed and fixed. */
@@ -121,6 +37,7 @@ export async function prepareEnigmaMarginTimelock(
   context: InstantOpenAdapterContext,
   account: Address,
   innerCallData: Hex,
+  requestedDeadline: bigint,
 ): Promise<{ callData: Hex; flexFields: FlexField[]; approvalDeadline?: bigint }> {
   const legacy = { callData: innerCallData, flexFields: [] };
   if (context.chainConfig.contractsVersion === "0.8.5") return legacy;
@@ -144,15 +61,34 @@ export async function prepareEnigmaMarginTimelock(
       },
     );
   }
-  const metadata = parseMetadata(data, context);
+  let metadata;
+  try {
+    metadata = parseTimelockInfo(data, context.chainConfig);
+  } catch {
+    return invalidMetadata();
+  }
   if (!metadata) return legacy;
+
+  const root = await resolveTimelockRootAccount(context.config, { chainId: context.chainId, account });
+  if (root.toLowerCase() !== account.toLowerCase())
+    throw new SymmError(
+      "validation",
+      "INSTANT_OPEN_ROOT_ACCOUNT_REQUIRED",
+      "Wrapped instant opens require the resolved root subaccount in both operations.",
+    );
+  if (context.walletClient.chain?.id !== context.chainConfig.chainId)
+    throw new SymmError(
+      "validation",
+      "TIMELOCK_WALLET_CHAIN_MISMATCH",
+      "Switch the signing wallet to the selected chain.",
+    );
 
   const client = context.config.getClient({ chainId: context.chainConfig.chainId });
   const ready = await client.readContract({
     address: context.chainConfig.addresses.accountLayerAddress,
     abi: accountLayerAbi,
     functionName: "allTimelockedBy",
-    args: [account, metadata.unlocker, metadata.minimumDelay, REQUIRED_TIMELOCK_SELECTORS],
+    args: [root, metadata.unlocker, BigInt(metadata.minTimelockDelaySeconds), INSTANT_OPEN_TIMELOCK_SELECTORS],
   });
   if (!ready) {
     throw new SymmError(
@@ -162,7 +98,14 @@ export async function prepareEnigmaMarginTimelock(
     );
   }
   const { timestamp } = await client.getBlock({ blockTag: "latest" });
-  const approvalDeadline = timestamp + BigInt(metadata.validitySeconds);
+  const approvalDeadline = requestedDeadline;
+  if (approvalDeadline <= 0n || approvalDeadline > 9223372036854775807n || approvalDeadline - timestamp < 30n) {
+    throw new SymmError(
+      "validation",
+      "INSTANT_OPEN_TIMELOCK_APPROVAL_EXPIRED",
+      "Margin approval requires a positive int64 Unix deadline with at least 30 seconds remaining.",
+    );
+  }
   const callData = encodeFunctionData({
     abi: accountLayerAbi,
     functionName: "executeTimelockOp",

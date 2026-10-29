@@ -17,6 +17,8 @@ import type { GetClaimResponseSchema, SearchClaimsResponseSchema } from "../type
 export function toPoolClaim(raw: GetClaimResponseSchema): PoolClaim {
   return {
     claimRequestId: raw.claim_request_id,
+    walletId: raw.wallet_id,
+    marketId: raw.market_id,
     accountAddress: raw.account_address,
     amount: parseListingValue(raw.amount) ?? 0n,
     transactionHash: raw.transaction_hash ?? null,

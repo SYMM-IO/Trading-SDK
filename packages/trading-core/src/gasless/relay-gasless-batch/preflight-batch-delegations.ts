@@ -5,6 +5,7 @@ import { instantLayerAbi } from "../../symmio-contracts/abi/v0.8.6/instant-layer
 import { getIsDelegationActive } from "../../symmio-contracts/instant-layer/actions/get-is-delegation-active";
 import type { ResolvedGaslessBatchEntry } from "../batch/resolve-gasless-batch";
 import { getCachedDelegatorAccount, getCachedGaslessAccountOwner } from "../delegation-preflight";
+import { getEffectiveInstantSelectors } from "../effective-instant-selectors";
 import { getGaslessWalletExecuteSelectors } from "../gasless-wallet-execute/selectors";
 import type { GaslessWalletIdentities } from "../resolve-wallet-identities";
 
@@ -85,7 +86,10 @@ export async function preflightBatchDelegations(
 
     const entryOwner = entry.type === "wallet" ? identities!.ownerWallet : owner;
     if (entryOwner === null || isAddressEqual(signer, entryOwner)) continue;
-    const selectors = entry.type === "wallet" ? getGaslessWalletExecuteSelectors(entry.walletCalls) : [entry.selector];
+    const selectors =
+      entry.type === "wallet"
+        ? getGaslessWalletExecuteSelectors(entry.walletCalls)
+        : getEffectiveInstantSelectors(entry.callData);
     const key = signer.toLowerCase();
     const group = required.get(key) ?? { signer, selectors: new Set<Hex>() };
     for (const selector of selectors) {

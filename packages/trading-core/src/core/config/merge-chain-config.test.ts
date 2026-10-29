@@ -202,6 +202,25 @@ describe("mergeChainConfig — notifications (per-solver)", () => {
 });
 
 describe("mergeChainConfig — contractsVersion", () => {
+  it("does not inherit deployment support for a different AccountLayer", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [SymmioSupportedChainId.BASE]: { addresses: { accountLayerAddress: AFFILIATE, affiliatesAddress: AFFILIATE } },
+      },
+    });
+    expect(config.getChainConfig(SymmioSupportedChainId.BASE).timelockSupported).toBeUndefined();
+  });
+
+  it("permits overriding an explicitly unsupported deployment after an upgrade", () => {
+    const config = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [SymmioSupportedChainId.BASE]: { addresses: { affiliatesAddress: AFFILIATE }, timelockSupported: true },
+      },
+    });
+    expect(config.getChainConfig(SymmioSupportedChainId.BASE).timelockSupported).toBe(true);
+  });
   it("inherits the built-in version when no override is supplied", () => {
     const config = createConfig({
       getClient: () => ({}) as PublicClient,

@@ -69,7 +69,7 @@ export async function cancelWithdraw(
   const { url: baseURL } = resolveListingService(config, { chainId: parameters.chainId });
 
   try {
-    const response = await cancelWithdrawV2MarketWithdrawWithdrawIdDelete(parameters.withdrawId, {
+    const response = await cancelWithdrawV2MarketWithdrawWithdrawIdDelete(encodeURIComponent(parameters.withdrawId), {
       baseURL,
       headers: { Authorization: `Bearer ${parameters.accessToken}` },
     });

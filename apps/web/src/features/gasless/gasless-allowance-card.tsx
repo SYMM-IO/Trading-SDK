@@ -3,6 +3,7 @@
 import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess, ResultWarning } from "@/components/result";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { formatUsd, isUnlimitedAllowance, WEI_DECIMALS } from "@/lib/format";
 import { OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER } from "@symmio/trading-core";
 import {
@@ -12,6 +13,7 @@ import {
   useOperationalFeeAllowance,
   useSymmioChainId,
   useSymmioConfig,
+  useWalletAccount,
 } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -105,6 +107,12 @@ export function GaslessAllowanceCard() {
   const gaslessLayerAddress = useSymmioConfig().getChainConfig(chainId).gasless?.gaslessLayerAddress;
 
   const keep = choice === "keep";
+  const wallet = useWalletAccount();
+  const protection = useProtectedWrite(
+    payer,
+    wallet.address,
+    keep ? "approveOperationalFee" : "approveOperationalFeeWithMultiplier",
+  );
   const approve = keep ? keepApprove : resetApprove;
   const method = keep ? KEEP_METHOD : RESET_METHOD;
   const relayed = keep ? keepRelayed : resetRelayed;
@@ -242,11 +250,24 @@ export function GaslessAllowanceCard() {
       <Button
         type="button"
         size="sm"
-        disabled={!payer || approvalAmount === null || approve.isPending}
+        disabled={!payer || approvalAmount === null || !protection.available || approve.isPending}
         onClick={() => {
           if (!payer || approvalAmount === null) return;
-          if (keep) keepApprove.mutate({ account: payer, amounts: [approvalAmount], ...keepWrite });
-          else resetApprove.mutate({ account: payer, amounts: [approvalAmount], ...resetWrite });
+          void protection.run((timelock) =>
+            keep
+              ? keepApprove.mutateAsync({
+                  account: payer,
+                  amounts: [approvalAmount],
+                  ...keepWrite,
+                  ...(timelock ? { timelock } : {}),
+                })
+              : resetApprove.mutateAsync({
+                  account: payer,
+                  amounts: [approvalAmount],
+                  ...resetWrite,
+                  ...(timelock ? { timelock } : {}),
+                }),
+          );
         }}
         data-testid="button-gasless-approve-allowance"
       >
@@ -259,6 +280,7 @@ export function GaslessAllowanceCard() {
         )}
       </Button>
 
+      <ProtectedWriteNotice protection={protection} />
       {approve.error ? (
         <ResultError kind={approve.error.kind} message={approve.error.message} testId="gasless-approve-error" />
       ) : approve.isSuccess ? (

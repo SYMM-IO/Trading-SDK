@@ -29,6 +29,8 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "approveOperationalFeeAllowanceMutationOptions",
     "approveOperationalFeeMutationOptions",
     "cancelRegistrationMutationOptions",
+    "cancelTimelockOpMutationOptions",
+    "clearTimelocksMutationOptions",
     "createSubAccountsMutationOptions",
     "deallocateAndInitiateWithdrawMutationOptions",
     "deallocateMutationOptions",
@@ -36,6 +38,10 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "depositAndAllocateForAccountMutationOptions",
     "depositForAccountMutationOptions",
     "editAccountNameMutationOptions",
+    "earlyWithdrawMutationOptions",
+    "executeAccountCallsMutationOptions",
+    "executeProtectedFunctionMutationOptions",
+    "executeTimelockOpMutationOptions",
     "finalizeRevokeDelegationMutationOptions",
     "finalizeWithdrawRequestMutationOptions",
     "forceCancelCloseRequestMutationOptions",
@@ -50,6 +56,8 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "requestToCancelCloseRequestMutationOptions",
     "requestToCancelQuoteMutationOptions",
     "requestToRegisterAffiliateMutationOptions",
+    "scheduleTimelockOpMutationOptions",
+    "setupTimelocksMutationOptions",
     "withdrawAutoMutationOptions",
     "withdrawWithExpressMutationOptions",
   ],
@@ -73,8 +81,18 @@ import { useDeleteSubAccount } from "../account-layer/use-delete-sub-account";
 import { useDeposit } from "../account-layer/use-deposit";
 import { useDepositAndAllocate } from "../account-layer/use-deposit-and-allocate";
 import { useEditAccountName } from "../account-layer/use-edit-account-name";
+import { useExecuteAccountCalls } from "../account-layer/use-execute-account-calls";
+import { useProtectedFunction } from "../account-layer/use-protected-function";
 import { useRemoveMargin } from "../account-layer/use-remove-margin";
 import { useRequestToRegisterAffiliate } from "../account-layer/use-request-to-register-affiliate";
+import {
+  useCancelTimelockOp,
+  useClearTimelocks,
+  useExecuteTimelockOp,
+  useScheduleTimelockOp,
+  useSetupTimelocks,
+} from "../account-layer/use-timelock";
+import { useEarlyWithdraw } from "../account-layer/use-timelock-policy";
 import { useApproveCollateral } from "../collateral/use-approve-collateral";
 import { useApproveOperationalFee } from "../gasless/use-approve-operational-fee";
 import { useApproveOperationalFeeAllowance } from "../gasless/use-approve-operational-fee-allowance";
@@ -234,6 +252,91 @@ const PROBES: Probe<never>[] = [
     acceptsGasless: true,
     useWrite: (config) => useEditAccountName({ config, waitForReceipt: false }),
     variables: { account: ACCOUNT, name: "probe" },
+  }),
+  probe({
+    file: "account-layer/use-execute-account-calls.ts",
+    name: "useExecuteAccountCalls",
+    acceptsGasless: true,
+    useWrite: (config) => useExecuteAccountCalls({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, calls: [{ functionName: "allocate", args: [1n] }] },
+  }),
+  probe({
+    file: "account-layer/use-protected-function.ts",
+    name: "useProtectedFunction",
+    acceptsGasless: true,
+    useWrite: (config) => useProtectedFunction({ config, waitForReceipt: false }),
+    variables: {
+      account: ACCOUNT,
+      target: "core",
+      functionName: "allocate",
+      args: [1n],
+      timelock: {
+        capability: {
+          unlocker: ACCOUNT,
+          validitySeconds: 60,
+          minTimelockDelaySeconds: 600,
+          requestDomain: {
+            name: "SymmioTimelockApprovalRequest",
+            version: "1",
+            chainId: 42161,
+            verifyingContract: ACCOUNT,
+          },
+        },
+        provider: {
+          requestApproval: async () => {
+            throw new Error("not called");
+          },
+        },
+        deadline: 2000000000n,
+      },
+    },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useSetupTimelocks",
+    acceptsGasless: true,
+    useWrite: (config) => useSetupTimelocks({ config, waitForReceipt: false }),
+    variables: {
+      account: ACCOUNT,
+      unlocker: VIRTUAL_ACCOUNT,
+      delay: 600n,
+      selectors: ["0x12345678" as Hex],
+    },
+  }),
+  probe({
+    file: "account-layer/use-timelock-policy.ts",
+    name: "useEarlyWithdraw",
+    acceptsGasless: true,
+    useWrite: (config) => useEarlyWithdraw({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, withdrawal: { method: "withdraw", amount: 1n }, deadline: 2_000_000_000n },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useClearTimelocks",
+    acceptsGasless: true,
+    useWrite: (config) => useClearTimelocks({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, selectors: ["0x12345678" as Hex] },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useScheduleTimelockOp",
+    acceptsGasless: true,
+    useWrite: (config) => useScheduleTimelockOp({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, callData: "0x12345678" as Hex },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useCancelTimelockOp",
+    acceptsGasless: true,
+    useWrite: (config) => useCancelTimelockOp({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, callData: "0x12345678" as Hex },
+  }),
+  probe({
+    file: "account-layer/use-timelock.ts",
+    name: "useExecuteTimelockOp",
+    acceptsGasless: true,
+    useWrite: (config) => useExecuteTimelockOp({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, innerCallData: "0x12345678" as Hex, approvals: [] },
   }),
   probe({
     file: "account-layer/use-remove-margin.ts",
@@ -433,6 +536,7 @@ const SOURCE_ROOT = join(import.meta.dirname, "..");
 
 function discoverWriteHooks(): string[] {
   return readdirSync(SOURCE_ROOT, { recursive: true, encoding: "utf8" })
+    .map((entry) => entry.split("\\").join("/"))
     .filter((entry) => entry.endsWith(".ts") || entry.endsWith(".tsx"))
     .filter((entry) => !entry.includes(".test.") && !entry.startsWith("transactions/resolve-write-result"))
     .filter((entry) => readFileSync(join(SOURCE_ROOT, entry), "utf8").includes("resolveWriteResult("))
@@ -442,7 +546,7 @@ function discoverWriteHooks(): string[] {
 
 describe("the probe table covers every write hook", () => {
   it("has a row for each hook that resolves a write result", () => {
-    expect(discoverWriteHooks()).toEqual(PROBES.map((row) => row.file).sort());
+    expect(discoverWriteHooks()).toEqual([...new Set(PROBES.map((row) => row.file))].sort());
   });
 
   /**

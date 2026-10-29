@@ -29,6 +29,74 @@ export { gaslessLayerAbi } from "./symmio-contracts/abi/v0.8.6/gasless-layer";
 export { gaslessWalletAbi } from "./symmio-contracts/abi/v0.8.6/gasless-wallet";
 export { instantLayerAbi } from "./symmio-contracts/abi/v0.8.6/instant-layer";
 export { symmioAbi } from "./symmio-contracts/abi/v0.8.6/symmio";
+export {
+  EarlyWithdrawExecutionError,
+  INSTANT_OPEN_TIMELOCK_ACCOUNT_LAYER_FUNCTIONS,
+  INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS,
+  INSTANT_OPEN_TIMELOCK_SELECTORS,
+  TIMELOCK_APPROVAL_REQUEST_TYPES,
+  TimelockApprovalHttpError,
+  TimelockBatchExecutionError,
+  TimelockExecutionError,
+  TimelockPolicyChangeAuthorizationError,
+  TimelockSetupConfirmationError,
+  TimelockSolverError,
+  assertTimelockAuthorizationUnused,
+  assertTimelockBatchUnused,
+  assertTimelockPolicyChangeReady,
+  createHttpTimelockApprovalProvider,
+  earlyWithdraw,
+  earlyWithdrawMutationOptions,
+  encodeProtectedFunction,
+  encodeTimelockedCoreCall,
+  executeProtectedCall,
+  executeProtectedCallMutationOptions,
+  executeProtectedFunction,
+  executeProtectedFunctionMutationOptions,
+  getTimelockBatchRecovery,
+  getTimelockExecutionRecovery,
+  getTimelockPolicy,
+  getTimelockPolicyChange,
+  getTimelockPolicyQueryKey,
+  getTimelockPolicyQueryOptions,
+  isTimelockPolicyConfigured,
+  matchesScheduledCall,
+  parseTimelockErrorDetails,
+  prepareTimelockApprovalRequest,
+  requestTimelockApproval,
+  requestTimelockApprovalMutationOptions,
+  requiredTimelockDelay,
+  setupTimelockPolicy,
+  setupTimelockPolicyMutationOptions,
+  type EarlyWithdrawParameters,
+  type EarlyWithdrawResult,
+  type EarlyWithdrawalCall,
+  type ExecuteProtectedCallParameters,
+  type ExecuteProtectedFunctionParameters,
+  type GetTimelockPolicyOptions,
+  type GetTimelockPolicyParameters,
+  type GetTimelockPolicyQueryKey,
+  type PrepareTimelockApprovalRequestParameters,
+  type PreparedTimelockApprovalRequest,
+  type ProtectedFunctionCall,
+  type RequestTimelockApprovalParameters,
+  type SetupTimelockPolicyParameters,
+  type TimelockApprovalCapability,
+  type TimelockApprovalProvider,
+  type TimelockApprovalRequestPayload,
+  type TimelockApprovalResponse,
+  type TimelockAuthorization,
+  type TimelockBatchAuthorization,
+  type TimelockErrorCode,
+  type TimelockErrorDetails,
+  type TimelockIndexingStatus,
+  type TimelockPolicyChange,
+  type TimelockPolicyIndexer,
+  type TimelockPolicyReport,
+  type TimelockSelectorStatus,
+  type TimelockSetupResult,
+  type ValidatedTimelockApproval,
+} from "./timelock";
 
 /**
  * Config
@@ -63,6 +131,10 @@ export {
   calculateAvailableForOrder,
   cancelRegistration,
   cancelRegistrationMutationOptions,
+  cancelTimelockOp,
+  cancelTimelockOpMutationOptions,
+  clearTimelocks,
+  clearTimelocksMutationOptions,
   createSubAccounts,
   createSubAccountsMutationOptions,
   deleteSubAccount,
@@ -74,6 +146,8 @@ export {
   editAccountName,
   editAccountNameMutationOptions,
   encodeSubAccountHookMetadata,
+  executeTimelockOp,
+  executeTimelockOpMutationOptions,
   generateAccountManagerAddress,
   generateAccountManagerAddressQueryKey,
   generateAccountManagerAddressQueryOptions,
@@ -89,9 +163,13 @@ export {
   getAffiliateState,
   getAffiliateStateQueryKey,
   getAffiliateStateQueryOptions,
+  getMinTimelockDelay,
   getPredictedNextVirtualAccount,
   getPredictedNextVirtualAccountQueryKey,
   getPredictedNextVirtualAccountQueryOptions,
+  getSelectorTimelock,
+  getSelectorTimelockQueryKey,
+  getSelectorTimelockQueryOptions,
   getSubAccount,
   getSubAccountQueryKey,
   getSubAccountQueryOptions,
@@ -101,6 +179,11 @@ export {
   getSubAccountsCountOfUser,
   getSubAccountsCountOfUserQueryKey,
   getSubAccountsCountOfUserQueryOptions,
+  getTimelockSchedule,
+  getTimelockScheduleGracePeriod,
+  getTimelockScheduleState,
+  getTimelockScheduleStateQueryKey,
+  getTimelockScheduleStateQueryOptions,
   getUserSubAccounts,
   getUserSubAccountsAddresses,
   getUserSubAccountsAddressesQueryKey,
@@ -119,10 +202,17 @@ export {
   getVirtualAccountsOfSubAccount,
   getVirtualAccountsOfSubAccountQueryKey,
   getVirtualAccountsOfSubAccountQueryOptions,
+  hashTimelockApproval,
+  isTimelockApprovalUsed,
   removeMargin,
   removeMarginMutationOptions,
   requestToRegisterAffiliate,
   requestToRegisterAffiliateMutationOptions,
+  resolveTimelockRootAccount,
+  scheduleTimelockOp,
+  scheduleTimelockOpMutationOptions,
+  setupTimelocks,
+  setupTimelocksMutationOptions,
   simulateAddMargin,
   simulateAddMarginMutationOptions,
   simulateCancelRegistration,
@@ -148,6 +238,8 @@ export {
   type CalculateAvailableForOrderParameters,
   type CancelRegistrationParameters,
   type CancelRegistrationReturnType,
+  type CancelTimelockOpParameters,
+  type ClearTimelocksParameters,
   type CreateSubAccountsParameters,
   type CreateSubAccountsReturnType,
   type DeleteSubAccountParameters,
@@ -158,6 +250,7 @@ export {
   type DepositForAccountReturnType,
   type EditAccountNameParameters,
   type EditAccountNameReturnType,
+  type ExecuteTimelockOpParameters,
   type GenerateAccountManagerAddressData,
   type GenerateAccountManagerAddressOptions,
   type GenerateAccountManagerAddressParameters,
@@ -194,6 +287,10 @@ export {
   type GetPredictedNextVirtualAccountQueryKey,
   type GetPredictedNextVirtualAccountQueryOptions,
   type GetPredictedNextVirtualAccountReturnType,
+  type GetSelectorTimelockOptions,
+  type GetSelectorTimelockParameters,
+  type GetSelectorTimelockQueryKey,
+  type GetSelectorTimelockQueryOptions,
   type GetSubAccountData,
   type GetSubAccountOptions,
   type GetSubAccountParameters,
@@ -212,6 +309,11 @@ export {
   type GetSubAccountsCountOfUserQueryKey,
   type GetSubAccountsCountOfUserQueryOptions,
   type GetSubAccountsCountOfUserReturnType,
+  type GetTimelockScheduleParameters,
+  type GetTimelockScheduleStateOptions,
+  type GetTimelockScheduleStateParameters,
+  type GetTimelockScheduleStateQueryKey,
+  type GetTimelockScheduleStateQueryOptions,
   type GetUserSubAccountsAddressesData,
   type GetUserSubAccountsAddressesOptions,
   type GetUserSubAccountsAddressesParameters,
@@ -252,7 +354,11 @@ export {
   type RemoveMarginReturnType,
   type RequestToRegisterAffiliateParameters,
   type RequestToRegisterAffiliateReturnType,
+  type ScheduleTimelockOpParameters,
   type SchnorrSign,
+  type SelectorTimelock,
+  type SetupTimelocksParameters,
+  type SignedTimelockApproval,
   type SimulateAddMarginParameters,
   type SimulateAddMarginReturnType,
   type SimulateCancelRegistrationParameters,
@@ -276,6 +382,9 @@ export {
   type SubAccountCreationData,
   type SubAccountDetail,
   type SubAccountHookMetadataInput,
+  type TimelockApproval,
+  type TimelockSchedule,
+  type TimelockScheduleState,
   type VirtualAccountDetail,
 } from "./symmio-contracts/account-layer";
 
@@ -786,6 +895,7 @@ export {
   createClassicWithdrawPart,
   deallocateAndInitiateWithdraw,
   deallocateAndInitiateWithdrawMutationOptions,
+  encodeInitiateWithdrawCall,
   finalizeWithdrawRequest,
   finalizeWithdrawRequestMutationOptions,
   forceCancelCloseRequest,
@@ -1808,6 +1918,7 @@ export {
   instantOpenAutoMutationOptions,
   instantOpenMutationOptions,
   isolationTypeForSide,
+  prepareInstantOpen,
   prepareInstantOpenParams,
   prepareInstantOpenParamsQueryOptions,
   // resolvers (sub-units used by the wizard)
@@ -1821,6 +1932,7 @@ export {
   sendRasaInstantOpen,
   signAndFormatInstantOperation,
   signSignedOperation,
+  submitPreparedInstantOpen,
   toWeiBigInt,
   // quote constraints — pre-submit validation against market caps/floors
   validateInstantOpenAgainstMarket,
@@ -1877,6 +1989,7 @@ export {
   type PrepareInstantOpenParamsQueryKey,
   type PrepareInstantOpenParamsQueryOptions,
   type PrepareInstantOpenParamsReturnType,
+  type PreparedInstantOpen,
   type QuoteConstraintViolation,
   type RasaInstantOpen,
   type RasaInstantOpenFees,
@@ -1898,6 +2011,7 @@ export {
   type SignedOperationPayload,
   type SolverFeeCaps,
   type SolverFees,
+  type SubmitPreparedInstantOpenParameters,
   type UpnlSig,
   type ValidateInstantOpenAgainstMarketParameters,
   type ValidateInstantOpenAgainstMarketReturnType,
@@ -2153,6 +2267,16 @@ export {
 } from "./symmio-subgraph";
 
 /**
+ * Subgraph entity reads: shared paging
+ * ------------------------------------
+ * The entity reads (`getMarginTransfers`, `getLiquidationDetails`,
+ * `getSubgraphQuotes`, `getQuoteFundingSettlements`, `getFundingIndexCheckpoints`)
+ * take optional filters — each applied only when passed — plus these paging
+ * parameters, and return one {@link SubgraphPage} per call.
+ */
+export { SUBGRAPH_MAX_PAGE_SIZE, type SubgraphPage, type SubgraphPageParameters } from "./symmio-subgraph";
+
+/**
  * Quote history (subgraph)
  * ------------------------
  * `getQuoteHistory` reads a subaccount's closed/liquidated quotes from the
@@ -2203,6 +2327,7 @@ export {
   type GetQuoteEventsByTypeQueryOptions,
   type GetQuoteEventsByTypeReturnType,
   type QuoteEventRow,
+  type QuoteSubgraphEventType,
   type RawQuoteEventNode,
 } from "./quotes";
 
@@ -2259,6 +2384,106 @@ export {
   type QuoteFundingData,
   type RawQuoteFundingRow,
 } from "./quotes";
+
+/**
+ * Subgraph quotes
+ * ---------------
+ * `getSubgraphQuotes` reads the analytics subgraph's `Quote` entities as indexed
+ * (funding index, settled funding totals, lifecycle timestamps) — not the live
+ * on-chain struct, which `getQuote` reads.
+ */
+export {
+  getSubgraphQuotes,
+  getSubgraphQuotesQueryKey,
+  getSubgraphQuotesQueryOptions,
+  toSubgraphQuoteRow,
+  type GetSubgraphQuotesData,
+  type GetSubgraphQuotesOptions,
+  type GetSubgraphQuotesParameters,
+  type GetSubgraphQuotesQueryKey,
+  type GetSubgraphQuotesQueryOptions,
+  type GetSubgraphQuotesReturnType,
+  type RawSubgraphQuoteRow,
+  type SubgraphQuoteRow,
+} from "./quotes";
+
+/**
+ * Funding settlements and index checkpoints (subgraph)
+ * ----------------------------------------------------
+ * `getQuoteFundingSettlements` reads each funding settlement of a quote;
+ * `getFundingIndexCheckpoints` reads the funding-rate index of a market and
+ * PartyB over time. Together they are the raw inputs of a per-epoch funding
+ * timeline; building that timeline is the consumer's.
+ */
+export {
+  getFundingIndexCheckpoints,
+  getFundingIndexCheckpointsQueryKey,
+  getFundingIndexCheckpointsQueryOptions,
+  getQuoteFundingSettlements,
+  getQuoteFundingSettlementsQueryKey,
+  getQuoteFundingSettlementsQueryOptions,
+  toFundingIndexCheckpointRow,
+  toQuoteFundingSettlementRow,
+  type FundingIndexCheckpointRow,
+  type GetFundingIndexCheckpointsData,
+  type GetFundingIndexCheckpointsOptions,
+  type GetFundingIndexCheckpointsParameters,
+  type GetFundingIndexCheckpointsQueryKey,
+  type GetFundingIndexCheckpointsQueryOptions,
+  type GetFundingIndexCheckpointsReturnType,
+  type GetQuoteFundingSettlementsData,
+  type GetQuoteFundingSettlementsOptions,
+  type GetQuoteFundingSettlementsParameters,
+  type GetQuoteFundingSettlementsQueryKey,
+  type GetQuoteFundingSettlementsQueryOptions,
+  type GetQuoteFundingSettlementsReturnType,
+  type QuoteFundingSettlementRow,
+  type RawFundingIndexCheckpointRow,
+  type RawQuoteFundingSettlementRow,
+} from "./funding";
+
+/**
+ * Margin transfers (subgraph)
+ * ---------------------------
+ * `getMarginTransfers` reads margin moved between a SubAccount and its Virtual
+ * Accounts, typed by {@link MarginTransferType} (exported with balance history),
+ * filterable by transaction, account, deployment and time.
+ */
+export {
+  getMarginTransfers,
+  getMarginTransfersQueryKey,
+  getMarginTransfersQueryOptions,
+  toMarginTransferRow,
+  type GetMarginTransfersData,
+  type GetMarginTransfersOptions,
+  type GetMarginTransfersParameters,
+  type GetMarginTransfersQueryKey,
+  type GetMarginTransfersQueryOptions,
+  type GetMarginTransfersReturnType,
+  type MarginTransferRow,
+  type RawMarginTransferRow,
+} from "./margin";
+
+/**
+ * Liquidation details (subgraph)
+ * ------------------------------
+ * `getLiquidationDetails` reads one entity per PartyA liquidation: locked and
+ * paid CVA/LF and the per-PartyB settlement amounts.
+ */
+export {
+  getLiquidationDetails,
+  getLiquidationDetailsQueryKey,
+  getLiquidationDetailsQueryOptions,
+  toLiquidationDetailRow,
+  type GetLiquidationDetailsData,
+  type GetLiquidationDetailsOptions,
+  type GetLiquidationDetailsParameters,
+  type GetLiquidationDetailsQueryKey,
+  type GetLiquidationDetailsQueryOptions,
+  type GetLiquidationDetailsReturnType,
+  type LiquidationDetailRow,
+  type RawLiquidationDetailRow,
+} from "./liquidation";
 
 /**
  * Quote pending funding (on-chain)
@@ -2966,6 +3191,8 @@ export {
   type ListingMarketDetail,
   type PoolPosition,
   type PoolQuote,
+  type PoolQuoteBookEntry,
+  type PoolTradeHistoryRow,
   type PoolTransaction,
   type PoolTransactionPage,
 } from "./pools";
@@ -3071,6 +3298,35 @@ export {
   type UserPoolRewardChart,
 } from "./pools";
 
+export { getPoolClaim, type GetPoolClaimParameters } from "./pools/claim-history";
+export {
+  getPoolMaintenanceFees,
+  getPoolMaintenanceFeesQueryKey,
+  getPoolMaintenanceFeesQueryOptions,
+  type GetPoolMaintenanceFeesOptions,
+  type GetPoolMaintenanceFeesParameters,
+  type GetPoolMaintenanceFeesReturnType,
+  type PoolMaintenanceFees,
+} from "./pools/maintenance-fees";
+export { getPoolMarketData, type GetPoolMarketDataParameters, type PoolMarketData } from "./pools/market-data";
+export {
+  getListingTokenMetadata,
+  getListingTokenMetadataQueryKey,
+  getListingTokenMetadataQueryOptions,
+  type GetListingTokenMetadataOptions,
+  type GetListingTokenMetadataParameters,
+  type GetListingTokenMetadataReturnType,
+  type ListingTokenMetadata,
+} from "./pools/token-metadata";
+export {
+  checkListingTokenSupport,
+  checkListingTokenSupportQueryKey,
+  checkListingTokenSupportQueryOptions,
+  type CheckListingTokenSupportOptions,
+  type CheckListingTokenSupportParameters,
+  type CheckListingTokenSupportReturnType,
+} from "./pools/token-support";
+export { getPoolTransactionRange } from "./pools/transactions";
 export { validateInstantOpenBalanceFunding } from "./solvers/instant-open/shared/resolve-instant-open-sizing";
 
 /**
@@ -3111,3 +3367,63 @@ export {
   type GetWithdrawCooldownOfQueryOptions,
   type GetWithdrawCooldownOfReturnType,
 } from "./symmio-contracts/symmio";
+
+export {
+  calculatePoolPortfolio,
+  getPoolPortfolio,
+  getPoolPortfolioQueryKey,
+  getPoolPortfolioQueryOptions,
+  type CalculatePoolPortfolioParameters,
+  type GetPoolPortfolioOptions,
+  type GetPoolPortfolioParameters,
+  type GetPoolPortfolioQueryKey,
+  type GetPoolPortfolioReturnType,
+} from "./pools/portfolio";
+
+export {
+  calculatePoolPosition,
+  getPoolPosition,
+  getPoolPositionQueryKey,
+  getPoolPositionQueryOptions,
+  type CalculatePoolPositionParameters,
+  type GetPoolPositionOptions,
+  type GetPoolPositionParameters,
+  type GetPoolPositionQueryKey,
+  type GetPoolPositionReturnType,
+} from "./pools/position";
+
+export {
+  calculatePoolStatistics,
+  getPoolStatistics,
+  getPoolStatisticsQueryKey,
+  getPoolStatisticsQueryOptions,
+  type CalculatePoolStatisticsParameters,
+  type GetPoolStatisticsOptions,
+  type GetPoolStatisticsParameters,
+  type GetPoolStatisticsQueryKey,
+  type GetPoolStatisticsReturnType,
+} from "./pools/statistics";
+
+export type { PoolReadGap } from "./pools/composition";
+export {
+  calculatePoolOpenPositions,
+  getPoolOpenPositions,
+  getPoolOpenPositionsQueryKey,
+  getPoolOpenPositionsQueryOptions,
+  type CalculatePoolOpenPositionsParameters,
+  type GetPoolOpenPositionsOptions,
+  type GetPoolOpenPositionsParameters,
+  type GetPoolOpenPositionsQueryKey,
+  type GetPoolOpenPositionsReturnType,
+} from "./pools/open-positions";
+export type { PoolOpenPositions } from "./pools/open-positions";
+export type { PoolPortfolio, PoolPortfolioPosition, PoolPortfolioPrice } from "./pools/portfolio";
+export type { PoolDepositHistory, PoolPositionData } from "./pools/position";
+export type { PoolStatistics } from "./pools/statistics";
+
+export {
+  getListingSignInMessageQueryKey,
+  getListingSignInMessageQueryOptions,
+  type GetListingSignInMessageOptions,
+  type GetListingSignInMessageQueryKey,
+} from "./pools/auth/query";

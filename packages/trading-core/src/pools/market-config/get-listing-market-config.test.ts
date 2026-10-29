@@ -55,6 +55,7 @@ describe("getListingMarketConfig", () => {
       },
     );
     expect(marketConfig).toEqual({
+      maxLeverageBounds: null,
       tokenContractAddress: PARAMETERS.tokenContractAddress,
       depositChain: ListingDepositChainId.HYPER_EVM,
       userMaxLeverage: 10,

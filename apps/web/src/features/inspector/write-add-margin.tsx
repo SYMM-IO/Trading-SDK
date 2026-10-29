@@ -4,6 +4,7 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useAddMargin, useSimulateAddMargin, useVirtualAccount, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -19,12 +20,13 @@ import { VirtualAccountField } from "./virtual-account-field";
 const MARGIN_DECIMALS = 18;
 
 export function WriteAddMargin() {
-  const { isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain, address: owner } = useWalletAccount();
   const [virtualAccount, setVirtualAccount] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
 
   const validVa = isAddress(virtualAccount) ? (virtualAccount as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
+  const protection = useProtectedWrite(validVa, owner, "addMargin");
   const canSubmit = isConnected && isOnExpectedChain && validVa && validAmount !== undefined;
 
   const mutation = useAddMargin();
@@ -95,10 +97,17 @@ export function WriteAddMargin() {
         <Button
           type="button"
           size="sm"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || !protection.available || mutation.isPending}
           onClick={() => {
             if (!validVa || validAmount === undefined) return;
-            mutation.mutate({ virtualAccount: validVa, amount: validAmount, ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({
+                virtualAccount: validVa,
+                amount: validAmount,
+                ...write,
+                ...(timelock ? { timelock } : {}),
+              }),
+            );
           }}
           data-testid="button-send-add-margin"
         >
@@ -119,6 +128,7 @@ export function WriteAddMargin() {
         testId="result-simulate-addMargin"
       />
 
+      <ProtectedWriteNotice protection={protection} />
       <WritePanel mutation={mutation} />
     </MethodCard>
   );

@@ -8,7 +8,9 @@ import type { ListingAuthToken, ListingSignInMessage, ListingSiweParams } from "
  * @param raw - The generated `SignInMessageResponseSchema` from the backend.
  * @returns The normalized sign-in message.
  */
-export function toListingSignInMessage(raw: SignInMessageResponseSchema): ListingSignInMessage {
+export function toListingSignInMessage(
+  raw: SignInMessageResponseSchema & { params: { expirationTime?: string | null } },
+): ListingSignInMessage {
   return {
     message: raw.message,
     params: {
@@ -20,6 +22,7 @@ export function toListingSignInMessage(raw: SignInMessageResponseSchema): Listin
       issuedAt: raw.params.issuedAt,
       nonce: raw.params.nonce,
       statement: raw.params.statement,
+      ...(raw.params.expirationTime != null ? { expirationTime: raw.params.expirationTime } : {}),
     },
   };
 }
@@ -42,6 +45,7 @@ export function toCustomSiweMessage(params: ListingSiweParams): CustomSiweMessag
     issuedAt: params.issuedAt,
     nonce: params.nonce,
     statement: params.statement,
+    ...(params.expirationTime != null ? { expirationTime: params.expirationTime } : {}),
   };
 }
 

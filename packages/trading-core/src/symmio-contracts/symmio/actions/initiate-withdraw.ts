@@ -1,6 +1,7 @@
 import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 import type { WithdrawReceiverPart } from "../types";
@@ -11,6 +12,8 @@ import type { WithdrawReceiverPart } from "../types";
 export type InitiateWithdrawParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for a timelocked selector. */
+      timelock?: TimelockAuthorization;
       /**
        * The subaccount initiating the withdrawal. The call is routed through the
        * AccountLayer `_call` proxy so the core sees this subaccount as the caller;
@@ -40,6 +43,17 @@ export type InitiateWithdrawParameters = Compute<
 
 /** Return type of {@link initiateWithdraw}: the submitted transaction hash. */
 export type InitiateWithdrawReturnType = Hash;
+
+/** Encode the canonical raw Core calldata bound by a timelock approval or schedule. */
+export function encodeInitiateWithdrawCall(
+  parameters: Pick<InitiateWithdrawParameters, "parts" | "speedUp" | "providerData">,
+): Hex {
+  return encodeFunctionData({
+    abi: symmioAbi,
+    functionName: "initiateWithdraw",
+    args: [parameters.parts, parameters.speedUp ?? false, parameters.providerData ?? "0x"],
+  });
+}
 
 /**
  * Open a withdraw request for a subaccount.
@@ -78,11 +92,15 @@ export async function initiateWithdraw(
 ): Promise<InitiateWithdrawReturnType> {
   const { chainId, account, parts, speedUp = false, providerData = "0x" } = parameters;
 
-  const data = encodeFunctionData({
-    abi: symmioAbi,
-    functionName: "initiateWithdraw",
-    args: [parts, speedUp, providerData],
-  });
+  const data = encodeInitiateWithdrawCall({ parts, speedUp, providerData });
+
+  if (parameters.timelock)
+    return executeProtectedCall(config, {
+      ...parameters,
+      callData: data,
+      target: "core",
+      timelock: parameters.timelock,
+    });
 
   return callAsSubAccount(config, {
     account,

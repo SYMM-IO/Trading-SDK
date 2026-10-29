@@ -4,9 +4,10 @@ import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute, FromParameter } from "../../shared/types/properties";
 import { resolveListingService } from "../resolve-listing";
 import { loginV2AuthLoginPost } from "../types/generated/listing-backend";
+import { canReuseListingChallenge } from "./can-reuse-listing-challenge";
 import { getListingSignInMessage } from "./get-sign-in-message";
 import { toCustomSiweMessage, toListingAuthToken } from "./to-siwe";
-import type { ListingAuthToken } from "./types";
+import type { ListingAuthToken, ListingSignInMessage } from "./types";
 
 /**
  * Parameters for {@link authenticateListing}.
@@ -23,6 +24,8 @@ export type AuthenticateListingParameters = Compute<
       uri: string;
       /** Optional human-readable statement to embed in the message. */
       statement?: string;
+      /** SDK-issued challenge fetched before the user's signing gesture. Must match the wallet and origin. */
+      signInMessage?: ListingSignInMessage;
     }
 >;
 
@@ -63,14 +66,19 @@ export async function authenticateListing(
 
   const walletClient = await config.getWalletClient({ chainId: parameters.chainId, from: parameters.from });
   const address = walletClient.account.address;
+  const chainId = config.getChainConfig(parameters.chainId).chainId;
 
-  const signIn = await getListingSignInMessage(config, {
-    chainId: parameters.chainId,
-    address,
-    domain: parameters.domain,
-    uri: parameters.uri,
-    statement: parameters.statement,
-  });
+  const signIn =
+    (parameters.signInMessage && canReuseListingChallenge(parameters.signInMessage, { ...parameters, address, chainId })
+      ? parameters.signInMessage
+      : undefined) ??
+    (await getListingSignInMessage(config, {
+      chainId: parameters.chainId,
+      address,
+      domain: parameters.domain,
+      uri: parameters.uri,
+      statement: parameters.statement,
+    }));
 
   const signature = await walletClient.signMessage({
     account: walletClient.account,

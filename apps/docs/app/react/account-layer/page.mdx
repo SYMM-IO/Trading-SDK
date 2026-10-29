@@ -11,6 +11,8 @@ The page is split into two groups:
 
 Every write also has a paired `useSimulateXyz` — see [Simulate then write](../concepts/simulate-then-write).
 
+Account timelock hooks are documented in [Account timelocks](#account-timelocks).
+
 ## Reads
 
 ### `useUserSubAccounts`
@@ -310,6 +312,159 @@ On success, the hook invalidates every cached `useUserSubAccounts` query in the 
 #### Why this hook needs a connected wallet
 
 The hook reads `useSymmioWalletClient()` under the hood. If the user is disconnected or on the wrong chain, calling `mutate` throws a `SymmioRequestError` with `kind: "sdk"` before any contract call is made. UIs typically gate the button on `useWalletAccount().isOnExpectedChain` to avoid the error path entirely.
+
+## Account timelocks
+
+For protected writes, pass the optional `timelock` mutation variable to
+`useAllocate`, `useDeallocate`, `useAddMargin`, `useRemoveMargin`, or
+`useDeleteSubAccount`. Omitting it preserves the ordinary write. `useProtectedCall`
+executes one raw Core or AccountLayer call; `useTimelockApprovalProvider` creates
+the standard HTTP provider for the selected solver, and `useTimelockSelector`
+looks up an SDK policy selector by function name. `useScheduledCallMatch`
+checks that a single scheduled raw call matches its execution payload. See the
+[execution reference](/core/account-layer/timelocks/execution) for one-attempt
+authorization, receipt recovery and Muon-signature handling.
+
+`useProtectedFunction` executes any of the 22 named functions with ABI-typed
+arguments and explicit timelock authorization. `useProtectedFunctionCatalog`
+provides their target and ABI inputs to build an inspector. Successful receipts
+refresh the affected reads; approval requests are never automatically retried.
+`useProtectedFunctionEncoder` exposes the same pure encoder for preflight validation
+before the app creates an attempt or shows a wallet prompt.
+
+`useExecuteAccountCalls` executes named Core calls atomically and accepts the
+optional per-call batch `timelock` authorization. It waits for a receipt by default,
+does not retry automatically and refreshes affected reads only after confirmation.
+
+The React package exposes the same provider-neutral timelock flow as core:
+
+| Hook                         | Purpose                                                                                      |
+| ---------------------------- | -------------------------------------------------------------------------------------------- |
+| `useSelectorTimelock`        | Read the unlocker and delay configured for one root-account selector.                        |
+| `useSetupTimelocks`          | Configure or update selector policy on the root account.                                     |
+| `useClearTimelocks`          | Remove selector policies from the root account.                                              |
+| `useRequestTimelockApproval` | Sign and send exactly one approval request; automatic retries are disabled.                  |
+| `useScheduleTimelockOp`      | Schedule exact raw operation calldata for delayed fallback execution.                        |
+| `useTimelockScheduleState`   | Read the derived `readyAt` and `expiresAt` execution window.                                 |
+| `useCancelTimelockOp`        | Cancel a pending fallback schedule.                                                          |
+| `useExecuteTimelockOp`       | Execute wrapped AccountLayer calldata with signed approvals or a mature schedule.            |
+| `useTimelockPolicy`          | Resolve root/VA and read all 22 selector statuses in one pass.                               |
+| `useSetupTimelockPolicy`     | Configure with safe defaults; return confirmed receipt and separate indexing status.         |
+| `useEarlyWithdraw`           | Obtain one approval and execute an owner-wallet withdrawal; preserve recovery data on error. |
+
+### High-level hooks
+
+```tsx
+import { useTimelockPolicy, useSetupTimelockPolicy, useEarlyWithdraw } from "@symmio/trading-react";
+const policy = useTimelockPolicy({ account, chainId });
+const setup = useSetupTimelockPolicy();
+const withdrawal = useEarlyWithdraw();
+
+async function configure() {
+  const result = await setup.mutateAsync({ account, chainId, indexer });
+  // Confirmation is not indexing: wait unless policy.ready && indexing === "indexed".
+  return result;
+}
+async function withdraw() {
+  return withdrawal.mutateAsync({
+    account,
+    chainId,
+    withdrawal: { method: "withdraw", amount },
+    deadline,
+    onApproval: persistApproval,
+  });
+}
+```
+
+| Hook                     | Inputs / mutation variables                                                                     | Result                                                                                                              |
+| ------------------------ | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `useTimelockPolicy`      | `UseTimelockPolicyParameters` = core `GetTimelockPolicyOptions` plus optional `config`.         | `UseQueryResult<TimelockPolicyReport, SymmioRequestError>`.                                                         |
+| `useSetupTimelockPolicy` | Optional `ConfigParameter`; mutate with `SetupTimelockPolicyParameters`.                        | `UseMutationResult<TimelockSetupResult, SymmioRequestError, SetupTimelockPolicyParameters>`. Always confirms setup. |
+| `useEarlyWithdraw`       | Optional `WriteParameters` (`config`, receipt controls); mutate with `EarlyWithdrawParameters`. | `UseMutationResult<EarlyWithdrawWriteResult, SymmioRequestError, EarlyWithdrawParameters>`.                         |
+
+`EarlyWithdrawWriteResult` combines core `EarlyWithdrawResult` with `WriteResult`
+(receipt and optional gasless recovery handle). The default waits for the receipt;
+`waitForReceipt: false` returns a submission and does not invalidate caches as confirmed.
+All timelock writes disable automatic retries even when the application sets a global
+mutation retry default. A confirmation error retains the approval and hash in
+`error.cause` (`EarlyWithdrawExecutionError`); do not repeat issuance.
+The error keeps the underlying `kind` and `code`: relay failures remain `api`, and
+mined reverts remain `TransactionRevertedError` with `kind: "contract-revert"`,
+`code: "TRANSACTION_REVERTED"`, `hash` and `receipt`. Wallet rejection remains
+`user-rejected`; an unclassified timeout remains `unknown`. Recovery context stays
+in `cause` without replacing the failure classification.
+
+See [core policy](../../core/account-layer/timelocks/policy) for indexing semantics and
+[core withdrawal](../../core/account-layer/timelocks/approval) for parameter descriptions.
+
+### Low-level hooks
+
+`useSelectorTimelock(UseSelectorTimelockParameters)` returns
+`UseQueryResult<SelectorTimelock, SymmioRequestError>`; inputs are core selector query
+options plus optional `config`. `useTimelockScheduleState(UseTimelockScheduleStateParameters)`
+likewise accepts core schedule query options plus `config` and returns
+`UseQueryResult<TimelockScheduleState, SymmioRequestError>`.
+
+The five low-level write hooks (`useSetupTimelocks`, `useClearTimelocks`,
+`useScheduleTimelockOp`, `useCancelTimelockOp`, `useExecuteTimelockOp`) accept optional
+`WriteParameters` and return a mutation of `WriteResult` with the corresponding
+core action's parameter type. `useRequestTimelockApproval` instead accepts optional
+`ConfigParameter`, mutates with `RequestTimelockApprovalParameters`, and returns
+`ValidatedTimelockApproval`, not a receipt. Every error is normalized to `SymmioRequestError`.
+
+```tsx
+import { useExecuteTimelockOp, useRequestTimelockApproval, useTimelockScheduleState } from "@symmio/trading-react";
+import { encodeTimelockedCoreCall } from "@symmio/trading-core";
+
+const approval = useRequestTimelockApproval();
+const execute = useExecuteTimelockOp();
+const schedule = useTimelockScheduleState({
+  account: rootAccount,
+  callData: rawCoreCallData,
+});
+
+async function executeApproved() {
+  const result = await approval.mutateAsync({
+    provider,
+    capability,
+    account,
+    rootAccount,
+    callData: rawCoreCallData,
+    deadline: requestDeadline,
+  });
+
+  await execute.mutateAsync({
+    account: rootAccount,
+    innerCallData: encodeTimelockedCoreCall(account, rawCoreCallData),
+    approvals: [result.signedApproval],
+    gasless: true,
+  });
+}
+```
+
+The read hooks require their identifying inputs instead of silently disabling on missing values. After a confirmed write, the mutation hooks invalidate the affected policy or schedule reads. Confirmed execution refreshes balances and the inner operation's affected reads, using the same domain rules as gasless batches. For example, a wrapped withdrawal refreshes withdrawal reads, while `deleteSubAccount` refreshes account lists, addresses, counts, and account details. Other deployment caches are unchanged. A rejected, reverted, or unconfirmed execution does not trigger these refreshes.
+
+#### Deleting a timelocked sub-account
+
+Use the existing approval and execution hooks for a protected deletion. Encode
+`deleteSubAccount(subAccount)` with `accountLayerAbi`; send that raw calldata to
+`useRequestTimelockApproval`, then pass it unchanged as `innerCallData` to
+`useExecuteTimelockOp` with the returned signed approval. This is an AccountLayer
+call, so do **not** wrap it in `_call`. Use the root account for approval and
+execution authority. A previously scheduled deletion can instead execute with
+empty approvals once its delay has matured and before its grace period expires.
+
+These hooks do not choose a fallback or request a second approval automatically.
+Normal deletion restrictions still apply; a timelock approval does not bypass
+balance, position, ownership, or virtual-account checks. The execution action
+simulates the full wrapper by default before wallet submission; relay submission
+continues to use the shared gasless pipeline. Only a successful receipt means the
+deletion completed. The unwrapped `useDeleteSubAccount` hook remains unchanged;
+it does not acquire timelock approvals on the caller's behalf.
+
+The approval hook never retries the provider POST. Treat a timeout as ambiguous unless the provider offers an explicit reconciliation mechanism. See the full [core workflow](/core/account-layer/timelocks) for root-versus-VA handling, fallback scheduling, independent Core cooldown, and gasless delegation.
+
+If a decoded contract revert reports `TimelockOpNotApprovedOrScheduled`, React normalizes it to a `contract-revert` with code `TIMELOCK_REQUIRED`, preserving the original error as its cause. Other contract reverts retain their existing classification.
 
 ## Account creation: recovery and cache ownership
 

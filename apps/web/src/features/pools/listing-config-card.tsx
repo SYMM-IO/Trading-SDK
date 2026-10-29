@@ -98,14 +98,20 @@ export function ListingConfigCard() {
             <Stat
               size="sm"
               label="Config updates"
-              value={`${data.rateLimits.marketConfigUpdatesPerDay}/day`}
+              value={
+                data.rateLimits.marketConfigUpdatesPerDay == null
+                  ? "Unknown"
+                  : `${data.rateLimits.marketConfigUpdatesPerDay}/day`
+              }
               hint="Market-config rate limit"
               testId="listing-config-market-config-updates"
             />
             <Stat
               size="sm"
               label="Profit claims"
-              value={`${data.rateLimits.profitClaimsPerDay}/day`}
+              value={
+                data.rateLimits.profitClaimsPerDay == null ? "Unknown" : `${data.rateLimits.profitClaimsPerDay}/day`
+              }
               hint="Claim rate limit"
               testId="listing-config-profit-claims"
             />

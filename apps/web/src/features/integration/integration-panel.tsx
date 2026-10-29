@@ -1,6 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/page-header";
+import { TimelockFlow } from "@/features/timelock/timelock-flow";
 import {
   useCollateralBalance,
   useSupportsLimitOrder,
@@ -156,6 +157,8 @@ export function IntegrationPanel() {
                 ready={ready}
                 onStartTrading={() => selectFlow("instant-open")}
               />
+            ) : activeTab === "timelock" ? (
+              <TimelockFlow owner={address} subAccount={subAccount} onSelectSubAccount={setSubAccount} ready={ready} />
             ) : activeTab === "deposit" ? (
               <DepositFlow
                 owner={address}

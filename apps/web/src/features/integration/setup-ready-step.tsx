@@ -110,6 +110,7 @@ export function SetupReadyStep({ track, complete, onStartTrading }: Props) {
         size="lg"
         className="w-full"
         onClick={onStartTrading}
+        disabled={!complete}
         data-testid="button-setup-start-trading"
       >
         Go to the trading flows

@@ -4,6 +4,7 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useAllocate, useSimulateAllocate, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -19,12 +20,13 @@ import { SubAccountField } from "./subaccount-field";
 const MARGIN_DECIMALS = 18;
 
 export function WriteAllocate() {
-  const { isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain, address: owner } = useWalletAccount();
   const [account, setAccount] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
 
   const validAccount = isAddress(account) ? (account as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
+  const protection = useProtectedWrite(validAccount, owner, "allocate");
   const canSubmit = isConnected && isOnExpectedChain && validAccount && validAmount !== undefined;
 
   const mutation = useAllocate();
@@ -92,10 +94,17 @@ export function WriteAllocate() {
         <Button
           type="button"
           size="sm"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || !protection.available || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount, ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({
+                account: validAccount,
+                amount: validAmount,
+                ...write,
+                ...(timelock ? { timelock } : {}),
+              }),
+            );
           }}
           data-testid="button-send-allocate"
         >
@@ -116,6 +125,7 @@ export function WriteAllocate() {
         testId="result-simulate-allocate"
       />
 
+      <ProtectedWriteNotice protection={protection} />
       <WritePanel mutation={mutation} />
     </MethodCard>
   );

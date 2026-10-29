@@ -1,7 +1,8 @@
-import { SymmApiError, SymmError } from "@symmio/trading-core";
+import { accountLayerAbi, SymmApiError, SymmError, TimelockSolverError } from "@symmio/trading-core";
 import {
   BaseError,
   ContractFunctionRevertedError,
+  encodeErrorResult,
   HttpRequestError,
   InsufficientFundsError,
   TransactionExecutionError,
@@ -12,6 +13,50 @@ import { normalizeSymmError } from "./normalize-symm-error";
 import { SymmioRequestError } from "./symmio-request-error";
 
 describe("normalizeSymmError", () => {
+  it("identifies a decoded timelock revert without changing other contract errors", () => {
+    const data = encodeErrorResult({
+      abi: accountLayerAbi,
+      errorName: "TimelockOpNotApprovedOrScheduled",
+      args: ["0x0000000000000000000000000000000000000001", `0x${"12".repeat(32)}`],
+    });
+    const error = new ContractFunctionRevertedError({ abi: accountLayerAbi, data, functionName: "addMargin" });
+    expect(normalizeSymmError(error)).toMatchObject({
+      kind: "contract-revert",
+      code: "TIMELOCK_REQUIRED",
+      reason: "TimelockOpNotApprovedOrScheduled",
+      cause: error,
+    });
+  });
+  it("preserves typed timelock diagnostics and the original response", () => {
+    const body = {
+      code: 3711,
+      error_category: "account_state",
+      error_message: "Policy required",
+      error_detail: "Missing selector 0x2e1a7d4d",
+    };
+    const error = new TimelockSolverError({
+      code: "FAILED",
+      message: "Failed",
+      status: 400,
+      statusText: "Bad Request",
+      url: "https://solver.example",
+      method: "POST",
+      responseData: body,
+    });
+    const normalized = normalizeSymmError(error);
+    expect(normalized).toMatchObject({
+      kind: "api",
+      code: "3711",
+      responseData: body,
+      timelock: {
+        knownCode: 3711,
+        errorCategory: "account_state",
+        firstMissingSelector: "0x2e1a7d4d",
+        errorDetail: body.error_detail,
+      },
+    });
+    expect(normalized.cause).toBe(error);
+  });
   it("returns the same instance when already a SymmioRequestError", () => {
     const original = new SymmioRequestError({ kind: "user-rejected", message: "x" });
     expect(normalizeSymmError(original)).toBe(original);

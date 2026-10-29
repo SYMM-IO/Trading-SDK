@@ -12,7 +12,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrum } from "viem/chains";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId, getChainConfig } from "../../core/chains";
 import { gaslessWalletAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-wallet";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
@@ -144,9 +144,72 @@ function postedBody(): PostedBody {
 }
 
 describe("relayGaslessBatch", () => {
+  afterEach(() => vi.restoreAllMocks());
   beforeEach(() => {
     post.mockReset();
     post.mockResolvedValue({ headers: HEADERS, data: ACCEPTED });
+  });
+
+  describe("absolute batch deadline", () => {
+    const now = 2_000_000_000;
+    beforeEach(() => vi.spyOn(Date, "now").mockReturnValue(now * 1_000));
+
+    it.each([undefined, BigInt(now + 300), BigInt(now + 1200)])(
+      "signs every operation with the requested expiry (%s)",
+      async (deadline) => {
+        const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+        programReads(readContract);
+        await relayGaslessBatch(config, {
+          account: SUB_ACCOUNT,
+          deadline,
+          calls: [{ functionName: "allocate", args: [1n] }, { walletCalls: [TRANSFER] }],
+        });
+        const expected = deadline ?? BigInt(now + 1200);
+        expect(signTypedData.mock.calls.map(([data]) => data.message.replayAttackHeader.deadline)).toEqual([
+          expected,
+          expected,
+        ]);
+        expect(postedBody().signedOps).toEqual([
+          expect.objectContaining({ replayAttackHeader: expect.objectContaining({ deadline: Number(expected) }) }),
+          expect.objectContaining({ replayAttackHeader: expect.objectContaining({ deadline: Number(expected) }) }),
+        ]);
+      },
+    );
+
+    it.each([0n, BigInt(now - 1), BigInt(now), BigInt(now + 1201)])(
+      "rejects invalid expiry before any network or signature (%s)",
+      async (deadline) => {
+        const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+        await expect(
+          relayGaslessBatch(config, {
+            account: SUB_ACCOUNT,
+            deadline,
+            calls: [{ functionName: "allocate", args: [1n] }],
+          }),
+        ).rejects.toMatchObject({ code: "GASLESS_BATCH_DEADLINE_INVALID" });
+        expect(readContract).not.toHaveBeenCalled();
+        expect(signTypedData).not.toHaveBeenCalled();
+        expect(post).not.toHaveBeenCalled();
+      },
+    );
+
+    it("does not submit when the deadline expires during a wallet prompt", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+      programReads(readContract);
+      signTypedData.mockImplementationOnce(async () => {
+        vi.mocked(Date.now).mockReturnValue((now + 300) * 1_000);
+        return TEST_GASLESS_SIGNATURE;
+      });
+      await expect(
+        relayGaslessBatch(config, {
+          account: SUB_ACCOUNT,
+          deadline: BigInt(now + 300),
+          calls: [{ functionName: "allocate", args: [1n] }],
+        }),
+      ).rejects.toMatchObject({ code: "GASLESS_BATCH_DEADLINE_EXPIRED" });
+      expect(signTypedData).toHaveBeenCalledOnce();
+      expect(post).not.toHaveBeenCalled();
+    });
   });
 
   it("relays several writes as one request, on sequential InstantLayer nonces", async () => {
@@ -552,44 +615,55 @@ describe("relayGaslessBatch", () => {
       expect(promptSigners(signTypedData)).toEqual([SESSION_KEY, SESSION_KEY]);
     });
 
-    it("uses a preceding owner grant for a session-signed wallet entry without resolving a default wallet", async () => {
-      const { config, readContract, signTypedData, getBlock } = gaslessWriteTestConfig(undefined, {
-        signersByFrom: { [SESSION_KEY]: SESSION_KEY },
-        localSigners: [SESSION_KEY],
-      });
-      programReads(readContract, { isDelegationActive: false });
-      const walletCall = { walletId: 2n, walletCalls: [TRANSFER], from: SESSION_KEY };
-      const [grant] = onboardingCalls(getGaslessBatchSelectors([walletCall]));
-      const getWalletClient = vi.fn(async (parameters: Parameters<typeof config.getWalletClient>[0]) => {
-        if (!parameters?.from) throw new Error("No default wallet is connected");
-        return config.getWalletClient(parameters);
-      });
-      await relayGaslessBatch(
-        { ...config, getWalletClient },
-        {
-          account: SUB_ACCOUNT,
-          calls: [{ ...grant, from: TEST_GASLESS_SIGNER }, walletCall],
-        },
-      );
-      expect(getWalletClient.mock.calls.map(([parameters]) => parameters?.from)).toEqual([
-        TEST_GASLESS_SIGNER,
-        SESSION_KEY,
-      ]);
-      expect(promptSigners(signTypedData)).toEqual([SESSION_KEY, TEST_GASLESS_SIGNER]);
-      expect(postedBody().signedOps).toMatchObject([
-        {
-          signer: TEST_GASLESS_SIGNER,
-          flexFields: [],
-          maxUses: 1,
-          signerAccount: { addr: SUB_ACCOUNT, isPartyB: false },
-        },
-        { signer: SESSION_KEY, target: WALLET },
-      ]);
-      expect(getBlock).toHaveBeenCalledExactlyOnceWith({ blockTag: "latest" });
-      expect(readContract.mock.calls.some(([read]) => (read as StubRead).functionName === "isDelegationActive")).toBe(
-        false,
-      );
-    });
+    it.each([false, true])(
+      "uses a preceding owner grant with one owner prompt (explicit deadline: %s)",
+      async (explicit) => {
+        const { config, readContract, signTypedData, getBlock } = gaslessWriteTestConfig(undefined, {
+          signersByFrom: { [SESSION_KEY]: SESSION_KEY },
+          localSigners: [SESSION_KEY],
+        });
+        programReads(readContract, { isDelegationActive: false });
+        const walletCall = { walletId: 2n, walletCalls: [TRANSFER], from: SESSION_KEY };
+        const deadline = explicit ? BigInt(Math.floor(Date.now() / 1000) + 300) : undefined;
+        const [grant] = onboardingCalls(getGaslessBatchSelectors([walletCall]));
+        const getWalletClient = vi.fn(async (parameters: Parameters<typeof config.getWalletClient>[0]) => {
+          if (!parameters?.from) throw new Error("No default wallet is connected");
+          return config.getWalletClient(parameters);
+        });
+        await relayGaslessBatch(
+          { ...config, getWalletClient },
+          {
+            account: SUB_ACCOUNT,
+            calls: [{ ...grant, from: TEST_GASLESS_SIGNER }, walletCall],
+            deadline,
+          },
+        );
+        expect(getWalletClient.mock.calls.map(([parameters]) => parameters?.from)).toEqual([
+          TEST_GASLESS_SIGNER,
+          SESSION_KEY,
+        ]);
+        expect(promptSigners(signTypedData)).toEqual([SESSION_KEY, TEST_GASLESS_SIGNER]);
+        if (deadline !== undefined) {
+          expect(signTypedData.mock.calls.map(([data]) => data.message.replayAttackHeader.deadline)).toEqual([
+            deadline,
+            deadline,
+          ]);
+        }
+        expect(postedBody().signedOps).toMatchObject([
+          {
+            signer: TEST_GASLESS_SIGNER,
+            flexFields: [],
+            maxUses: 1,
+            signerAccount: { addr: SUB_ACCOUNT, isPartyB: false },
+          },
+          { signer: SESSION_KEY, target: WALLET },
+        ]);
+        expect(getBlock).toHaveBeenCalledExactlyOnceWith({ blockTag: "latest" });
+        expect(readContract.mock.calls.some(([read]) => (read as StubRead).functionName === "isDelegationActive")).toBe(
+          false,
+        );
+      },
+    );
 
     it("rejects a delegate-signed grant before collecting any signatures", async () => {
       const { config, readContract, signTypedData } = gaslessWriteTestConfig(undefined, {

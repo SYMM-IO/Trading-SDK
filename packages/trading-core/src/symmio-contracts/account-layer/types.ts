@@ -46,6 +46,38 @@ export interface SingleUpnlSig {
   sigs: SchnorrSign;
 }
 
+/** A one-use AccountLayer timelock approval, matching the deployed ABI tuple. */
+export interface TimelockApproval {
+  /** Root sub-account whose policy authorizes the operation. */
+  account: Address;
+  /** Address allowed to approve an early execution. */
+  unlocker: Address;
+  /** `keccak256` of the raw operation calldata. */
+  callDataHash: Hex;
+  /** Unix timestamp through which the approval is valid. */
+  deadline: bigint;
+  /** Unique approval salt. */
+  salt: Hex;
+}
+
+/** A timelock approval together with the unlocker's signature. */
+export interface SignedTimelockApproval {
+  approval: TimelockApproval;
+  signature: Hex;
+}
+
+/** Timelock policy configured for one operation selector. */
+export interface SelectorTimelock {
+  unlocker: Address;
+  delay: bigint;
+}
+
+/** On-chain schedule identity and creation time. Zero values mean no active schedule. */
+export interface TimelockSchedule {
+  scheduledAt: bigint;
+  nonce: number;
+}
+
 /**
  * Strategy the AccountLayer uses to create Virtual Accounts (VAs) for trades
  * placed through this subaccount.

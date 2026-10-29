@@ -1,0 +1,202 @@
+# Timelock policy reference
+
+Use the high-level policy functions to handle root and virtual accounts uniformly.
+All imports below come from `@symmio/trading-core`.
+
+## Deployment metadata
+
+`getSolverInfo(config, { chainId?, solverId? })` exposes optional `timelockApproval`
+on its result, preserving the existing fee fields. The corresponding React read is
+`useSolverInfo`. Missing metadata means unsupported/not advertised; explicitly malformed
+metadata raises `INVALID_TIMELOCK_METADATA`, not a legacy-path fallback.
+
+`TimelockApprovalCapability` contains:
+
+| Field                     | Type      | Meaning                                                                          |
+| ------------------------- | --------- | -------------------------------------------------------------------------------- |
+| `unlocker`                | `Address` | Deployment's nonzero approval signer.                                            |
+| `minTimelockDelaySeconds` | `number`  | Minimum acceptable root policy delay.                                            |
+| `validitySeconds`         | `number`  | Public approval lifetime, **not** an HTTP timeout or indexing delay.             |
+| `requestDomain`           | object    | Exact EIP-712 `name`, `version`, `chainId` and `verifyingContract` from `/info`. |
+
+The standard domain is `SymmioTimelockApprovalRequest`, version `1`; chain and
+AccountLayer address must match the selected deployment. No deployment values are
+hard-coded by the actions. Custom providers can supply `capability` directly.
+
+```ts
+import { getSolverInfo, getTimelockPolicy } from "@symmio/trading-core";
+const info = await getSolverInfo(config, { chainId, solverId });
+const report = await getTimelockPolicy(config, { account, chainId, solverId });
+```
+
+## `getTimelockPolicy`
+
+```ts
+getTimelockPolicy(config, parameters: GetTimelockPolicyParameters): Promise<TimelockPolicyReport>
+```
+
+Inputs: `account: Address`, optional `chainId`, `solverId`, `capability`, and
+`selectors: readonly Hex[]` (defaults to all 22). Resolves the account's root, reads
+`minTimelockDelay()` and every selector policy, and returns all corrections in one pass.
+
+`TimelockPolicyReport` contains `account`, `rootAccount`, `capability`,
+`contractMinimum: bigint`, `requiredDelay: bigint`, `ready: boolean` and `selectors`.
+Each selector entry has `selector`, observed `unlocker`, `delay: bigint`, and
+`status: TimelockSelectorStatus`:
+
+| Status            | Meaning                                                                |
+| ----------------- | ---------------------------------------------------------------------- |
+| `missing`         | No unlocker configured.                                                |
+| `wrong-unlocker`  | Does not match the selected provider; observed delay is also returned. |
+| `delay-too-short` | Correct unlocker but less than the greater contract/provider minimum.  |
+| `ok`              | Unlocker and delay both satisfy the requested policy.                  |
+
+`ready` means all requested selectors pass **on-chain**. It is not proof of indexing.
+Virtual accounts share their root's policy; no policy is written on a VA.
+
+## `setupTimelockPolicy`
+
+```ts
+setupTimelockPolicy(config, parameters: SetupTimelockPolicyParameters): Promise<TimelockSetupResult>
+```
+
+Inputs extend `GetTimelockPolicyParameters` with normal write controls (`from`,
+`gasless`, simulation controls), optional `delay: bigint`, and optional
+`indexer: TimelockPolicyIndexer`. Defaults are all 22 selectors and
+`max(providerMinimum, contractMinimum)`. An explicit smaller delay is rejected.
+
+The action writes to the resolved root, waits for a successful receipt and rereads
+policy. `TimelockSetupResult` contains `hash`, `receipt`, `policy`, `indexing` and an
+optional `indexingError`. `TimelockIndexingStatus` is `indexed | pending | unknown`.
+`TimelockPolicyIndexer` defines the read-only method:
+
+```ts
+getStatus(policy: TimelockPolicyReport, receipt: TransactionReceipt): Promise<TimelockIndexingStatus>
+```
+
+Without an observer, indexing is `unknown`. An observer failure returns the confirmed
+receipt plus `indexingError`; do not repeat setup. Confirmation/reread failure throws
+`TimelockSetupConfirmationError` retaining the submitted `hash` and `cause`.
+
+## `getTimelockPolicyChange`
+
+```ts
+getTimelockPolicyChange(policy: TimelockPolicyReport, parameters?: { delay?: bigint }): TimelockPolicyChange
+```
+
+This pure helper assesses the proposed setup from an existing policy report. It makes no
+network requests and needs no wallet. The proposed unlocker comes from the report's
+capability; delay defaults to the greatest of the provider minimum, contract minimum,
+and the existing selector delays, so a routine repair does not shorten protection.
+It rejects an explicit delay below that minimum.
+
+New locks, unchanged locks and increases with the same unlocker need no policy-change
+authorization. Shortening an existing delay or replacing its unlocker needs the **current**
+unlocker's approval, or a schedule for the exact setup calldata. Callers can explicitly
+request a shorter delay above the minimum; the helper reports its authorization needs
+and does not choose a recovery route.
+
+`TimelockPolicyChange` contains:
+
+| Field                                       | Meaning                                                                                              |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `account`, `unlocker`, `delay`, `selectors` | Exact proposed root setup, with delay in seconds.                                                    |
+| `callData`                                  | Encoded `setupTimelocks` call to authorize; never a withdrawal or `_call` wrapper.                   |
+| `requiresAuthorization`                     | Whether the proposed setup weakens any existing locks. Does not indicate schedule readiness.         |
+| `affectedSelectors`                         | Every weakened selector with its current `unlocker` and `delay`.                                     |
+| `requiredUnlockers`                         | Distinct current unlockers. Each must authorize the exact setup calldata to avoid waiting.           |
+| `scheduleDelaySeconds`                      | Longest affected current delay when no approvals are supplied; zero if no authorization is required. |
+
+```ts
+import { getTimelockPolicy, getTimelockPolicyChange } from "@symmio/trading-core";
+
+const policy = await getTimelockPolicy(config, { account });
+const change = getTimelockPolicyChange(policy);
+// Present change.requiresAuthorization and change.scheduleDelaySeconds to the user.
+// No signing, scheduling, or approval request has happened.
+```
+
+`setupTimelockPolicy` checks these requirements before obtaining a wallet. If authorization
+is required, it reads the schedule for this exact setup and the current grace period and
+chain time. An absent, immature or expired schedule raises
+`TimelockPolicyChangeAuthorizationError`, with code
+`TIMELOCK_POLICY_CHANGE_AUTHORIZATION_REQUIRED`, the `change`, and `readyAt`/`expiresAt`
+in Unix seconds (both null if no valid schedule exists). Nothing is automatically submitted
+or retried. A mature schedule allows the existing setup action to proceed; execution is
+allowed at both window boundaries. The contract remains authoritative if state changes
+between the reads and execution.
+
+The consumer chooses whether to schedule, obtain approvals or stop. Scheduling uses
+`scheduleTimelockOp(config, { account: change.account, callData: change.callData })`.
+After confirmation and the required delay, use the **same** setup arguments or
+`executeTimelockOp` with that exact `innerCallData` and no approvals. Policies changed
+meanwhile can invalidate the schedule; do not substitute freshly encoded, different setup
+calldata for the scheduled bytes. For policy changes, the waiting time comes from the
+affected old locks, not the selector policy for `setupTimelocks` itself.
+
+Approvals, when available, are supplied explicitly to `executeTimelockOp` with
+`innerCallData: change.callData`. Do not assume the public withdrawal approval endpoint
+supports policy-change calldata; the documented 22-selector allowlist does not include
+`setupTimelocks`. This SDK never probes it or selects a route automatically.
+
+React's `useSetupTimelockPolicy` preserves the error code and keeps the original
+`TimelockPolicyChangeAuthorizationError` in `error.cause`; the hook does not choose a UI flow.
+
+## `assertTimelockPolicyChangeReady`
+
+```ts
+assertTimelockPolicyChangeReady(config, parameters: {
+  chainId?: number;
+  change: TimelockPolicyChange;
+}): Promise<void>
+```
+
+For consumers composing their own setup batch or wallet fallback, this read-only
+guard applies the same schedule checks as `setupTimelockPolicy`. First obtain a fresh
+policy report and derive its change. Supply the same chain used for that report.
+It resolves immediately when no authorization is required. Otherwise it reads the
+exact schedule, grace period and chain time, resolving only within the execution
+window or throwing `TimelockPolicyChangeAuthorizationError`. RPC failures propagate.
+It never signs, requests an approval, schedules, or submits. Execution can still fail
+if the policy or execution window changes after the check.
+
+```ts
+import { assertTimelockPolicyChangeReady } from "@symmio/trading-core";
+
+await assertTimelockPolicyChangeReady(config, { chainId, change });
+// Now compose the batch with change.callData, preserving its exact bytes.
+```
+
+## Constants and low-level policy reads
+
+| Export                                          | Inputs → output                                                                                                                                           |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS`          | The 13 pinned Core function names.                                                                                                                        |
+| `INSTANT_OPEN_TIMELOCK_ACCOUNT_LAYER_FUNCTIONS` | The 9 pinned AccountLayer function names.                                                                                                                 |
+| `INSTANT_OPEN_TIMELOCK_SELECTORS`               | All 22 selectors derived from pinned ABIs; never `_call`.                                                                                                 |
+| `requiredTimelockDelay`                         | `(contractMinimum: bigint, providerMinimum: bigint \| number) → bigint`.                                                                                  |
+| `resolveTimelockRootAccount`                    | `(config, { account, chainId? }) → Promise<Address>`.                                                                                                     |
+| `getMinTimelockDelay`                           | `(config, { chainId? }?) → Promise<bigint>`.                                                                                                              |
+| `getSelectorTimelock`                           | `(config, GetSelectorTimelockParameters) → Promise<SelectorTimelock>`. Root `account`, `selector: Hex`, optional `chainId`; output `{ unlocker, delay }`. |
+| `isTimelockPolicyConfigured`                    | `(config, { account: root, unlocker, minimumDelay: bigint, selectors, chainId? }) → Promise<boolean>` using `allTimelockedBy`.                            |
+
+## TanStack Query helpers
+
+`getTimelockPolicyQueryOptions(config, options: GetTimelockPolicyOptions)` returns
+query options; `getTimelockPolicyQueryKey(options?)` returns `GetTimelockPolicyQueryKey`.
+`GetTimelockPolicyOptions` adds standard `query` overrides to the required action inputs.
+Cache identity includes deployment, solver, account and supplied capability.
+
+`getSelectorTimelockQueryOptions(config, options: GetSelectorTimelockOptions)` returns
+`GetSelectorTimelockQueryOptions`; `getSelectorTimelockQueryKey(options?)` returns
+`GetSelectorTimelockQueryKey`. These use the corresponding required selector inputs
+plus `query` controls. Both key builders accept partial inputs and `configKey` for
+cache invalidation.
+
+```ts
+import { getTimelockPolicyQueryOptions, setupTimelockPolicyMutationOptions } from "@symmio/trading-core";
+const policy = await queryClient.fetchQuery(getTimelockPolicyQueryOptions(config, { account }));
+const setupOptions = setupTimelockPolicyMutationOptions(config);
+// Use with TanStack useMutation; variables are SetupTimelockPolicyParameters.
+// setupOptions.retry is false even when global mutation retries are enabled.
+```

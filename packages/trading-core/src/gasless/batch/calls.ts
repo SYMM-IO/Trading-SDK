@@ -1,5 +1,6 @@
 import { encodeFunctionData, size, slice, type Abi, type AbiFunction, type Address, type Hex } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
+import { getEffectiveInstantSelectors } from "../effective-instant-selectors";
 import type { GaslessWalletCall } from "../gasless-wallet-execute/calls";
 import { getGaslessWalletExecuteSelectors } from "../gasless-wallet-execute/selectors";
 import { GASLESS_RELAYABLE_FUNCTIONS } from "../relayable-writes";
@@ -176,7 +177,7 @@ export function getGaslessBatchSelectors(calls: readonly GaslessBatchCall[]): re
     if (isGaslessBatchWalletExecute(call)) {
       for (const selector of getGaslessWalletExecuteSelectors(call.walletCalls)) add(selector);
     } else {
-      add(gaslessCallDataSelector(gaslessBatchCallData(call)));
+      for (const selector of getEffectiveInstantSelectors(gaslessBatchCallData(call))) add(selector);
     }
   }
 

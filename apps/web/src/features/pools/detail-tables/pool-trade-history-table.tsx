@@ -1,6 +1,6 @@
 "use client";
 
-import { QuoteCloseEventType, type QuoteHistoryRow } from "@symmio/trading-core";
+import { QuoteCloseEventType, type PoolTradeHistoryRow } from "@symmio/trading-core";
 import { Badge } from "@symmio/ui/components/badge";
 import { DataTable, type DataTableColumn } from "@symmio/ui/components/data-table";
 import { positionSideLabel, price, quantity, shortAddress, timestamp } from "./shared";
@@ -23,7 +23,7 @@ const LIQUIDATIONS: ReadonlySet<QuoteCloseEventType> = new Set([
   QuoteCloseEventType.LiquidateClearingHouse,
 ]);
 
-const COLUMNS: DataTableColumn<QuoteHistoryRow>[] = [
+const COLUMNS: DataTableColumn<PoolTradeHistoryRow>[] = [
   {
     id: "quoteId",
     header: "Quote",
@@ -86,7 +86,7 @@ const COLUMNS: DataTableColumn<QuoteHistoryRow>[] = [
 ];
 
 interface Props {
-  rows: QuoteHistoryRow[];
+  rows: PoolTradeHistoryRow[];
   isPending: boolean;
 }
 

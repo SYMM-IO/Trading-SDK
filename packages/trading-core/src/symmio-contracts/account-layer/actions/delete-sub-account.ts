@@ -3,6 +3,7 @@ import type { Config } from "../../../core/config";
 import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
+import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { simulateDeleteSubAccount } from "./simulate-delete-sub-account";
 
@@ -12,6 +13,8 @@ import { simulateDeleteSubAccount } from "./simulate-delete-sub-account";
 export type DeleteSubAccountParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for a timelocked selector. */
+      timelock?: TimelockAuthorization;
       /**
        * The subaccount to delete. The bound wallet's signing account must be the
        * subaccount's on-chain `owner`; the contract reverts (`onlyAccountOwner`)
@@ -66,6 +69,15 @@ export async function deleteSubAccount(
   parameters: DeleteSubAccountParameters,
 ): Promise<DeleteSubAccountReturnType> {
   const { chainId, subAccount, from } = parameters;
+
+  if (parameters.timelock)
+    return executeProtectedCall(config, {
+      ...parameters,
+      account: subAccount,
+      target: "account-layer",
+      timelock: parameters.timelock,
+      callData: encodeFunctionData({ abi: accountLayerAbi, functionName: "deleteSubAccount", args: [subAccount] }),
+    });
 
   const { addresses } = config.getChainConfig(chainId);
 

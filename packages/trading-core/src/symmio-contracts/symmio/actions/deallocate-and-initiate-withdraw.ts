@@ -3,6 +3,11 @@ import type { Config } from "../../../core/config";
 import { withGaslessAttemptStart } from "../../../gasless/dispatch/attempt-start";
 import { getDeallocateUpnlSig } from "../../../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import {
+  assertTimelockBatchUnused,
+  executeProtectedCoreBatch,
+  type TimelockBatchAuthorization,
+} from "../../../timelock/execute-protected-batch";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import type { SingleUpnlSig } from "../../account-layer/types";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
@@ -14,6 +19,8 @@ import type { WithdrawReceiverPart } from "../types";
 export type DeallocateAndInitiateWithdrawParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional per-call authorization for the atomic Core batch. */
+      timelock?: TimelockBatchAuthorization;
       /**
        * The subaccount to deallocate from and initiate the withdrawal for. Both
        * inner calls are routed through the AccountLayer `_call` proxy so the core
@@ -106,6 +113,7 @@ export async function deallocateAndInitiateWithdraw(
   parameters: DeallocateAndInitiateWithdrawParameters,
 ): Promise<DeallocateAndInitiateWithdrawReturnType> {
   const { chainId, account, amount, parts, speedUp = false, providerData = "0x", from } = parameters;
+  if (parameters.timelock) assertTimelockBatchUnused(parameters.timelock);
   /** The Muon fetch below counts against the gasless signature lifetime. */
   const gasless = withGaslessAttemptStart(parameters.gasless);
 
@@ -122,6 +130,14 @@ export async function deallocateAndInitiateWithdraw(
     functionName: "initiateWithdraw",
     args: [parts, speedUp, providerData],
   });
+
+  if (parameters.timelock)
+    return executeProtectedCoreBatch(config, {
+      ...parameters,
+      gasless,
+      callDatas: [deallocateData, withdrawData],
+      timelock: parameters.timelock,
+    });
 
   // Order matters: deallocate (allocated → available) MUST precede initiateWithdraw.
   return callAsSubAccount(config, {

@@ -9,6 +9,9 @@ import { graphql } from "../../symmio-subgraph/types/generated/analytics";
  * distinct. Scoped to the pool by the quote's `symbolId` and `source`, with no
  * account filter: this is the whole pool's history.
  *
+ * The selection matches `QuoteEventsForHistoryDocument` field for field, because
+ * both decode through `toQuoteHistoryRow` into the same `QuoteHistoryRow`.
+ *
  * The document compiles to a typed query string via graphql-codegen.
  */
 export const PoolQuoteEventsDocument = graphql(`
@@ -34,7 +37,13 @@ export const PoolQuoteEventsDocument = graphql(`
       quoteId
       blockNumber
       transaction
+      source
       quote {
+        id
+        timestamp
+        blockNumber
+        userPaidFunding
+        userReceivedFunding
         quoteId
         quoteStatus
         positionType
@@ -45,16 +54,36 @@ export const PoolQuoteEventsDocument = graphql(`
         partyB
         subAccount {
           id
+          owner
         }
         quantity
         openedPrice
+        initialOpenedPrice
         requestedOpenPrice
+        marketPrice
         averageClosedPrice
         closePrice
+        closedPrice
         closedAmount
         quantityToClose
         liquidateAmount
         liquidatePrice
+        tradingFee
+        closeFee
+        leverage
+        cva
+        lf
+        initialCva
+        initialLf
+        initialPartyAmm
+        timestampSendQuote
+        timestampOpenPosition
+        sendQuoteEvents: quoteEvents(where: { type: "SEND_QUOTE" }, first: 1) {
+          transaction
+        }
+        openPositionEvents: quoteEvents(where: { type: "OPEN_POSITION" }, first: 1000) {
+          metadata
+        }
       }
     }
   }

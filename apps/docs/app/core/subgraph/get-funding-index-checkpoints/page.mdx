@@ -1,0 +1,171 @@
+# getFundingIndexCheckpoints
+
+The funding-rate index of one market and PartyB at points in time, from the analytics subgraph's `fundingIndexCheckpoints` collection. Each checkpoint is written by an event (`eventType`) and records the raw and current long / short rates, the accumulated rate index, the epoch configuration, and the fee snapshots. Reach for it to find the index a quote's funding was measured against at a given moment, or as one of the raw inputs of a per-epoch funding timeline.
+
+```ts
+import { getFundingIndexCheckpoints } from "@symmio/trading-core";
+
+const { rows, hasMore } = await getFundingIndexCheckpoints(config, {
+  marketIds: [42],
+  partyBs: [solver],
+  startTime: openedAt,
+  orderDirection: "asc",
+});
+```
+
+Every filter is optional and applied only when passed; an empty list filter reads nothing. One call returns one page — see [Filters and paging](/core/subgraph#filters-and-paging) for the shared rules and for [paging by cursor](/core/subgraph#paging-by-cursor).
+
+## The checkpoint in force at a moment
+
+The latest checkpoint at or before a moment is one row: bound the time from above with `endTime`, sort newest first, and take one.
+
+```ts
+const { rows } = await getFundingIndexCheckpoints(config, {
+  source: diamond,
+  marketIds: [42],
+  partyBs: [solver],
+  endTime: openedAt,
+  orderDirection: "desc",
+  first: 1,
+});
+
+const checkpoint = rows[0]; // undefined when none was written before `openedAt`
+```
+
+## Parameters
+
+<Properties>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (the subgraph's `source`).
+  </Property>
+  <Property name="marketIds" type="readonly number[]" optional>
+    Market ids (`symbolId`).
+  </Property>
+  <Property name="partyBs" type="readonly Address[]" optional>
+    PartyB (solver) addresses.
+  </Property>
+  <Property name="startTime" type="number" optional>
+    Lower bound on the block timestamp (unix seconds, inclusive).
+  </Property>
+  <Property name="endTime" type="number" optional>
+    Upper bound on the block timestamp (unix seconds, inclusive).
+  </Property>
+  <Property name="first" type="number" default="1000">
+    Page size, 1–1000.
+  </Property>
+  <Property name="skip" type="number" default="0">
+    Rows to skip. The Graph rejects values above 5000.
+  </Property>
+  <Property name="orderBy" type='"timestamp" | "id"' default="timestamp">
+    Sort field. Defaults to `"id"` when `idGt` is set.
+  </Property>
+  <Property name="orderDirection" type='"asc" | "desc"' default="desc">
+    Sort direction. Defaults to `"asc"` when `idGt` is set.
+  </Property>
+  <Property name="idGt" type="string" optional>
+    Cursor: only checkpoints whose `id` sorts after this one. Sorts by `id` ascending unless a sort is passed; any other
+    sort throws `INVALID_SUBGRAPH_CURSOR`. See [Paging by cursor](/core/subgraph#paging-by-cursor).
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="GetFundingIndexCheckpointsReturnType">
+  <Property name="rows" type="FundingIndexCheckpointRow[]">
+    The decoded checkpoints of this page.
+  </Property>
+  <Property name="hasMore" type="boolean">
+    `true` when the page came back full, so another page may exist.
+  </Property>
+</Returns>
+
+### `FundingIndexCheckpointRow`
+
+Rates and fees are 18-decimal `bigint`, passed through as indexed. A `null` marks a field the subgraph has not indexed for this checkpoint — never read it as zero.
+
+<Returns type="FundingIndexCheckpointRow">
+  <Property name="id" type="string">
+    Subgraph entity id — stable; use it as a row key or `idGt` cursor.
+  </Property>
+  <Property name="source" type="Address">
+    Diamond address the checkpoint was indexed from.
+  </Property>
+  <Property name="symbolId" type="number">
+    Market id.
+  </Property>
+  <Property name="partyB" type="Address">
+    PartyB, the solver.
+  </Property>
+  <Property name="eventType" type="string">
+    The event that wrote the checkpoint, as indexed.
+  </Property>
+  <Property name="rawLongRate" type="bigint | null">
+    Raw long rate, before the market-price conversion.
+  </Property>
+  <Property name="rawShortRate" type="bigint | null">
+    Raw short rate, before the market-price conversion.
+  </Property>
+  <Property name="marketPrice" type="bigint | null">
+    Market price the rates were converted at.
+  </Property>
+  <Property name="currentLongRate" type="bigint | null">
+    Current long rate.
+  </Property>
+  <Property name="currentShortRate" type="bigint | null">
+    Current short rate.
+  </Property>
+  <Property name="accumulatedLongRate" type="bigint | null">
+    Accumulated long rate — the index.
+  </Property>
+  <Property name="accumulatedShortRate" type="bigint | null">
+    Accumulated short rate — the index.
+  </Property>
+  <Property name="epochDuration" type="bigint | null">
+    Epoch length, seconds.
+  </Property>
+  <Property name="lastUpdatedEpoch" type="bigint | null">
+    Last updated epoch.
+  </Property>
+  <Property name="startEpoch" type="bigint | null">
+    First epoch.
+  </Property>
+  <Property name="startEpochTimestamp" type="number | null">
+    First epoch's start, unix seconds.
+  </Property>
+  <Property name="snapshotLongFee" type="bigint | null">
+    Long fee snapshot.
+  </Property>
+  <Property name="snapshotShortFee" type="bigint | null">
+    Short fee snapshot.
+  </Property>
+  <Property name="timestamp" type="number">
+    Block timestamp, unix seconds.
+  </Property>
+  <Property name="blockNumber" type="bigint">
+    Block number.
+  </Property>
+  <Property name="transaction" type="Hex">
+    Transaction hash.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getFundingIndexCheckpointsQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getFundingIndexCheckpointsQueryOptions(config, { marketIds: [42], partyBs: [solver] }));
+```
+
+The query is disabled while `marketIds` or `partyBs` is an empty array.
+
+## Related
+
+- [`getQuoteFundingSettlements`](/core/subgraph/get-quote-funding-settlements) — each settlement on a quote, with the index it paid through.
+- [`getFundingFeesOfPartyB`](/core/symmio-contract/get-funding-fees-of-party-b) — the pair's live on-chain `FundingFee` state.
+- [Funding › Pair states](/core/concepts/funding#pair-states) — when a pair accrues accumulated funding at all.
+- [React `useFundingIndexCheckpoints`](/react/subgraph#usefundingindexcheckpoints) — the hook over this action.

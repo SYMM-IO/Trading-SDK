@@ -123,6 +123,10 @@ Mirrors the quote-cancel lifecycle, but keyed on the close: `requestToCancelClos
 
 ### `withdrawAuto` — high-level entry point
 
+For protected accounts, pass the optional `timelock` authorization. CUSTOM
+withdrawals require one authorization entry per deallocation and initiation leg;
+both remain in one atomic transaction. See [timelock execution](/core/account-layer/timelocks/execution).
+
 `withdrawAuto(config, params)` is the high-level entry point: pass just
 `{ account, amount, receiver }` — with `amount` in the **collateral token's
 decimals** — and it does all the plumbing. It reads the subaccount's

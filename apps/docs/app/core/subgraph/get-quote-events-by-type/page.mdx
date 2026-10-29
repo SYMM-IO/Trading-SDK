@@ -1,6 +1,8 @@
+import { Callout } from "nextra/components";
+
 # getQuoteEventsByType
 
-Decoded subgraph events for one quote, filtered to specific event types — useful for building per-quote timelines that pull out just funding ticks or settle-uPnL events. Paged.
+Decoded subgraph events for one quote, optionally filtered to specific event types — useful for building per-quote timelines that pull out just funding ticks or settle-uPnL events, or for reading any other event the subgraph records on the quote (`OPEN_POSITION`, `QUOTE_ADJUSTED`, …). Paged.
 
 ```ts
 import { getQuoteEventsByType, QuoteEventType } from "@symmio/trading-core";
@@ -12,15 +14,38 @@ const { rows, hasMore } = await getQuoteEventsByType(config, {
 });
 ```
 
+## Event types
+
+`types` takes any `QuoteSubgraphEventType` — the known `QuoteEventType` and `QuoteCloseEventType` values autocomplete, and every other type the subgraph emits passes through as a plain string, so a read is never limited to the types this release names. Omit `types` to read every event on the quote; an empty array reads nothing and returns an empty page without a request.
+
+Each row's `type` narrows to the types you pass:
+
+```ts
+import { getQuoteEventsByType, QuoteCloseEventType } from "@symmio/trading-core";
+
+const { rows } = await getQuoteEventsByType(config, {
+  quoteId: 42n,
+  types: ["OPEN_POSITION", QuoteCloseEventType.FillClose],
+});
+// rows[i].type: "OPEN_POSITION" | QuoteCloseEventType.FillClose
+```
+
+The decoded fields (`newPrice`, `fundingPaid`, `rate`, …) are set only when the event's metadata carries them. For other event types, read `rawMetadata`.
+
 ## Parameters
 
 <Properties>
   <Property name="quoteId" type="bigint" required>
     On-chain quote id to read events for.
   </Property>
-  <Property name="types" type="readonly QuoteEventType[]" required>
-    Event types to include: `SettleUpnl` (`SETTLE_UPNL`), `ChargeFundingRate` (`CHARGE_FUNDING_RATE`),
-    `ChargeAccumulatedFundingFee` (`CHARGE_ACCUMULATED_FUNDING_FEE`).
+  <Property name="types" type="readonly QuoteSubgraphEventType[]" optional>
+    Event types to include — `QuoteEventType` values (`SettleUpnl`, `ChargeFundingRate`, `ChargeAccumulatedFundingFee`),
+    `QuoteCloseEventType` values, a preset such as `PRICE_HISTORY_EVENT_TYPES`, or any other subgraph type string. Omit
+    to read every type; an empty array reads nothing.
+  </Property>
+  <Property name="source" type="Address" optional>
+    The deployment's diamond address (the subgraph's `source`). Omit to match the quote id on any deployment the
+    subgraph indexes; pass it when one subgraph indexes several diamonds, whose quote ids can collide.
   </Property>
   <Property name="first" type="number" default="50">
     Page size.
@@ -38,9 +63,12 @@ const { rows, hasMore } = await getQuoteEventsByType(config, {
 
 ## Returns
 
-<Returns type="GetQuoteEventsByTypeReturnType">
-  <Property name="rows" type="QuoteEventRow[]">
-    The decoded event rows for the requested `types`.
+<Returns type="GetQuoteEventsByTypeReturnType<TType>">
+  <Property name="rows" type="QuoteEventRow<TType>[]">
+    The decoded event rows, `type` narrowed to the requested `types`. Each carries `eventId`, `quoteId`, `type`,
+    `timestamp`, `blockNumber`, `transaction`, the decoded metadata fields (`newPrice`, `prevPrice`, `openQuantity`,
+    `fundingPaid`, `fundingReceived`, `rate` — 18-decimal wei `bigint`, present when the metadata held them), and the
+    raw `rawMetadata` JSON.
   </Property>
   <Property name="hasMore" type="boolean">
     `true` when the page came back full (`rows.length === first`) — fetch the next page by advancing `skip`.
@@ -60,3 +88,16 @@ useQuery(
   }),
 );
 ```
+
+The query is disabled while `types` is an empty array; omitting `types` reads every type.
+
+<Callout type="info">
+  The React [`useQuoteEventsByType`](/react/subgraph#usequoteeventsbytype) still **requires** `types` and takes only
+  `QuoteEventType` values — it reads price and funding events. For any other event type, or every type at once, use this
+  core action or its query options.
+</Callout>
+
+## Related
+
+- [`getQuotesEventsByType`](/core/subgraph/get-quotes-events-by-type) — the batched form for many quotes.
+- [`getQuoteHistory`](/core/subgraph/get-quote-history) — terminal events with the quote's fields overlaid.

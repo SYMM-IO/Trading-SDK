@@ -2,6 +2,11 @@ import { Callout } from "nextra/components";
 
 # Gasless hooks
 
+Protected `useApproveOperationalFee` and `useApproveOperationalFeeAllowance`
+writes accept the optional `timelock` mutation variable. Delegated protected writes
+require gasless execution without wallet fallback and the effective inner selector's
+delegation. See [timelock execution](/core/account-layer/timelocks/execution).
+
 React bindings for the [gasless slice](/core/gasless): relay account actions through the GaslessQ relayer — the user signs EIP-712, the relayer pays the gas, and the GaslessLayer charges the fee from SYMMIO collateral.
 
 The **transparent execution mode needs no hooks from this page**: the relayable write hooks accept the core `gasless` variable and keep returning `{ hash, receipt }` — receipt-waiting and invalidation run unchanged, because the relayed broadcast hash behaves exactly like a wallet-submitted one.
@@ -212,6 +217,19 @@ the payer's allowance — that is a property of the transport, not of the operat
 | `useSettleGaslessDepositNewAccount`      | the above plus the owner's sub-account list, addresses, and count                                                                                                                                                                               |
 
 ### `useRelayGaslessBatch`
+
+After observed successful execution, batches containing `setupTimelocks` or
+`clearTimelocks` refresh policy, selector-policy and schedule reads for the selected
+deployment, including policies read through virtual accounts. Scheduling,
+cancellation and `executeTimelockOp` refresh schedule reads. The hook also inspects
+operations inside `executeTimelockOp` and Core `_call` wrappers, so wrapped
+withdrawals refresh withdrawal-request reads just like unwrapped withdrawals.
+Acceptance alone does not refresh these reads; `confirmation: "none"` leaves
+confirmation and invalidation to the caller. An observed successful terminal still
+refreshes reads if a subsequent receipt wait fails or is aborted, following the
+existing relay-hook behavior.
+
+The optional `deadline` mutation variable sets the absolute Unix-seconds expiry (`bigint`) for every operation. It is forwarded unchanged to core; see [deadline validation and recovery](/core/gasless/relay-gasless-batch#nonces-and-concurrency). Omitting it retains the 20-minute default.
 
 Relay **several gasless actions as one request** — relayable writes by name and GaslessWallet calls, freely mixed, in one atomic transaction. Variables are [`relayGaslessBatch`](/core/gasless/relay-gasless-batch)' parameters.
 

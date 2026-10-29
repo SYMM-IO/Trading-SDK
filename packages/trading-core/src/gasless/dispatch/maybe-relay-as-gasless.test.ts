@@ -4,6 +4,7 @@ import {
   encodeFunctionData,
   erc20Abi,
   slice,
+  toFunctionSelector,
   zeroAddress,
   type Address,
   type Hex,
@@ -11,6 +12,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId, getChainConfig } from "../../core/chains";
 import { SymmApiError } from "../../shared/errors/symm-error";
+import { accountLayerAbi } from "../../symmio-contracts/abi/v0.8.6/account-layer";
 import { gaslessLayerAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-layer";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import { addMargin } from "../../symmio-contracts/account-layer/actions/add-margin";
@@ -67,6 +69,7 @@ function relayableSelector(operationType: string): Hex {
 
 const DEALLOCATE_SELECTOR = relayableSelector("deallocate");
 const INITIATE_WITHDRAW_SELECTOR = relayableSelector("initiateWithdraw");
+const ACCOUNT_CALL_SELECTOR = toFunctionSelector("_call(address,bytes[])");
 
 /** How many times the public-client stub served `functionName`. */
 function countReads(readContract: ReturnType<typeof vi.fn>, functionName: string): number {
@@ -1060,6 +1063,41 @@ describe("transparent gasless dispatch", () => {
   });
 
   describe("delegation pre-flight", () => {
+    it("checks the immediate inner AccountLayer selector for a timelock wrapper", async () => {
+      const { config, readContract } = gaslessWriteTestConfig(
+        { execution: { mode: "gasless" } },
+        { signersByFrom: { [SESSION_KEY]: SESSION_KEY } },
+      );
+      programReads(readContract);
+      programRelaySuccess();
+      const coreCall = encodeFunctionData({ abi: symmioAbi, functionName: "allocate", args: [1n] });
+      const innerCall = encodeFunctionData({
+        abi: accountLayerAbi,
+        functionName: "_call",
+        args: [SUB_ACCOUNT, [coreCall]],
+      });
+      const wrappedCall = encodeFunctionData({
+        abi: accountLayerAbi,
+        functionName: "executeTimelockOp",
+        args: [[], innerCall],
+      });
+
+      await expect(
+        maybeRelayAsGasless(config, {
+          gasless: true,
+          from: SESSION_KEY,
+          signerAccount: SUB_ACCOUNT,
+          calls: [
+            {
+              target: getChainConfig(GASLESS_TEST_CHAIN).addresses.accountLayerAddress,
+              callData: wrappedCall,
+            },
+          ],
+        }),
+      ).resolves.toBe(RELAY_TX_HASH);
+      expect(delegationReads(readContract)).toEqual([[SUB_ACCOUNT, SESSION_KEY, ACCOUNT_CALL_SELECTOR]]);
+    });
+
     it("skips every delegation read when the signer is the sub-account's owner", async () => {
       const { config, readContract, signTypedData } = gaslessWriteTestConfig({ execution: { mode: "gasless" } });
       programReads(readContract);

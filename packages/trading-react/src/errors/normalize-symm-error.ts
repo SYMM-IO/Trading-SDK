@@ -1,4 +1,4 @@
-import { SymmApiError, SymmError } from "@symmio/trading-core";
+import { SymmApiError, SymmError, TimelockSolverError } from "@symmio/trading-core";
 import {
   BaseError,
   ContractFunctionRevertedError,
@@ -32,6 +32,7 @@ export function normalizeSymmError(err: unknown): SymmioRequestError {
       code: err.code,
       status: err.status,
       responseData: err.responseData,
+      timelock: err instanceof TimelockSolverError ? err.details : undefined,
       retryAfterMs: err.retryAfterMs,
       cause: err,
     });
@@ -61,6 +62,15 @@ export function normalizeSymmError(err: unknown): SymmioRequestError {
     const revert = findInCauseChain(viemErr, ContractFunctionRevertedError);
     if (revert) {
       const reason = revert.reason ?? revert.data?.errorName;
+      if (revert.data?.errorName === "TimelockOpNotApprovedOrScheduled") {
+        return new SymmioRequestError({
+          kind: "contract-revert",
+          code: "TIMELOCK_REQUIRED",
+          message: "This operation requires a timelock approval or a mature schedule.",
+          reason: revert.data.errorName,
+          cause: err,
+        });
+      }
       return new SymmioRequestError({
         kind: "contract-revert",
         message: revert.shortMessage || `Contract reverted${reason ? `: ${reason}` : "."}`,

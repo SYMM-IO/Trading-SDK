@@ -2,6 +2,8 @@
 
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { TimelockPolicyPanel } from "@/features/timelock/timelock-policy-panel";
+import { useTimelockContext } from "@/features/timelock/use-timelock-context";
 import { formatUsd, WEI_DECIMALS } from "@/lib/format";
 import type { FullBalanceFunding, MarketNotionalCap, SolverId } from "@symmio/trading-core";
 import {
@@ -70,6 +72,7 @@ interface Props {
 export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = "instant-open" }: Props) {
   const config = useSymmioConfig();
   const resolvedSolverId = solverId ?? config.getDefaultSolverId();
+  const timelock = useTimelockContext(subAccount, resolvedSolverId);
   // The margin/execution model follows the SUB-ACCOUNT's isolation type, not the
   // solver: CUSTOM isolation trades cross-margin on the sub-account directly
   // (no VA, no TP/SL leg, allocated-balance funding); the VA isolations spend
@@ -345,6 +348,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     inputsReady &&
     !exceedsAvailable &&
     quoteViolations.length === 0 &&
+    timelock.ready &&
     !submitting,
   );
 
@@ -421,6 +425,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
 
   return (
     <div className="flex flex-col gap-4">
+      {!timelock.unsupported ? <TimelockPolicyPanel key={timelock.scope} context={timelock} /> : null}
       <Field label="market" htmlFor={`${idPrefix}-market`}>
         <MarketSelect
           idPrefix={`${idPrefix}-market`}

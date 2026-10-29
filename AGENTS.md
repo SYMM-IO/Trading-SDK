@@ -118,6 +118,8 @@ Read-only exploration (viewing files, searching the repo, reading Vibe-ui or Exp
 
 Docs are part of every slice, not a follow-up. A proposal that ships new or changed public API without a matching `apps/docs` update plan is incomplete, and the implementation is not done until those doc pages exist and are updated (see the [`apps/docs` rules](./apps/docs/AGENTS.md) — "Every public API added to `core` or `react` must be reflected here").
 
+For every SDK change, assess its impact on `apps/web` and update affected consumer flows or examples in the same change when needed; otherwise state why no web-app update is necessary, and verify the app remains compatible.
+
 #### Exceptions (no proposal required)
 
 Skip the design proposal only for:

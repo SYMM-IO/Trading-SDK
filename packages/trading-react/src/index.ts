@@ -147,17 +147,32 @@ export {
   useAffiliateState,
   useAllocate,
   useCancelRegistration,
+  useCancelTimelockOp,
+  useClearTimelocks,
   useCreateSubAccounts,
   useDeallocate,
   useDeallocateAndInitiateWithdraw,
   useDeleteSubAccount,
   useDeposit,
   useDepositAndAllocate,
+  useEarlyWithdraw,
   useEditAccountName,
+  useExecuteAccountCalls,
+  useExecuteTimelockOp,
   useGeneratedAccountManagerAddress,
   usePredictedNextVirtualAccount,
+  useProtectedCall,
+  useProtectedFunction,
+  useProtectedFunctionCatalog,
+  useProtectedFunctionEncoder,
   useRemoveMargin,
+  useRequestTimelockApproval,
   useRequestToRegisterAffiliate,
+  useScheduleTimelockOp,
+  useScheduledCallMatch,
+  useSelectorTimelock,
+  useSetupTimelockPolicy,
+  useSetupTimelocks,
   useSimulateAddMargin,
   useSimulateAllocate,
   useSimulateCreateSubAccounts,
@@ -170,6 +185,10 @@ export {
   useSubAccount,
   useSubAccountVirtualNonce,
   useSubAccountsCountOfUser,
+  useTimelockApprovalProvider,
+  useTimelockPolicy,
+  useTimelockScheduleState,
+  useTimelockSelector,
   useUserSubAccounts,
   useUserSubAccountsAddresses,
   useVirtualAccount,
@@ -187,6 +206,7 @@ export {
   type DeleteSubAccountResult,
   type DepositAndAllocateResult,
   type DepositResult,
+  type EarlyWithdrawWriteResult,
   type EditAccountNameResult,
   type RemoveMarginResult,
   type RemoveMarginVariables,
@@ -227,6 +247,7 @@ export {
   type UseRemoveMarginReturnType,
   type UseRequestToRegisterAffiliateParameters,
   type UseRequestToRegisterAffiliateReturnType,
+  type UseSelectorTimelockParameters,
   type UseSimulateAddMarginParameters,
   type UseSimulateAddMarginReturnType,
   type UseSimulateAllocateParameters,
@@ -251,6 +272,8 @@ export {
   type UseSubAccountVirtualNonceReturnType,
   type UseSubAccountsCountOfUserParameters,
   type UseSubAccountsCountOfUserReturnType,
+  type UseTimelockPolicyParameters,
+  type UseTimelockScheduleStateParameters,
   type UseUserSubAccountsAddressesParameters,
   type UseUserSubAccountsAddressesReturnType,
   type UseUserSubAccountsParameters,
@@ -531,6 +554,7 @@ export {
   useRequestToCancelCloseRequest,
   useRequestToCancelQuote,
   useSubgraphQuery,
+  useSubgraphQuotes,
   type CloseQuoteGroupParameters,
   type CloseQuoteGroupStatus,
   type CloseQuoteGroupStep,
@@ -608,6 +632,8 @@ export {
   type UseRequestToCancelQuoteReturnType,
   type UseSubgraphQueryParameters,
   type UseSubgraphQueryReturnType,
+  type UseSubgraphQuotesParameters,
+  type UseSubgraphQuotesReturnType,
 } from "./quotes";
 
 /**
@@ -625,6 +651,32 @@ export {
   type UseAvailableInstantOpenMarginParameters,
   type UseAvailableInstantOpenMarginReturnType,
 } from "./margin";
+
+/**
+ * Subgraph entity reads
+ * ---------------------
+ * Thin hooks over core's entity reads: `useMarginTransfers` (margin moved
+ * between a SubAccount and its Virtual Accounts), `useLiquidationDetails` (one
+ * entity per PartyA liquidation), `useQuoteFundingSettlements` and
+ * `useFundingIndexCheckpoints` (the raw inputs of a per-epoch funding
+ * timeline). Every filter is optional and applied only when passed; each call
+ * returns one page (`rows` + `hasMore`). Import `MarginTransferType`,
+ * `SubgraphPageParameters` and the row types from `@symmio/trading-core`.
+ */
+export {
+  useFundingIndexCheckpoints,
+  useQuoteFundingSettlements,
+  type UseFundingIndexCheckpointsParameters,
+  type UseFundingIndexCheckpointsReturnType,
+  type UseQuoteFundingSettlementsParameters,
+  type UseQuoteFundingSettlementsReturnType,
+} from "./funding";
+export {
+  useLiquidationDetails,
+  type UseLiquidationDetailsParameters,
+  type UseLiquidationDetailsReturnType,
+} from "./liquidation";
+export { useMarginTransfers, type UseMarginTransfersParameters, type UseMarginTransfersReturnType } from "./margin";
 
 /**
  * Balance history hooks
@@ -1367,3 +1419,30 @@ export {
   type UseSettleGaslessDepositNewAccountReturnType,
   type UseSupportsGaslessServiceParameters,
 } from "./gasless";
+export { useListingTokenMetadata, type UseListingTokenMetadataParameters } from "./pools/use-listing-token-metadata";
+export { useListingTokenSupport, type UseListingTokenSupportParameters } from "./pools/use-listing-token-support";
+export { usePoolMaintenanceFees, type UsePoolMaintenanceFeesParameters } from "./pools/use-pool-maintenance-fees";
+
+export {
+  usePoolPortfolio,
+  type UsePoolPortfolioParameters,
+  type UsePoolPortfolioReturnType,
+} from "./pools/use-pool-portfolio";
+
+export {
+  usePoolPosition,
+  type UsePoolPositionParameters,
+  type UsePoolPositionReturnType,
+} from "./pools/use-pool-position";
+
+export {
+  usePoolStatistics,
+  type UsePoolStatisticsParameters,
+  type UsePoolStatisticsReturnType,
+} from "./pools/use-pool-statistics";
+
+export {
+  usePoolOpenPositions,
+  type UsePoolOpenPositionsParameters,
+  type UsePoolOpenPositionsReturnType,
+} from "./pools/use-pool-open-positions";

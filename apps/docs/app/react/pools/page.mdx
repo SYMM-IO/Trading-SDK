@@ -1718,3 +1718,52 @@ A `send_quote` order opens a quote when a trigger fires, which is a different me
 - [Pool detail tables](../../core/pools/pool-detail-tables) — the framework-agnostic reads behind the five tables, and which backend fills each.
 - [`searchTpSlOrders`](../../core/tpsl/search-tpsl-orders) — the limit-orders read, and why omitting `account` is what scopes it to a pool.
 - [Errors](../errors) — `SymmioRequestError`, its `kind`, and the `code` a failed listing read carries.
+
+## Token validation and maintenance
+
+`useListingTokenMetadata` and `useListingTokenSupport` accept their core option types plus optional `config`. Both require the listing access token, deployment chain and token deposit chain/address. They disable private requests without authentication and normalize SDK errors. `usePoolMaintenanceFees` accepts public pool identity and pagination. Their exported parameter aliases are `UseListingTokenMetadataParameters`, `UseListingTokenSupportParameters`, and `UsePoolMaintenanceFeesParameters`.
+
+See [validation](/core/pools/token-validation) and [maintenance](/core/pools/maintenance) for units, return values and error handling.
+
+## Composed pool reads
+
+Use `usePoolPortfolio`, `usePoolPosition`, `usePoolStatistics` and `usePoolOpenPositions` for complete projections. Their Use…Parameters types extend the corresponding core read parameters with optional config, enabled and refetchInterval (number or false). Their Use…ReturnType aliases expose data, isLoading, isFetching, error and refetch. Each result contains explicit source gaps.
+
+These hooks compose the existing query keys and retain each source's original cache shape. They do not create an aggregate cache. Changes from withdraw/claim/cancel invalidate the same underlying reads. For private sources, pass the authenticated userAddress consistently to these hooks and any standalone useUserProfit/useUserTransactions/useUserListingMarkets hooks mounted beside them. Changing the bearer token alone does not identify a different user. Clear private queries on logout and do not pass the previous user's token after a wallet switch.
+
+Their composed `refetch()` respects `enabled` and authentication gates. Personal statistics never refresh the pool-wide withdrawal queue. Pagination retains earlier rows when a later page fails and reports the incomplete source in `gaps`.
+
+```tsx
+import { usePoolPosition } from "@symmio/trading-react/pools";
+export function Stake({
+  accessToken,
+  userAddress,
+  tokenContractAddress,
+}: {
+  accessToken: string;
+  userAddress: string;
+  tokenContractAddress: string;
+}) {
+  const position = usePoolPosition({
+    chainId: 42161,
+    depositChain: 0,
+    accessToken,
+    userAddress,
+    tokenContractAddress,
+    refetchInterval: 30_000,
+  });
+  return <span>{position.data?.availableLp?.toString() ?? "Unknown"}</span>;
+}
+```
+
+See [portfolio](/core/pools/portfolio), [position](/core/pools/position), [statistics](/core/pools/statistics) and [open positions](/core/pools/open-positions) for source precedence and exact result fields. Third-party enrichment and consumer optimistic state remain outside the SDK; no public cache-patching helper is provided.
+
+`usePoolPortfolio` skips profit/detail queries for known non-listed or unfunded rows while retaining their history. Its profit/detail query functions share a five-request limit per mounted hook, including polling and manual refresh. Each failed per-row query retries once, except HTTP 401/403. The hook retains the existing primitive query keys and data shapes, so other pool hooks share these caches. Queued reads whose query was canceled do not start a request. The exact profit HTTP 404/code 22 response becomes a zero LP position; other failures remain errors and gaps, as described in the portfolio reference.
+
+`usePoolPosition` also accepts optional `withdrawalPercent` (an integer from 0 through 100). Its data includes nullable `withdrawalLpAmount`, `withdrawalTokenAmount`, `withdrawalUsdcAmount` and `withdrawalValueUsd`, all 18-decimal bigints, plus `pendingRatio`. Changing this percentage recalculates the projection without another source request. `usePoolQuotes` and `usePoolTradeHistory` expose their core reads' derived order and event metrics directly; no extra hook or calculation cache is needed.
+
+## Prefetch a listing challenge
+
+`useAuthenticateListing({ prefetchChallenge: true, chainId, from?, domain?, uri?, statement?, config? })` fetches once a signing wallet and origin are available. Prefetch defaults to false. Browser origin uses an SSR-safe external-store snapshot; server rendering never reads window. Use from for an injected signing account.
+
+The hook adds `challenge: ListingSignInMessage | undefined` to its mutation result. mutate({}) consumes it once, discards it after either success or failure, and fetches a replacement. Wallet/deployment/origin/statement changes select a different challenge. Expiring challenges refresh before expiration. Failed prefetch falls back to fetching during the mutation. Per-call overrides remain supported; the core action rejects cached-context reuse by fetching afresh, not by blocking sign-in.

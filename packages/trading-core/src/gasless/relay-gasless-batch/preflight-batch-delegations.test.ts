@@ -1,6 +1,7 @@
-import { erc20Abi, toFunctionSelector, zeroAddress, type Address, type Hex } from "viem";
+import { encodeFunctionData, erc20Abi, toFunctionSelector, zeroAddress, type Address, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import { getChainConfig } from "../../core/chains";
+import { accountLayerAbi } from "../../symmio-contracts/abi/v0.8.6/account-layer";
 import { getGaslessBatchSelectors, type GaslessBatchCall } from "../batch/calls";
 import { resolveGaslessBatchEntries } from "../batch/resolve-gasless-batch";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS_SIGNER as OWNER, gaslessWriteTestConfig } from "../test/config";
@@ -156,6 +157,31 @@ describe("batch delegation preflight", () => {
     );
     await expect(check([grant(grantInfo({ delegatedSigner: zeroAddress }))], [OWNER])).resolves.toBe(OWNER);
   });
+
+  it.each([true, false])(
+    "checks the inner timelock permission on the virtual account's parent (active=%s)",
+    async (active) => {
+      const { check, readContract } = fixture({ account: VIRTUAL_ACCOUNT, liveVirtualAccount: true, active });
+      const innerCall = encodeFunctionData({
+        abi: accountLayerAbi,
+        functionName: "_call",
+        args: [VIRTUAL_ACCOUNT, []],
+      });
+      const data = encodeFunctionData({
+        abi: accountLayerAbi,
+        functionName: "executeTimelockOp",
+        args: [[], innerCall],
+      });
+      const result = check([{ data }], [KEY]);
+      if (active) await expect(result).resolves.toBe(OWNER);
+      else await expect(result).rejects.toMatchObject({ code: "GASLESS_SIGNER_NOT_DELEGATED" });
+      expect(readContract.mock.calls.find(([read]) => read.functionName === "getSubAccount")?.[0].args).toEqual([
+        ACCOUNT,
+      ]);
+      const probes = readContract.mock.calls.filter(([read]) => read.functionName === "isDelegationActive");
+      expect(probes.map(([read]) => read.args)).toEqual([[ACCOUNT, KEY, toFunctionSelector("_call(address,bytes[])")]]);
+    },
+  );
 
   it("uses one block timestamp for multiple grants", async () => {
     const { check, getBlock } = fixture();

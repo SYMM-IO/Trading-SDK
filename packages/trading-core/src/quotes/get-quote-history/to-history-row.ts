@@ -1,5 +1,6 @@
 import { getAddress, type Hex } from "viem";
 import type { OrderType, PositionType, QuoteStatus } from "../../symmio-contracts/symmio/types";
+import { toAddressOrNull, toBigIntOrNull, toBigIntOrZero, toNumberOrNull } from "../../symmio-subgraph/subgraph-decode";
 import type { QuoteEventsForHistoryQuery } from "../../symmio-subgraph/types/generated/analytics/graphql";
 import { eventTypeToQuoteStatus, LIQUIDATION_EVENT_TYPES } from "./close-type";
 import { parseSolverFees } from "./solver-fees";
@@ -7,11 +8,6 @@ import { QuoteCloseEventType, type QuoteHistoryRow } from "./types";
 
 /** A single `quoteEvents` row as returned by the history query. */
 export type RawQuoteEventRow = QuoteEventsForHistoryQuery["quoteEvents"][number];
-
-/** Parse a wei string to `bigint`, defaulting null/undefined to `0n`. */
-function toBigInt(value: string | null | undefined): bigint {
-  return value ? BigInt(value) : 0n;
-}
 
 /** Parse the event `metadata` JSON, returning `null` on absence or malformed input. */
 function parseMetadata(raw: string | null): Record<string, unknown> | null {
@@ -67,30 +63,30 @@ export function toQuoteHistoryRow(row: RawQuoteEventRow): QuoteHistoryRow {
   // Overlay the immutable per-event snapshot over the mutable quote values. The
   // snapshot `amount` is this event's settled size — it drives both the closed
   // amount and the close-request quantity (mirrors the reference frontend's applyHistoryCloseEventMetadata).
-  const closedAmount = snapshotAmount ?? toBigInt(quote.closedAmount);
-  const quantityToClose = snapshotAmount ?? toBigInt(quote.quantityToClose);
-  const avgClosedPrice = snapshotClosePrice ?? toBigInt(quote.averageClosedPrice);
-  const openedPrice = snapshotOpenedPrice ?? toBigInt(quote.openedPrice);
+  const closedAmount = snapshotAmount ?? toBigIntOrZero(quote.closedAmount);
+  const quantityToClose = snapshotAmount ?? toBigIntOrZero(quote.quantityToClose);
+  const avgClosedPrice = snapshotClosePrice ?? toBigIntOrZero(quote.averageClosedPrice);
+  const openedPrice = snapshotOpenedPrice ?? toBigIntOrZero(quote.openedPrice);
   const liquidateAmount = isLiquidation
-    ? (snapshotAmount ?? toBigInt(quote.liquidateAmount))
-    : toBigInt(quote.liquidateAmount);
+    ? (snapshotAmount ?? toBigIntOrZero(quote.liquidateAmount))
+    : toBigIntOrZero(quote.liquidateAmount);
   const liquidatePrice = isLiquidation
-    ? (snapshotClosePrice ?? toBigInt(quote.liquidatePrice))
-    : toBigInt(quote.liquidatePrice);
+    ? (snapshotClosePrice ?? toBigIntOrZero(quote.liquidatePrice))
+    : toBigIntOrZero(quote.liquidatePrice);
 
   return {
     eventId: row.id,
     closeEventType: eventType,
     closedAt: Number(row.timestamp),
-    quoteId: toBigInt(row.quoteId),
+    quoteId: toBigIntOrZero(row.quoteId),
     marketId: quote.symbolId ? Number(quote.symbolId) : 0,
     symbol: quote.symbol ?? null,
     positionType: (quote.positionType ?? 0) as PositionType,
     orderType: (quote.orderTypeOpen ?? 0) as OrderType,
     quoteStatus: eventTypeToQuoteStatus[eventType] ?? ((quote.quoteStatus ?? 0) as QuoteStatus),
-    quantity: toBigInt(quote.quantity),
+    quantity: toBigIntOrZero(quote.quantity),
     openedPrice,
-    requestedOpenPrice: toBigInt(quote.requestedOpenPrice),
+    requestedOpenPrice: toBigIntOrZero(quote.requestedOpenPrice),
     avgClosedPrice,
     closedAmount,
     quantityToClose,
@@ -105,5 +101,22 @@ export function toQuoteHistoryRow(row: RawQuoteEventRow): QuoteHistoryRow {
     blockNumber: row.blockNumber ? BigInt(row.blockNumber) : undefined,
     transaction: row.transaction ? (row.transaction as Hex) : undefined,
     rawMetadata: row.metadata,
+    source: getAddress(row.source),
+    closedPrice: toBigIntOrNull(quote.closedPrice),
+    initialOpenedPrice: toBigIntOrNull(quote.initialOpenedPrice),
+    marketPrice: toBigIntOrNull(quote.marketPrice),
+    tradingFee: toBigIntOrZero(quote.tradingFee),
+    closeFee: toBigIntOrZero(quote.closeFee),
+    leverage: toBigIntOrNull(quote.leverage),
+    cva: toBigIntOrNull(quote.cva),
+    lf: toBigIntOrNull(quote.lf),
+    initialCva: toBigIntOrZero(quote.initialCva),
+    initialLf: toBigIntOrZero(quote.initialLf),
+    initialPartyAmm: toBigIntOrNull(quote.initialPartyAmm),
+    timestampSendQuote: toNumberOrNull(quote.timestampSendQuote),
+    timestampOpenPosition: toNumberOrNull(quote.timestampOpenPosition),
+    subAccountOwner: toAddressOrNull(quote.subAccount?.owner),
+    sendQuoteTransaction: quote.sendQuoteEvents[0]?.transaction ? (quote.sendQuoteEvents[0].transaction as Hex) : null,
+    openPositionMetadata: quote.openPositionEvents.map((event) => event.metadata),
   };
 }

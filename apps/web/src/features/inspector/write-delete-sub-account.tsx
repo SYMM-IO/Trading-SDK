@@ -3,6 +3,7 @@
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useDeleteSubAccount, useSimulateDeleteSubAccount, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Spinner } from "@symmio/ui/components/spinner";
@@ -22,10 +23,11 @@ const PRECONDITIONS = [
 ] as const;
 
 export function WriteDeleteSubAccount() {
-  const { isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain, address: owner } = useWalletAccount();
   const [account, setAccount] = useState<string>("");
 
   const validAccount = isAddress(account) ? (account as Address) : undefined;
+  const protection = useProtectedWrite(validAccount, owner, "deleteSubAccount");
   const canSubmit = isConnected && isOnExpectedChain && Boolean(validAccount);
 
   const mutation = useDeleteSubAccount();
@@ -91,10 +93,12 @@ export function WriteDeleteSubAccount() {
           type="button"
           size="sm"
           variant="destructive"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || !protection.available || mutation.isPending}
           onClick={() => {
             if (!validAccount) return;
-            mutation.mutate({ subAccount: validAccount, ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({ subAccount: validAccount, ...write, ...(timelock ? { timelock } : {}) }),
+            );
           }}
           data-testid="button-send-delete"
         >
@@ -115,6 +119,7 @@ export function WriteDeleteSubAccount() {
         testId="result-simulate-deleteSubAccount"
       />
 
+      <ProtectedWriteNotice protection={protection} />
       <WritePanel mutation={mutation} />
     </MethodCard>
   );

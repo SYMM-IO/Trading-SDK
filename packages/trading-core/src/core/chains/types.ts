@@ -592,6 +592,8 @@ export interface SymmioChainConfig {
   chainId: number;
   /** Contracts generation deployed on this chain. See {@link SymmioContractsVersion}. */
   contractsVersion: SymmioContractsVersion;
+  /** Explicit deployment capability. `false` disables timelock calls; omitted means unknown. */
+  timelockSupported?: boolean;
   /** Contract addresses */
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */

@@ -143,14 +143,16 @@ The solver's general information from the **Enigma-only** `/info` endpoint — t
 const info = useSolverInfo();
 info.data?.staticSolverFeeOpen; // "0.5"  — USD per instant open
 info.data?.staticSolverFeeClose; // "0.25" — USD per instant close (incl. partial closes)
+info.data?.timelockApproval; // Optional TimelockApprovalCapability from this deployment.
 ```
 
 Returns `UseQueryResult<EnigmaSolverInfo, SymmioRequestError>`:
 
-| Field                  | Type                  | Notes                                                                         |
-| ---------------------- | --------------------- | ----------------------------------------------------------------------------- |
-| `staticSolverFeeOpen`  | `string \| undefined` | Configured USD amount per instant open. `undefined` when the solver omits it. |
-| `staticSolverFeeClose` | `string \| undefined` | Configured USD amount per instant close, including each partial close.        |
+| Field                  | Type                                      | Notes                                                                                                              |
+| ---------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `staticSolverFeeOpen`  | `string \| undefined`                     | Configured USD amount per instant open. `undefined` when the solver omits it.                                      |
+| `staticSolverFeeClose` | `string \| undefined`                     | Configured USD amount per instant close, including each partial close.                                             |
+| `timelockApproval`     | `TimelockApprovalCapability \| undefined` | Unlocker, minimum delay, validity and signing domain; see [policy metadata](/core/account-layer/timelocks/policy). |
 
 Amounts are USD decimal strings exactly as the solver reports them — no decimal scaling. **Enigma-only:** on a rasa-kind solver the query fails before the wire with a `SymmioRequestError` carrying `code: "UNSUPPORTED_BY_SOLVER"`; a failed request carries `FETCH_SOLVER_INFO_FAILED`.
 
