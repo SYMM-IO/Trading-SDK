@@ -103,6 +103,8 @@ class DefaultSessionKeyManager implements SessionKeyManager {
   private lifecycle: Promise<unknown> = Promise.resolve();
   /** The in-flight `initialize` per owner, shared by concurrent callers. */
   private readonly initializing = new Map<string, Promise<SessionKeyState>>();
+  /** The in-flight `load` per owner, shared by concurrent callers. */
+  private readonly loading = new Map<string, Promise<SessionKeyState>>();
 
   constructor(private readonly options: CreateSessionKeyManagerOptions) {
     this.defaultTtlMs = options.defaultTtlMs ?? SESSION_KEY_EXPIRY_MS;
@@ -118,24 +120,7 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     } catch (error) {
       return Promise.reject(error);
     }
-    const key = owner.toLowerCase();
-    const pending = this.initializing.get(key);
-    if (pending) return pending;
-    /**
-     * The owner's key is already loaded and valid: keep it. Starting a new
-     * lifecycle here would revoke accounts callers already hold, including
-     * one that is signing right now.
-     */
-    if (this.owner?.toLowerCase() === key && this.getState().isReady) return Promise.resolve(this.state);
-
-    const generation = this.beginLifecycleTransition();
-    const run = this.enqueue(() => this.initializeNow(owner, generation, options));
-    this.initializing.set(key, run);
-    const settle = () => {
-      if (this.initializing.get(key) === run) this.initializing.delete(key);
-    };
-    run.then(settle, settle);
-    return run;
+    return this.runForOwner(this.initializing, owner, (generation) => this.initializeNow(owner, generation, options));
   }
 
   load(owner: Address): Promise<SessionKeyState> {
@@ -144,8 +129,7 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     } catch (error) {
       return Promise.reject(error);
     }
-    const generation = this.beginLifecycleTransition();
-    return this.enqueue(async () => {
+    return this.runForOwner(this.loading, owner, async (generation) => {
       const record = await this.readRecord(owner, generation, "load");
       if (record) this.setAccount(record, generation);
       this.assertCurrentLifecycle(generation, "load");
@@ -271,6 +255,33 @@ class DefaultSessionKeyManager implements SessionKeyManager {
     return this.getAddress();
   }
 
+  /**
+   * Start `task` as a new lifecycle call for `owner`, unless it is not needed.
+   * When the owner's key is already loaded and valid, resolve the current state:
+   * starting a new lifecycle would revoke accounts callers already hold,
+   * including one that is signing right now. When the same call is already
+   * running for the owner, share it.
+   */
+  private runForOwner(
+    inFlight: Map<string, Promise<SessionKeyState>>,
+    owner: Address,
+    task: (generation: number) => Promise<SessionKeyState>,
+  ): Promise<SessionKeyState> {
+    const key = owner.toLowerCase();
+    const pending = inFlight.get(key);
+    if (pending) return pending;
+    if (this.owner?.toLowerCase() === key && this.getState().isReady) return Promise.resolve(this.state);
+
+    const generation = this.beginLifecycleTransition();
+    const run = this.enqueue(() => task(generation));
+    inFlight.set(key, run);
+    const settle = () => {
+      if (inFlight.get(key) === run) inFlight.delete(key);
+    };
+    run.then(settle, settle);
+    return run;
+  }
+
   /** Run a lifecycle task after every earlier one settles, whatever its outcome. */
   private enqueue<T>(task: () => Promise<T>): Promise<T> {
     const run = this.lifecycle.then(task, task);
@@ -282,6 +293,7 @@ class DefaultSessionKeyManager implements SessionKeyManager {
   private beginLifecycleTransition(): number {
     const generation = ++this.lifecycleGeneration;
     this.initializing.clear();
+    this.loading.clear();
     this.clearAccount();
     return generation;
   }

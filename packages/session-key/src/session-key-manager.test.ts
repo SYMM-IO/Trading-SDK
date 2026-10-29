@@ -387,6 +387,69 @@ describe("session key manager lifecycle guarantees", () => {
     );
   });
 
+  it("keeps the loaded signer when load runs for the same owner", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const manager = createSessionKeyManager({ storage });
+    const first = await manager.initialize(OWNER);
+    const account = manager.getAccount()!;
+    const load = vi.spyOn(storage, "load");
+    const snapshots: (Address | null)[] = [];
+    manager.subscribe(() => snapshots.push(manager.getSnapshot()));
+
+    const restored = await manager.load(getAddress(OWNER));
+
+    expect(restored).toEqual(first);
+    expect(snapshots).toEqual([]);
+    expect(load).not.toHaveBeenCalled();
+    const signature = await account.signMessage({ message: "still loaded" });
+    expect(await recoverMessageAddress({ message: "still loaded", signature })).toBe(first.publicAddress);
+  });
+
+  it("lets a signature in progress finish when load runs for the loaded owner", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const manager = createSessionKeyManager({ storage });
+    const state = await manager.initialize(OWNER);
+    const account = manager.getAccount()!;
+    const signTypedData = account.signTypedData.bind(account);
+    let markSigningStarted!: () => void;
+    let releaseSigning!: () => void;
+    const signingStarted = new Promise<void>((resolve) => {
+      markSigningStarted = resolve;
+    });
+    const signingGate = new Promise<void>((resolve) => {
+      releaseSigning = resolve;
+    });
+    vi.spyOn(account, "signTypedData").mockImplementation(async (parameters) => {
+      markSigningStarted();
+      await signingGate;
+      return signTypedData(parameters);
+    });
+
+    const signing = manager.signTypedData(TYPED_DATA);
+    await signingStarted;
+    await manager.load(OWNER);
+    releaseSigning();
+
+    const signature = await signing;
+    expect(await recoverTypedDataAddress({ ...TYPED_DATA, primaryType: "Session", signature })).toBe(
+      state.publicAddress,
+    );
+  });
+
+  it("shares one load between concurrent callers", async () => {
+    const storage = createMemorySessionKeyStorage();
+    const stored = createSessionKey();
+    storage.raw.set(OWNER.toLowerCase(), { ...stored, owner: OWNER, createdAt: 1_000, expiresAt: 3_000 });
+    const load = vi.spyOn(storage, "load");
+    const manager = createSessionKeyManager({ storage, now: () => 2_000 });
+
+    const [first, second] = await Promise.all([manager.load(OWNER), manager.load(OWNER)]);
+
+    expect(first).toEqual(second);
+    expect(first.publicAddress).toBe(stored.address);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
   it("adopts a competing key it observes before publishing its own", async () => {
     const shared = createMemorySessionKeyStorage();
     const otherTab = createSessionKey();

@@ -104,7 +104,7 @@ describe("captured session accounts", () => {
     await expect(signature).rejects.toBeInstanceOf(SessionKeyExpiredError);
   });
 
-  it.each(["rotate", "import", "owner change", "load"])("revokes the captured signer on %s", async (transition) => {
+  it.each(["rotate", "import", "owner change"])("revokes the captured signer on %s", async (transition) => {
     const manager = createSessionKeyManager({ storage: createStorage() });
     await manager.initialize(OWNER);
     const account = manager.getAccount()!;
@@ -113,13 +113,21 @@ describe("captured session accounts", () => {
         ? manager.rotate(OWNER)
         : transition === "import"
           ? manager.importPrivateKey(OWNER, createSessionKey().privateKey)
-          : transition === "load"
-            ? manager.load(OWNER)
-            : manager.initialize(OTHER_OWNER);
+          : manager.initialize(OTHER_OWNER);
     await expect(account.signMessage({ message: "stale" })).rejects.toBeInstanceOf(SessionKeyOperationSupersededError);
     await next;
     const result = await manager.sign("current");
     expect(await recoverMessageAddress({ message: "current", signature: result.signature })).toBe(manager.getAddress());
+  });
+
+  it("revokes the captured signer when load restores another owner", async () => {
+    const manager = createSessionKeyManager({ storage: createStorage() });
+    await manager.initialize(OWNER);
+    const account = manager.getAccount()!;
+    const next = manager.load(OTHER_OWNER);
+    await expect(account.signMessage({ message: "stale" })).rejects.toBeInstanceOf(SessionKeyOperationSupersededError);
+    expect((await next).isReady).toBe(false);
+    expect(manager.getAccount()).toBeNull();
   });
 
   it("stops exposing an expired key through every accessor without deleting its record", async () => {

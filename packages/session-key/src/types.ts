@@ -159,9 +159,14 @@ export interface SessionKeyManager {
   /**
    * Restore a valid existing key without creating, rotating, or removing records.
    * Missing or expired records return non-ready state; read or validation errors
-   * throw `SessionKeyLoadError`, regardless of `onLoadError`. Immediately revokes
-   * the previous in-memory signer. Prefer this for a device that cannot authorize
-   * replacement keys.
+   * throw `SessionKeyLoadError`, regardless of `onLoadError`. Prefer this for a
+   * device that cannot authorize replacement keys.
+   *
+   * When that owner's key is already loaded and not expired, it resolves the
+   * current state at once: nothing is read, nothing is revoked, and accounts
+   * from `getAccount()` keep signing, so calling it on every mount is safe.
+   * Concurrent calls for the same owner share one run. Otherwise it immediately
+   * revokes the previous in-memory signer before reading storage.
    *
    * @param owner - Wallet whose existing key should be restored.
    * @returns A ready state, or a non-ready state for missing or expired storage.
