@@ -23,6 +23,8 @@ import {
   usePendingWithdrawRequestsBatch,
   useWithdrawRequest,
   useWithdrawableTime,
+  useWithdrawCooldownOf,
+  useDeallocateDebounceTime,
   // Writes
   useWithdraw, // high-level entry point
   useInitiateWithdraw,
@@ -142,11 +144,54 @@ const request = useWithdrawRequest({ account, requestId });
 
 ### `useWithdrawableTime`
 
-Timestamp when a queued request becomes claimable. Bind to a countdown / claim button.
+The earliest Unix timestamp (seconds) at which a withdrawal initiated now could be
+finalized for a subaccount. Bind it to a countdown before the user starts a
+withdrawal; once a request exists, its own `cooldownEndTime` is authoritative.
 
 ```ts
-const { withdrawableAt, isReady } = useWithdrawableTime({ requestId });
+const { data: withdrawableAt } = useWithdrawableTime({ user: subAccount });
+const isReady = withdrawableAt !== undefined && BigInt(Math.floor(Date.now() / 1000)) >= withdrawableAt;
 ```
+
+### `useWithdrawCooldownOf`
+
+The account's raw `withdrawCooldownOf` value: the Unix timestamp (seconds) of its
+last deallocation or internal credit to withdrawable balance (`0n` when never
+stamped). It is **a timestamp, not a duration**, and not an unlock time — use
+`useWithdrawableTime` for withdrawal readiness. `user` is required; pass
+`query: { enabled: false }` to hold the read until you have one.
+
+```ts
+const { data: lastCreditAt } = useWithdrawCooldownOf({ user: subAccount });
+```
+
+`useDeallocate`, `useDeallocateAndInitiateWithdraw`, `useWithdraw` and relayed
+batches that deallocate refresh this read once they succeed. Core reference:
+[`getWithdrawCooldownOf`](/core/symmio-contract/get-withdraw-cooldown-of).
+
+### `useDeallocateDebounceTime`
+
+The protocol's deallocate debounce in seconds — the minimum gap between two
+deallocations of one account. A deallocation reverts until
+`withdrawCooldownOf + debounce` has passed, so the two reads together tell when the
+next `useDeallocate` can succeed. `0n` is a valid value. It is deployment-wide and
+rarely changes.
+
+```ts
+const { data: lastCreditAt } = useWithdrawCooldownOf({ user: subAccount });
+const { data: debounce } = useDeallocateDebounceTime();
+const nextDeallocateAt = lastCreditAt !== undefined && debounce !== undefined ? lastCreditAt + debounce : undefined;
+```
+
+Core reference: [`getDeallocateDebounceTime`](/core/symmio-contract/get-deallocate-debounce-time).
+
+### Atomic account calls
+
+There is no hook for [`executeAccountCalls`](/core/symmio-contract/execute-account-calls), which runs arbitrary
+named core writes as one transaction: no fixed set of reads can be refreshed for it. For a withdrawal, the
+deallocate-and-initiate variant of `useWithdraw` already runs both legs atomically. For anything else, wrap
+`executeAccountCallsMutationOptions` in `useMutation` as the
+[core page](/core/symmio-contract/execute-account-calls#react) shows.
 
 ## Writes
 

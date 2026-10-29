@@ -271,7 +271,7 @@ On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `u
 
 #### Muon signature & cooldown
 
-The hook calls `getDeallocateUpnlSig` for you unless you pass a `upnlSig` variable. Deallocate is subject to the on-chain debounce — submitting too soon after a prior deallocate reverts — and the result must keep the subaccount solvent; both surface as a normalized `SymmioRequestError`. `useSimulateDeallocate()` dry-runs the call (supply a `upnlSig` there — it does not auto-fetch).
+The hook calls `getDeallocateUpnlSig` for you unless you pass a `upnlSig` variable. Deallocate is subject to the on-chain debounce — it reverts until the account's [`useWithdrawCooldownOf`](/react/withdraw#usewithdrawcooldownof) timestamp plus [`useDeallocateDebounceTime`](/react/withdraw#usedeallocatedebouncetime) has passed — and the result must keep the subaccount solvent; both surface as a normalized `SymmioRequestError`. `useSimulateDeallocate()` dry-runs the call (supply a `upnlSig` there — it does not auto-fetch).
 
 ### `useEditAccountName`
 

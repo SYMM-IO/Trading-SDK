@@ -9,10 +9,15 @@ Use `getWithdrawableTime` for readiness before initiating a withdrawal. After
 initiation, use the request's stored `cooldownEndTime` returned by
 [getPendingWithdrawRequests](/core/symmio-contract/get-pending-withdraw-requests).
 
+The core also uses this timestamp to space deallocations: `deallocate` reverts
+until this timestamp plus the
+[deallocate debounce](/core/symmio-contract/get-deallocate-debounce-time) has
+passed. In React, read it with [`useWithdrawCooldownOf`](/react/withdraw#usewithdrawcooldownof).
+
 ```ts
 import { getWithdrawCooldownOf, getWithdrawCooldownOfQueryOptions } from "@symmio/trading-core";
 
-const seconds = await getWithdrawCooldownOf(config, { user: account });
+const lastCreditAt = await getWithdrawCooldownOf(config, { user: account }); // Unix seconds
 const query = getWithdrawCooldownOfQueryOptions(config, { user: account });
 ```
 
