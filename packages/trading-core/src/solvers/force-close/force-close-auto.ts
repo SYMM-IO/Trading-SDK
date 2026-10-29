@@ -2,6 +2,7 @@ import type { Address } from "viem";
 import { BINANCE_MAX_LIMIT, BINANCE_REST_URL } from "../../candles/sources/binance/constants";
 import { fetchBinanceKlines } from "../../candles/sources/binance/fetch-binance-klines";
 import type { Config } from "../../core/config";
+import { withGaslessAttemptStart } from "../../gasless/dispatch/attempt-start";
 import { getForceClosePriceSig } from "../../muon/force-close-price-sig/get-force-close-price-sig";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../shared/types/properties";
@@ -77,6 +78,8 @@ export async function forceCloseAuto(
   parameters: ForceCloseAutoParameters,
 ): Promise<ForceCloseAutoReturnType> {
   const { chainId, account, quoteId } = parameters;
+  /** The quote, market, candle and Muon reads below count against the gasless signature lifetime. */
+  const gasless = withGaslessAttemptStart(parameters.gasless);
   const now = parameters.now ?? BigInt(Math.floor(Date.now() / 1000));
 
   const quote = await getQuote(config, { quoteId, chainId });
@@ -183,6 +186,6 @@ export async function forceCloseAuto(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
-    gasless: parameters.gasless,
+    gasless,
   });
 }

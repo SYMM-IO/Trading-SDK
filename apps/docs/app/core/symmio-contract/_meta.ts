@@ -23,8 +23,12 @@ export default {
   "-- collateral": { type: "separator", title: "Collateral" },
   "get-collateral-balance": "getCollateralBalance",
   "get-collateral-allowance": "getCollateralAllowance",
+  "execute-account-calls": "executeAccountCalls",
+  "get-withdraw-cooldown-of": "getWithdrawCooldownOf",
+  "get-deallocate-debounce-time": "getDeallocateDebounceTime",
   "-- withdraw": { type: "separator", title: "Withdraw" },
   "create-classic-withdraw-part": "createClassicWithdrawPart",
   "get-last-withdraw-request-id": "getLastWithdrawRequestId",
   "get-pending-withdraw-requests": "getPendingWithdrawRequests",
+  "get-pending-withdraw-requests-batch": "getPendingWithdrawRequestsBatch",
 };

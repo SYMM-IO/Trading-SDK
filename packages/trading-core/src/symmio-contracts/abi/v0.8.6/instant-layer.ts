@@ -922,6 +922,19 @@ export const instantLayerAbi = [
   },
   {
     inputs: [],
+    name: "TEMPLATE_MANAGER_ROLE",
+    outputs: [
+      {
+        internalType: "bytes32",
+        name: "",
+        type: "bytes32",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "accountLayer",
     outputs: [
       {
@@ -1999,6 +2012,53 @@ export const instantLayerAbi = [
       },
     ],
     name: "grantDelegation",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          {
+            components: [
+              {
+                internalType: "address",
+                name: "addr",
+                type: "address",
+              },
+              {
+                internalType: "bool",
+                name: "isPartyB",
+                type: "bool",
+              },
+            ],
+            internalType: "struct InstantLayer.Account",
+            name: "account",
+            type: "tuple",
+          },
+          {
+            internalType: "address",
+            name: "delegatedSigner",
+            type: "address",
+          },
+          {
+            internalType: "bytes4[]",
+            name: "selectors",
+            type: "bytes4[]",
+          },
+          {
+            internalType: "uint256",
+            name: "expiryTimestamp",
+            type: "uint256",
+          },
+        ],
+        internalType: "struct InstantLayer.DelegationInfo[]",
+        name: "infos",
+        type: "tuple[]",
+      },
+    ],
+    name: "grantDelegations",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",

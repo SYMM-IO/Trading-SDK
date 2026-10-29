@@ -1,6 +1,7 @@
 import { encodeFunctionData, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
+import { resolveGaslessWriteOptions } from "../../../gasless/dispatch/resolve-gasless-write";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
@@ -51,7 +52,8 @@ export type GrantDelegationReturnType = Hash;
  *
  * A `isPartyB: true` account cannot be relayed — the signed-operation encoder
  * has no PartyB form — so it degrades to the wallet path, or throws when
- * gasless was demanded explicitly.
+ * gasless was demanded explicitly (`gasless: true`, `enabled: true`, or a
+ * `gasless.idempotencyKey`, which never takes the wallet).
  *
  * **Granting clears any pending revocation** for each selector it covers: the
  * contract deletes `pendingRevocationEta` alongside writing the new expiry. A
@@ -62,6 +64,8 @@ export type GrantDelegationReturnType = Hash;
  * @param parameters - Delegation account, signer, selectors, expiry, optional chain id.
  * @returns The submitted transaction hash. The caller waits on the receipt.
  * @throws {SymmError} when the chain is unsupported or no wallet is available.
+ * @throws {SymmError} `GASLESS_PARTYB_UNSUPPORTED` for a PartyB account with gasless demanded explicitly, and
+ *   `GASLESS_IDEMPOTENCY_KEY_INVALID` for an invalid key — both before any wallet is resolved.
  * @throws Viem's write errors (`ContractFunctionExecutionError`, ...).
  *
  * @example
@@ -107,17 +111,21 @@ export async function grantDelegation(
       ],
     });
     if (relayed !== null) return relayed;
-  } else if (parameters.gasless === true || (typeof parameters.gasless === "object" && parameters.gasless.enabled)) {
+  } else {
     /**
      * Refuse rather than silently sign for the wrong identity: the operation
      * encoder always builds `isPartyB: false`, so a relayed PartyB grant would
-     * carry a signerAccount the InstantLayer resolves to a different party.
+     * carry a signerAccount the InstantLayer resolves to a different party. A
+     * caller-owned key is refused too — a keyed write never takes the wallet.
      */
-    throw new SymmError(
-      "validation",
-      "GASLESS_PARTYB_UNSUPPORTED",
-      "Gasless: a PartyB delegation grant cannot be relayed — the signed-operation encoder has no PartyB form. Send it from the wallet instead.",
-    );
+    const { options, keyed } = resolveGaslessWriteOptions(parameters.gasless);
+    if (keyed || options.enabled === true) {
+      throw new SymmError(
+        "validation",
+        "GASLESS_PARTYB_UNSUPPORTED",
+        "Gasless: a PartyB delegation grant cannot be relayed — the signed-operation encoder has no PartyB form. Send it from the wallet instead, without `gasless`.",
+      );
+    }
   }
 
   const walletClient = await config.getWalletClient({ chainId, from });

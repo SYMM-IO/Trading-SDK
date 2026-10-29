@@ -1,8 +1,9 @@
+import type { Hash } from "viem";
 import type { Config } from "../core/config";
 import { SymmError } from "../shared/errors/symm-error";
 import { isGaslessAcceptedInstanceMismatchError } from "./http";
 import { isGaslessAcceptanceInvalidError } from "./to-gasless-submit-receipt";
-import { GaslessRequestStatus, type GaslessRequest, type GaslessService } from "./types";
+import { GaslessRequestStatus, type GaslessRequest, type GaslessService, type GaslessSubmitReceipt } from "./types";
 import { getGaslessUnconfirmedSubmit } from "./unconfirmed-submit";
 import { waitForGaslessRequest } from "./wait-for-gasless-request/wait-for-gasless-request";
 
@@ -146,6 +147,17 @@ interface GaslessPendingNonce {
   chainId: number;
   /** When the signature expires (ms since epoch) — after that it can never land. */
   expiresAtMs: number;
+  /** The idempotency key the submit was sent under. */
+  idempotencyKey: string;
+  /**
+   * Whether a `succeeded` outcome may raise the stream's consumed-nonce floor.
+   * `false` for a caller-owned key: the service may answer a repeat with the
+   * earlier request under that key, whose nonce is not the one just signed.
+   * The next read then waits for this RPC to see the transaction instead.
+   */
+  raisesFloor: boolean;
+  /** The acceptance receipt, once the service accepted the submit. */
+  accepted: GaslessSubmitReceipt | null;
 }
 
 /** The pending signature per stream, per config. @internal */
@@ -198,6 +210,38 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Wait until this config's RPC returns the receipt of a transaction the
+ * relayer reported `succeeded`, so a nonce read after it reflects that block.
+ * A failed receipt read counts as "not yet": the RPC is either behind or
+ * briefly unreachable, and both are settled by looking again.
+ *
+ * @param config - The SDK config.
+ * @param chainId - The chain the transaction mined on.
+ * @param hash - The successful transaction.
+ * @param budgetEndsAt - When to stop looking (ms since epoch).
+ * @returns `true` once the receipt is visible, `false` when the budget ends first.
+ */
+async function waitForReceiptOnRpc(
+  config: Config,
+  chainId: number,
+  hash: Hash,
+  budgetEndsAt: number,
+): Promise<boolean> {
+  const client = config.getClient({ chainId });
+  for (;;) {
+    try {
+      await client.getTransactionReceipt({ hash });
+      return true;
+    } catch {
+      /** Not visible on this RPC yet; poll again while the budget lasts. */
+    }
+    const remainingMs = budgetEndsAt - Date.now();
+    if (remainingMs <= 0) return false;
+    await sleep(Math.min(GASLESS_NONCE_STREAM_POLL_MS, remainingMs));
+  }
+}
+
+/**
  * Whether a thrown submit error leaves the stream's signed nonce **possibly or
  * certainly consumed**, so the next caller must wait for it instead of signing
  * it again.
@@ -243,19 +287,24 @@ export function blocksGaslessNonceStream(err: unknown): boolean {
  * consumed or the signature expires. A definitive rejection records nothing —
  * nothing was accepted, so the nonce is free immediately.
  *
+ * Every record carries the submit's idempotency key, so a later attempt under
+ * the same key can recognize its own earlier submit (see
+ * {@link readGaslessStreamNonce} and {@link getGaslessPendingAcceptance}).
+ *
  * @param config - The SDK config.
  * @param key - The stream key the submit was signed on.
- * @param pending - What was signed: the highest nonce, the service, the chain and the signature deadline (seconds).
+ * @param pending - What was signed: the highest nonce, the service, the chain, the signature deadline (seconds),
+ *   the idempotency key, and whether that key is the caller's own.
  * @param submit - Performs the POST and returns the acceptance receipt.
  * @param blocksStream - Whether a thrown error leaves the signed nonce possibly or certainly consumed; pass {@link blocksGaslessNonceStream}.
  * @returns Whatever `submit` resolved with.
  *
  * @internal
  */
-export function submitOnGaslessNonceStream<result extends { requestId: string }>(
+export function submitOnGaslessNonceStream<result extends GaslessSubmitReceipt>(
   config: Config,
   key: string,
-  pending: { signedNonce: bigint; service: GaslessService; chainId: number; deadline: bigint },
+  pending: GaslessStreamSubmit & { signedNonce: bigint },
   submit: () => Promise<result>,
   blocksStream: (err: unknown) => boolean,
 ): Promise<result> {
@@ -277,29 +326,33 @@ export function submitOnGaslessNonceStream<result extends { requestId: string }>
  *
  * @param config - The SDK config.
  * @param streams - Each stream the submit signed on, with the highest nonce it signed there.
- * @param pending - The service, the chain and the signature deadline (seconds), shared by every stream.
+ * @param pending - The service, the chain, the signature deadline (seconds), the idempotency key and whether that
+ *   key is the caller's own, shared by every stream.
  * @param submit - Performs the POST and returns the acceptance receipt.
  * @param blocksStream - Whether a thrown error leaves the signed nonces possibly or certainly consumed; pass {@link blocksGaslessNonceStream}.
  * @returns Whatever `submit` resolved with.
  *
  * @internal
  */
-export async function submitOnGaslessNonceStreams<result extends { requestId: string }>(
+export async function submitOnGaslessNonceStreams<result extends GaslessSubmitReceipt>(
   config: Config,
   streams: readonly { key: string; signedNonce: bigint }[],
-  pending: { service: GaslessService; chainId: number; deadline: bigint },
+  pending: GaslessStreamSubmit,
   submit: () => Promise<result>,
   blocksStream: (err: unknown) => boolean,
 ): Promise<result> {
   const expiresAtMs = Number(pending.deadline) * 1_000;
-  const record = (requestId: string | null) => {
+  const record = (accepted: result | null) => {
     for (const stream of streams) {
       pendingFor(config).set(stream.key, {
         signedNonce: stream.signedNonce,
-        requestId,
+        requestId: accepted?.requestId ?? null,
         service: pending.service,
         chainId: pending.chainId,
         expiresAtMs,
+        idempotencyKey: pending.idempotencyKey,
+        raisesFloor: !pending.callerOwnedKey,
+        accepted,
       });
     }
   };
@@ -312,8 +365,51 @@ export async function submitOnGaslessNonceStreams<result extends { requestId: st
     throw err;
   }
 
-  record(receipt.requestId);
+  record(receipt);
   return receipt;
+}
+
+/**
+ * What every stream a submit signed on records about it.
+ *
+ * @internal
+ */
+export interface GaslessStreamSubmit {
+  /** Which service stores the request. */
+  service: GaslessService;
+  /** The chain the request is submitted on. */
+  chainId: number;
+  /** The signature deadline, in seconds. */
+  deadline: bigint;
+  /** The idempotency key the submit is sent under. */
+  idempotencyKey: string;
+  /** Whether the key is the caller's own (`gasless.idempotencyKey`) rather than one the SDK generated. */
+  callerOwnedKey: boolean;
+}
+
+/**
+ * The acceptance of an earlier submit under the same caller-owned key, on any
+ * of the given streams. An attempt that finds one returns it instead of
+ * signing again: the service already holds a request for that key, and this
+ * config saw it accepted.
+ *
+ * @param config - The SDK config.
+ * @param keys - The stream keys the attempt would sign on.
+ * @param idempotencyKey - The attempt's caller-owned key.
+ * @returns The earlier acceptance receipt, or `null`.
+ *
+ * @internal
+ */
+export function getGaslessPendingAcceptance(
+  config: Config,
+  keys: readonly string[],
+  idempotencyKey: string,
+): GaslessSubmitReceipt | null {
+  for (const key of keys) {
+    const entry = pendingNonces.get(config)?.get(key);
+    if (entry?.accepted && entry.idempotencyKey === idempotencyKey) return entry.accepted;
+  }
+  return null;
 }
 
 /**
@@ -337,14 +433,26 @@ export async function submitOnGaslessNonceStreams<result extends { requestId: st
  * see the block. `succeeded` is the relayer's node's view and a public RPC can
  * trail it, so the signed nonce becomes a floor under every later read on the
  * stream; the relayer simulates the next submit against its own node, which
- * already has the block.
+ * already has the block. A submit under a caller-owned key never raises that
+ * floor: the service may have answered it with an earlier request under the
+ * key, whose nonce is not the one recorded here. Its success instead makes the
+ * read wait until this RPC returns the successful transaction's receipt, so the
+ * nonce it reads includes that block; when the budget runs out first, the read
+ * throws rather than return a nonce it knows may be spent.
+ *
+ * An attempt under the **same** caller-owned key as the pending submit does not
+ * wait for it. Both carry one key, and the service accepts a key at most once,
+ * so the retry signs from the consumed nonce and lets the service settle which
+ * of the two stands. Different keys — different actions — still wait.
  *
  * @param config - The SDK config.
  * @param key - The stream key.
  * @param readConsumedNonce - Reads the stream's consumed nonce on-chain.
+ * @param idempotencyKey - The attempt's caller-owned idempotency key, when it has one.
  * @returns The consumed nonce to sign from (sign `+ 1n`).
  * @throws {SymmError} `GASLESS_NONCE_STREAM_BUSY` when the budget runs out with a signature
- *   still unaccounted for — signing now would collide with it.
+ *   still unaccounted for — signing now would collide with it — or before this RPC has seen a
+ *   caller-keyed success, whose spent nonce it would still report as free.
  *
  * @internal
  */
@@ -352,6 +460,7 @@ export async function readGaslessStreamNonce(
   config: Config,
   key: string,
   readConsumedNonce: () => Promise<bigint>,
+  idempotencyKey?: string,
 ): Promise<bigint> {
   /** Every read is raised to the nonce a `succeeded` relay on this stream is known to have consumed. */
   const readFloored = async () => {
@@ -363,6 +472,9 @@ export async function readGaslessStreamNonce(
   const consumed = await readFloored();
   const pending = pendingFor(config).get(key);
   if (!pending) return consumed;
+
+  /** A retry of the same action: the service, not this stream, decides which attempt stands. */
+  if (idempotencyKey !== undefined && pending.idempotencyKey === idempotencyKey) return consumed;
 
   const budgetEndsAt = Math.min(pending.expiresAtMs, Date.now() + GASLESS_NONCE_STREAM_WAIT_MS);
   /** Already consumed, or expired past any chance of landing: the stream is free. */
@@ -398,7 +510,21 @@ export async function readGaslessStreamNonce(
        * a `failed` transaction that mines late costs one rejection, never a
        * double run.
        */
-      if (terminal.status === GaslessRequestStatus.SUCCEEDED) raiseConsumedFloor(config, key, pending.signedNonce);
+      if (terminal.status === GaslessRequestStatus.SUCCEEDED) {
+        if (pending.raisesFloor) {
+          raiseConsumedFloor(config, key, pending.signedNonce);
+        } else if (
+          terminal.txHash !== null &&
+          !(await waitForReceiptOnRpc(config, pending.chainId, terminal.txHash, budgetEndsAt))
+        ) {
+          /** The record stays, so the next caller waits for the receipt too instead of signing a spent nonce. */
+          throw new SymmError(
+            "api",
+            "GASLESS_NONCE_STREAM_BUSY",
+            `Gasless: request ${terminal.requestId} succeeded in transaction ${terminal.txHash}, but this RPC has not returned its receipt yet, so its nonce is stale. Signing now would reuse a spent nonce — retry once the RPC has caught up.`,
+          );
+        }
+      }
       clearGaslessPendingNonce(config, key);
       return await readFloored();
     }

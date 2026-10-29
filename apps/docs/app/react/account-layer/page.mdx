@@ -159,6 +159,32 @@ The query is **disabled until `subAccount`, `isolationType`, and `symbolId` are 
 
 `UseQueryResult<Address, SymmioRequestError>` — the predicted VA address.
 
+### Virtual-account reads
+
+In lowcap trading every isolated position lives in its own Virtual Account (VA), the on-chain `partyA` of its quotes.
+These hooks read a subaccount's VAs. Each is disabled until its required inputs are set, `chainId` defaults to the
+connected chain, and errors are normalized to `SymmioRequestError`. Pass `chainId` explicitly in an app whose wallet may
+sit on another chain.
+
+| Hook                                      | Reads                                                                                                                                              | Disabled until                            |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------- |
+| `useVirtualAccountsOfSubAccount`          | The VAs with their market, parent and isolation type — [`getVirtualAccountsOfSubAccount`](/core/account-layer/get-virtual-accounts-of-sub-account) | `subAccount`                              |
+| `useVirtualAccountsAddressesOfSubAccount` | The VA addresses — [`getVirtualAccountsAddressesOfSubAccount`](/core/account-layer/get-virtual-accounts-addresses-of-sub-account)                  | `subAccount`                              |
+| `useVirtualAccountsCountOfSubAccount`     | How many VAs, to page past 200 — [`getVirtualAccountsCountOfSubAccount`](/core/account-layer/get-virtual-accounts-count-of-sub-account)            | `subAccount`                              |
+| `useVirtualAccount`                       | One VA's detail, cached indefinitely — [`getVirtualAccount`](/core/account-layer/get-virtual-account)                                              | `account`                                 |
+| `useActiveVirtualAccountByKey`            | The VA active for a market and side, or `null` — [`getActiveVirtualAccountByKey`](/core/account-layer/get-active-virtual-account-by-key)           | `subAccount`, `isolationType`, `symbolId` |
+| `useSubAccountVirtualNonce`               | The nonce the next VA derives from — [`getSubAccountVirtualNonce`](/core/account-layer/get-sub-account-virtual-nonce)                              | `subAccount`                              |
+
+```tsx
+import { useVirtualAccountsOfSubAccount, VIRTUAL_ACCOUNT_ISOLATION_TYPE } from "@symmio/trading-react";
+
+const { data: vas } = useVirtualAccountsOfSubAccount({ subAccount, chainId });
+const longs = vas?.filter((va) => va.isolationType === VIRTUAL_ACCOUNT_ISOLATION_TYPE.MARKET_LONG);
+```
+
+Each returns react-query's `UseQueryResult` with the core action's return type. Pagination (`offset`, `limit`) and
+TanStack `query` overrides pass through.
+
 ## Writes
 
 <Callout type="info">
@@ -245,7 +271,7 @@ On success, the hook invalidates the subaccount's `useAccountBalanceInfo` and `u
 
 #### Muon signature & cooldown
 
-The hook calls `getDeallocateUpnlSig` for you unless you pass a `upnlSig` variable. Deallocate is subject to the on-chain debounce — submitting too soon after a prior deallocate reverts — and the result must keep the subaccount solvent; both surface as a normalized `SymmioRequestError`. `useSimulateDeallocate()` dry-runs the call (supply a `upnlSig` there — it does not auto-fetch).
+The hook calls `getDeallocateUpnlSig` for you unless you pass a `upnlSig` variable. Deallocate is subject to the on-chain debounce — it reverts until the account's [`useWithdrawCooldownOf`](/react/withdraw#usewithdrawcooldownof) timestamp plus [`useDeallocateDebounceTime`](/react/withdraw#usedeallocatedebouncetime) has passed — and the result must keep the subaccount solvent; both surface as a normalized `SymmioRequestError`. `useSimulateDeallocate()` dry-runs the call (supply a `upnlSig` there — it does not auto-fetch).
 
 ### `useEditAccountName`
 
@@ -284,3 +310,12 @@ On success, the hook invalidates every cached `useUserSubAccounts` query in the 
 #### Why this hook needs a connected wallet
 
 The hook reads `useSymmioWalletClient()` under the hood. If the user is disconnected or on the wrong chain, calling `mutate` throws a `SymmioRequestError` with `kind: "sdk"` before any contract call is made. UIs typically gate the button on `useWalletAccount().isOnExpectedChain` to avoid the error path entirely.
+
+## Account creation: recovery and cache ownership
+
+To make a relayed creation recoverable, pass `gasless.idempotencyKey` in the mutation variables — one key per user action, saved before calling — and call the mutation again with the same key after an unknown outcome. The hook forwards the key unchanged; your app keeps the pending record. See [Recovering gasless writes](/core/gasless/recovering-writes).
+
+On success, all owner variants of account-list, address-list and account-count
+queries are invalidated. The signing identity may be a session key or a host
+embedded wallet, so invalidation must not assume wagmi's connected address owns
+the new account. Application-specific balance caches remain the host's responsibility.

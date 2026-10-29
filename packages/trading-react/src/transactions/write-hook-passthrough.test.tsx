@@ -26,6 +26,7 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "addMarginMutationOptions",
     "allocateMutationOptions",
     "approveCollateralMutationOptions",
+    "approveOperationalFeeAllowanceMutationOptions",
     "approveOperationalFeeMutationOptions",
     "cancelRegistrationMutationOptions",
     "createSubAccountsMutationOptions",
@@ -41,6 +42,7 @@ const { relayed, FACTORY_NAMES } = vi.hoisted(() => ({
     "forceCancelQuoteMutationOptions",
     "forceCloseAutoMutationOptions",
     "grantDelegationMutationOptions",
+    "grantDelegationsMutationOptions",
     "initiateRevokeDelegationMutationOptions",
     "initiateWithdrawMutationOptions",
     "removeMarginMutationOptions",
@@ -75,8 +77,10 @@ import { useRemoveMargin } from "../account-layer/use-remove-margin";
 import { useRequestToRegisterAffiliate } from "../account-layer/use-request-to-register-affiliate";
 import { useApproveCollateral } from "../collateral/use-approve-collateral";
 import { useApproveOperationalFee } from "../gasless/use-approve-operational-fee";
+import { useApproveOperationalFeeAllowance } from "../gasless/use-approve-operational-fee-allowance";
 import { useFinalizeRevokeDelegation } from "../instant-layer/use-finalize-revoke-delegation";
 import { useGrantDelegation } from "../instant-layer/use-grant-delegation";
+import { useGrantDelegations } from "../instant-layer/use-grant-delegations";
 import { useInitiateRevokeDelegation } from "../instant-layer/use-initiate-revoke-delegation";
 import { useForceCancelCloseRequest } from "../quotes/use-force-cancel-close-request";
 import { useForceCancelQuote } from "../quotes/use-force-cancel-quote";
@@ -96,8 +100,10 @@ const AFFILIATE: Address = "0x000000000000000000000000000000000000aFF1";
  * The sentinels. `from` is an address no other fixture uses, so it can only
  * arrive by being forwarded. `gasless` is a full {@link GaslessWriteOptions}
  * bag rather than `true`: a hook that forwarded only a boolean would still drop
- * `fallback` / `account` / `broadcastTimeoutMs`, and the per-call bag is the
- * half consumers actually reach for.
+ * `fallback` / `account` / `broadcastTimeoutMs` / `idempotencyKey`, and the
+ * per-call bag is the half consumers actually reach for. (Core rejects a key
+ * combined with `fallback: "wallet"`, but core is stubbed here: forwarding is
+ * the only subject.)
  */
 const SENTINEL_FROM: Address = "0x000000000000000000000000000000000000F00D";
 const SENTINEL_GASLESS: GaslessWriteOptions = {
@@ -105,6 +111,7 @@ const SENTINEL_GASLESS: GaslessWriteOptions = {
   fallback: "wallet",
   account: ACCOUNT,
   broadcastTimeoutMs: 5_000,
+  idempotencyKey: "sentinel-action",
 };
 
 const UPNL_SIG: SingleUpnlSig = {
@@ -268,6 +275,13 @@ const PROBES: Probe<never>[] = [
     variables: { account: ACCOUNT, amounts: [1n] },
   }),
   probe({
+    file: "gasless/use-approve-operational-fee-allowance.ts",
+    name: "useApproveOperationalFeeAllowance",
+    acceptsGasless: true,
+    useWrite: (config) => useApproveOperationalFeeAllowance({ config, waitForReceipt: false }),
+    variables: { account: ACCOUNT, amounts: [1n] },
+  }),
+  probe({
     file: "instant-layer/use-grant-delegation.ts",
     name: "useGrantDelegation",
     acceptsGasless: true,
@@ -277,6 +291,16 @@ const PROBES: Probe<never>[] = [
       delegatedSigner: VIRTUAL_ACCOUNT,
       selectors: ["0xa6d66852" as Hex],
       expiryTimestamp: 1n,
+    },
+  }),
+  probe({
+    file: "instant-layer/use-grant-delegations.ts",
+    name: "useGrantDelegations",
+    acceptsGasless: true,
+    useWrite: (config) => useGrantDelegations({ config, waitForReceipt: false }),
+    variables: {
+      account: { addr: ACCOUNT, isPartyB: false },
+      delegations: [{ delegatedSigner: VIRTUAL_ACCOUNT, selectors: ["0xa6d66852" as Hex], expiryTimestamp: 1n }],
     },
   }),
   probe({

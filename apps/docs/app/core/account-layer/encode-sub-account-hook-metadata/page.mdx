@@ -1,0 +1,53 @@
+import { Callout } from "nextra/components";
+
+# encodeSubAccountHookMetadata
+
+Encode the `metadata` blob of a new subaccount in the format the chains' default affiliate hook decodes.
+
+```ts
+import { encodeSubAccountHookMetadata } from "@symmio/trading-core";
+
+const metadata = encodeSubAccountHookMetadata({ partyBToBind: solverAddress });
+```
+
+`createSubAccounts` stores the blob verbatim and hands it to the affiliate's hook unchanged. The hook decides the
+encoding, and a blob it rejects fails the whole creation with `HookFailed`. The default affiliate of each chain the SDK
+ships (`addresses.affiliatesAddress`) decodes one tuple, which this helper encodes:
+
+```solidity
+abi.encode((string rflCode, uint256 referrerTokenId, address partyBToBind))
+```
+
+Pass the result as `SubAccountCreationData.metadata` to [`createSubAccounts`](/core/account-layer/create-sub-accounts),
+or as `accountData.metadata` to
+[`settleGaslessDepositNewAccount`](/core/gasless/settle-gasless-deposit-new-account). If you create accounts under an
+affiliate with its own hook, encode the blob that hook expects instead.
+
+<Callout type="warning">
+  **`rflCode` is global and single-use.** The hook keeps referral codes in one namespace across every wallet, and a code
+  that is already registered reverts the creation (`HookFailed(0x7ab9fd97)`), as does the same code twice in one
+  `createSubAccounts` call. Never pass a fixed literal; pass a code you know is free, or omit it. An empty code is
+  skipped rather than stored, so it never collides.
+</Callout>
+
+## Parameters
+
+<Properties>
+  <Property name="rflCode" type="string" optional default='""'>
+    Referral code to register for the subaccount. See the warning above.
+  </Property>
+  <Property name="partyBToBind" type="Address" optional>
+    PartyB (solver) the hook binds the subaccount to, such as the chain's solver address. Omit it, or pass the zero
+    address, to bind none; the referral code and referrer are still encoded.
+  </Property>
+  <Property name="referrerTokenId" type="bigint" optional default="0n">
+    Referrer NFT id; `0n` when there is no referrer.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Hex">
+  The ABI-encoded tuple, with the zero address for a missing `partyBToBind`, or `"0x"` when every field is empty and
+  there is nothing to hand the hook.
+</Returns>

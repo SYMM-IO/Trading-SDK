@@ -64,5 +64,6 @@ const hash = await grantDelegation(config, {
 
 <Callout type="warning">
   A `isPartyB: true` account cannot be relayed — the signed-operation encoder has no PartyB form. Such a grant takes the
-  wallet path, and throws `GASLESS_PARTYB_UNSUPPORTED` if gasless was demanded explicitly with `gasless: true`.
+  wallet path, and throws `GASLESS_PARTYB_UNSUPPORTED` before any prompt if gasless was demanded explicitly: `gasless:
+  true`, `enabled: true`, or a `gasless.idempotencyKey`, which never takes the wallet.
 </Callout>

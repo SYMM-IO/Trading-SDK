@@ -1,5 +1,5 @@
 import { decodeFunctionData } from "viem";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig } from "../../core/chains";
 import { instantLayerAbi } from "../../symmio-contracts/abi/v0.8.6/instant-layer";
 import { GASLESS_TEST_CHAIN, TEST_GASLESS, TEST_GASLESS_SIGNER, gaslessWriteTestConfig } from "../test/config";
@@ -65,5 +65,66 @@ describe("relayGrantDelegation", () => {
     expect(body.userAddress).toBe(TEST_GASLESS_SIGNER);
     expect(body.signedOps[0]?.replayAttackHeader.nonce).toBe(3);
     expect(body.signedOps[0]?.maxUses).toBe(1);
+  });
+
+  describe("caller-owned idempotency key", () => {
+    const GRANT = {
+      chainId: GASLESS_TEST_CHAIN,
+      account: SUB_ACCOUNT,
+      delegatedSigner: SESSION_KEY,
+      selectors: ["0xcf70cb69"],
+      expiryTimestamp: 4_102_444_800n,
+    } as const;
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("sends the key, and answers a same-key retry with the accepted receipt instead of a second prompt", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+      readContract.mockResolvedValue(2n);
+      post.mockResolvedValue({
+        headers: HEADERS,
+        data: { request_id: "req-d1", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
+      });
+
+      const first = await relayGrantDelegation(config, { ...GRANT, idempotencyKey: "grant-1" });
+      const retry = await relayGrantDelegation(config, { ...GRANT, idempotencyKey: "grant-1" });
+
+      expect((post.mock.calls[0]?.[1] as { idempotencyKey: string }).idempotencyKey).toBe("grant-1");
+      expect(retry).toEqual(first);
+      expect(signTypedData).toHaveBeenCalledOnce();
+      expect(post).toHaveBeenCalledOnce();
+    });
+
+    it("rejects an invalid key before any read or prompt", async () => {
+      const { config, readContract, signTypedData } = gaslessWriteTestConfig();
+
+      await expect(relayGrantDelegation(config, { ...GRANT, idempotencyKey: "" })).rejects.toMatchObject({
+        code: "GASLESS_IDEMPOTENCY_KEY_INVALID",
+      });
+      expect(readContract).not.toHaveBeenCalled();
+      expect(signTypedData).not.toHaveBeenCalled();
+    });
+
+    it("fixes the signature deadline when the call starts", async () => {
+      vi.useFakeTimers();
+      vi.setSystemTime(new Date("2026-10-19T12:00:00Z"));
+      const startedAt = Math.floor(Date.now() / 1000);
+      const { config, readContract } = gaslessWriteTestConfig();
+      /** The nonce read answers a minute later, so signing happens a minute after the call started. */
+      readContract.mockImplementation(() => new Promise((resolve) => setTimeout(() => resolve(2n), 60_000)));
+      post.mockResolvedValue({
+        headers: HEADERS,
+        data: { request_id: "req-d1", status: "queued", paid_fee: "0", remaining_fee_allowance: "0" },
+      });
+
+      const pending = relayGrantDelegation(config, { ...GRANT, idempotencyKey: "grant-2" });
+      await vi.advanceTimersByTimeAsync(61_000);
+      await pending;
+
+      const body = post.mock.calls[0]?.[1] as { signedOps: { replayAttackHeader: { deadline: number } }[] };
+      expect(body.signedOps[0]?.replayAttackHeader.deadline).toBe(startedAt + 20 * 60);
+    });
   });
 });

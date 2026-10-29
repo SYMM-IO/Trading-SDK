@@ -1,7 +1,12 @@
 import { encodeFunctionData, isAddressEqual, type Address } from "viem";
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute, FromParameter } from "../../shared/types/properties";
+import type {
+  ChainIdParameter,
+  Compute,
+  FromParameter,
+  GaslessIdempotencyKeyParameter,
+} from "../../shared/types/properties";
 import { generateSalt } from "../../solvers/instant-open/shared/operations";
 import { gaslessWalletAbi } from "../../symmio-contracts/abi/v0.8.6/gasless-wallet";
 import { getIsDelegationActive } from "../../symmio-contracts/instant-layer/actions/get-is-delegation-active";
@@ -9,10 +14,12 @@ import { GASLESS_WALLET_OPERATION_TYPES, getGaslessGatewayEip712Domain } from ".
 import { toGaslessSafeNumber } from "../format-gasless-operation";
 import { getGaslessWalletAddress } from "../get-gasless-wallet-address/get-gasless-wallet-address";
 import { getGaslessWalletNonce } from "../get-gasless-wallet-nonce/get-gasless-wallet-nonce";
-import { generateGaslessIdempotencyKey, postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { resolveGaslessIdempotencyKey } from "../idempotency-key";
 import {
   blocksGaslessNonceStream,
   gaslessWalletNonceStreamKey,
+  getGaslessPendingAcceptance,
   readGaslessStreamNonce,
   submitOnGaslessNonceStream,
   withGaslessNonceLock,
@@ -40,7 +47,8 @@ export const GASLESS_WALLET_EXECUTE_OPERATION_TYPE = "gaslessqWalletExecute";
  */
 export type GaslessWalletExecuteParameters = Compute<
   ChainIdParameter &
-    FromParameter & {
+    FromParameter &
+    GaslessIdempotencyKeyParameter & {
       /**
        * Owner of the deterministic gasless wallet. Defaults to `signerAccount`,
        * or to the signing wallet's address when that is omitted too. When
@@ -144,9 +152,17 @@ export type GaslessWalletExecuteReturnType = GaslessSubmitReceipt;
  * status. React consumers should reach for `useGaslessWalletExecute`, which
  * confirms the request before it resolves.
  *
+ * Pass `idempotencyKey` (one per user action, from
+ * `generateGaslessIdempotencyKey`) to make the call retryable: a later call
+ * with the same key never waits for its own earlier submit, returns that
+ * submit's receipt when this config saw it accepted, and is otherwise accepted
+ * by the service at most once. The signature's 10-minute deadline is fixed when
+ * the call starts.
+ *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
- * @param parameters - The calls, optional wallet id and owner/chain/signer/label overrides.
+ * @param parameters - The calls, optional wallet id and owner/chain/signer/label/idempotency-key overrides.
  * @returns The acceptance receipt; persist `requestId`, `owner` and `walletIds` immediately.
+ * @throws {SymmError} `GASLESS_IDEMPOTENCY_KEY_INVALID` for a blank key or one longer than 128 characters.
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` /
  *   `GASLESS_WALLET_UNAVAILABLE`.
  * @throws {SymmError} `GASLESS_WALLET_ID_INVALID` for a wallet id outside the `uint256` range.
@@ -160,8 +176,8 @@ export type GaslessWalletExecuteReturnType = GaslessSubmitReceipt;
  *   `InvalidWalletOperationTarget` in the decoded revert means the operation's
  *   target was not the owner's wallet.
  * @throws {SymmApiError} `GASLESS_SUBMIT_UNCONFIRMED` when the outcome could not be
- *   established. The signature is spent either way: replay the submit with
- *   `resubmitGaslessRequest`, never by signing a new operation.
+ *   established. Call again under the same `idempotencyKey`, or replay the submit with
+ *   `resubmitGaslessRequest`; never sign a new operation under a new key.
  *
  * @example
  * ```ts
@@ -180,6 +196,13 @@ export async function gaslessWalletExecute(
   parameters: GaslessWalletExecuteParameters,
 ): Promise<GaslessWalletExecuteReturnType> {
   const { chainId, calls, from, metadata } = parameters;
+
+  /** Fixed when the call starts, before any lock wait or prompt. */
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + GASLESS_WALLET_OPERATION_DEADLINE_SECONDS);
+  /** One key per user action; validated before any network call or prompt. */
+  const callerOwnedKey = parameters.idempotencyKey !== undefined;
+  const idempotencyKey = resolveGaslessIdempotencyKey(parameters.idempotencyKey);
+
   const walletId = assertGaslessWalletId(parameters.walletId ?? 0n);
 
   const chain = config.getChainConfig(chainId);
@@ -253,17 +276,26 @@ export async function gaslessWalletExecute(
 
   const streamKey = gaslessWalletNonceStreamKey(chain.chainId, walletId, owner, account);
 
+  /** This config already saw an attempt under the same key accepted: return it instead of signing again. */
+  if (callerOwnedKey) {
+    const earlier = getGaslessPendingAcceptance(config, [streamKey], idempotencyKey);
+    if (earlier) return earlier;
+  }
+
   return withGaslessNonceLock(config, streamKey, async () => {
     const [wallet, currentNonce] = await Promise.all([
       getGaslessWalletAddress(config, { chainId, owner, walletId }),
-      readGaslessStreamNonce(config, streamKey, () =>
-        getGaslessWalletNonce(config, { chainId, owner, walletId, account }),
+      readGaslessStreamNonce(
+        config,
+        streamKey,
+        () => getGaslessWalletNonce(config, { chainId, owner, walletId, account }),
+        callerOwnedKey ? idempotencyKey : undefined,
       ),
     ]);
 
     const replayAttackHeader = {
       nonce: currentNonce + 1n,
-      deadline: BigInt(Math.floor(Date.now() / 1000) + GASLESS_WALLET_OPERATION_DEADLINE_SECONDS),
+      deadline,
       salt: generateSalt(),
     };
 
@@ -297,15 +329,6 @@ export async function gaslessWalletExecute(
       },
     };
 
-    /**
-     * Minted here, never taken from the caller: this action signs a fresh
-     * operation on every call, so a key the caller could reuse would describe a
-     * different payload than the one it first keyed and the service would
-     * answer `409 IDEMPOTENCY_KEY_CONFLICT`. Replaying a lost response is
-     * `resubmitGaslessRequest`'s job, which reuses this key with the bytes that
-     * went with it.
-     */
-    const idempotencyKey = generateGaslessIdempotencyKey();
     const body: GaslessWireRelayInstantRequest = {
       idempotencyKey,
       userAddress: owner,
@@ -328,6 +351,8 @@ export async function gaslessWalletExecute(
         service: "operations",
         chainId: chain.chainId,
         deadline: replayAttackHeader.deadline,
+        idempotencyKey,
+        callerOwnedKey,
       },
       async () => {
         const raw = await postGaslessSubmit<GaslessWireOperationAccepted>(

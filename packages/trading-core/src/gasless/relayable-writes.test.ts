@@ -189,11 +189,14 @@ describe("every relayable write has a real seam", () => {
         "GaslessWriteParameter",
       );
       /**
-       * Either the action calls the dispatcher itself (a direct-to-contract
-       * write) or it goes through `callAsSubAccount`, whose `_call` proxy
-       * carries the seam for it.
+       * A direct write uses the shared contract executor or the compatibility
+       * dispatcher. Proxy writes use `callAsSubAccount`, whose `_call` proxy
+       * carries the seam for them.
        */
-      const dispatches = source.includes("maybeRelayAsGasless") || source.includes("callAsSubAccount");
+      const dispatches =
+        (source.includes("executeContractWrite") && source.includes("billingAccount:")) ||
+        source.includes("maybeRelayAsGasless") ||
+        source.includes("callAsSubAccount");
       expect(dispatches, `${write.operationType} (${selector}) never reaches the gasless dispatcher`).toBe(true);
     });
   }

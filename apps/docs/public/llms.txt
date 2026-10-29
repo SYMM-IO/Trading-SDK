@@ -40,3 +40,11 @@ The SDK ships several packages. The two that matter are `@symmio/trading-react` 
 - Core-only DEX guide (no React): https://doc.trading-sdk.symm.io/guides/build-a-dex/core
 - Errors: https://doc.trading-sdk.symm.io/core/concepts/errors
 - Session keys: https://doc.trading-sdk.symm.io/session-key
+
+## Complete pending withdrawals across accounts
+
+Use `usePendingWithdrawRequestsBatch({ users, chainId, pageSize: 200n })` in React to read all pages for multiple subaccounts. It normalizes user ordering, case and duplicates; an empty list disables automatic reads, and any failed page rejects the whole query. Requests are grouped by user. Raw core: `getPendingWithdrawRequestsBatch`. Reference: https://doc.trading-sdk.symm.io/core/symmio-contract/get-pending-withdraw-requests-batch and https://doc.trading-sdk.symm.io/react/withdraw#usependingwithdrawrequestsbatch
+
+## Withdraw and deallocate timing
+
+`useWithdrawableTime({ user })` tells when a withdrawal initiated now could finalize; use it for readiness. `useWithdrawCooldownOf({ user })` is the raw `deallocateTimestamp` in Unix seconds, a timestamp and not a duration. `useDeallocateDebounceTime()` is the protocol's minimum gap between two deallocations of one account, so the next deallocate succeeds once `withdrawCooldownOf + debounce` has passed. There is no hook for `executeAccountCalls` (arbitrary core writes run atomically): use `useWithdraw` for an atomic deallocate plus initiate, or wrap `executeAccountCallsMutationOptions` in `useMutation` and refresh the reads your calls change. Reference: https://doc.trading-sdk.symm.io/react/withdraw#usewithdrawcooldownof and https://doc.trading-sdk.symm.io/core/symmio-contract/execute-account-calls

@@ -1,0 +1,35 @@
+# getDeallocateDebounceTime
+
+Read the protocol-configured deallocation debounce duration in seconds: the
+minimum gap between two deallocations of one account. A deallocation reverts
+until the account's
+[getWithdrawCooldownOf](/core/symmio-contract/get-withdraw-cooldown-of)
+timestamp plus this debounce has passed, so the two reads together give the
+earliest next deallocation. A zero duration is valid. The contract remains authoritative about
+whether an action can execute. In React, read it with
+[`useDeallocateDebounceTime`](/react/withdraw#usedeallocatedebouncetime).
+
+```ts
+import { getDeallocateDebounceTime, getDeallocateDebounceTimeQueryOptions } from "@symmio/trading-core";
+
+const seconds = await getDeallocateDebounceTime(config, {});
+const query = getDeallocateDebounceTimeQueryOptions(config, {});
+```
+
+## Signature
+
+```ts
+function getDeallocateDebounceTime(config: Config, parameters?: { chainId?: number }): Promise<bigint>;
+```
+
+`GetDeallocateDebounceTimeParameters` describes these inputs. `GetDeallocateDebounceTimeReturnType` and
+`GetDeallocateDebounceTimeData` are `bigint`; no conversion, clock adjustment or zero fallback is
+applied. RPC and configuration errors propagate to the caller.
+
+## Query options
+
+`getDeallocateDebounceTimeQueryOptions(config, options)` returns `GetDeallocateDebounceTimeQueryOptions` with a
+deployment-scoped key and the action's query function. `GetDeallocateDebounceTimeOptions` combines
+the action parameters with optional TanStack overrides under `query`.
+`getDeallocateDebounceTimeQueryKey(options)` produces `GetDeallocateDebounceTimeQueryKey`; prefer the options factory
+when executing queries so the SDK config's deployment identity is included.
