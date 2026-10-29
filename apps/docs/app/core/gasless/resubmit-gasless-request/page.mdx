@@ -21,7 +21,7 @@ try {
 
 A submit that fails ambiguously — no response, a timeout, a `502`/`504`, or a `202` with no `request_id` — may still have been accepted. The SDK resends it once itself after a short backoff, and if that does not land either — however the resend is answered, a `429` included — it throws [`GASLESS_SUBMIT_UNCONFIRMED`](/core/gasless/errors-and-fallback#the-fallback-safety-rule) carrying the exact bytes it sent. This action replays them.
 
-The vendor's contract makes that safe: the same key with the same payload either lands the request or returns the record the service already created. Rebuilding the payload does not — the signatures inside it cover specific nonces and deadlines, and a regenerated body under a bound key is answered with `409 IDEMPOTENCY_KEY_CONFLICT`.
+The service makes that safe: a key is bound to at most one request, so the replay either becomes that request or gets back the one the first attempt created. It runs nothing twice and needs no new signature. Never sign the action again under a new key instead: the first attempt may still run.
 
 For a write sent with your own idempotency key, calling the write again under that key is the simpler recovery: it needs no recorded bytes. See [Recovering gasless writes](/core/gasless/recovering-writes).
 

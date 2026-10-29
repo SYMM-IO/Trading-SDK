@@ -55,20 +55,21 @@ if (isFirstAttempt && isConfirmedGaslessRefusalError(err)) {
 
 ### The matrix
 
-| Outcome                                                                                                                | SDK behavior                                                   | Wallet fallback    |
-| ---------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ------------------ |
-| `429`, or `503` with the gateway `{ error }` envelope                                                                  | Resent under the same key, up to twice, then thrown            | **Yes**            |
-| Fee code (`FEE_POLICY_WOULD_REVERT` / `INSUFFICIENT_ALLOWANCE`) on any `4xx`                                           | Thrown as-is                                                   | **Yes**            |
-| `400 SIMULATION_REVERTED` with a billing revert (`OperationalFee: …`, `DailyFreeOpsLimitExceeded`, `FeeLimitExceeded`) | Thrown as-is                                                   | **Yes**            |
-| A stored record that ended `rejected` for a billing reason                                                             | Thrown by the dispatcher / `confirmGaslessRequest`             | **Yes**            |
-| Status `0`, a timeout, `500`, `502`, `504`, `503` without the envelope                                                 | Resent once after a backoff, then `GASLESS_SUBMIT_UNCONFIRMED` | **No** — resubmit  |
-| Any failure of that resend — a `429`, a gateway `503` or a fee code included                                           | `GASLESS_SUBMIT_UNCONFIRMED`, the answer kept as `cause`       | **No** — resubmit  |
-| A `2xx` with no `request_id`                                                                                           | `GASLESS_SUBMIT_UNCONFIRMED`                                   | **No** — resubmit  |
-| A `2xx` from another protocol instance                                                                                 | `GASLESS_INSTANCE_MISMATCH`, body kept in `responseData`       | **No** — reconcile |
-| `409 IDEMPOTENCY_KEY_CONFLICT`                                                                                         | Thrown as-is                                                   | **No** — reconcile |
-| `404` with the gateway envelope                                                                                        | Thrown as-is                                                   | **No** — config    |
-| `401` / `403` / `422`, any other `4xx`                                                                                 | Thrown as-is                                                   | **No**             |
-| Anything after a `202` that is not a billing `rejected`                                                                | `GASLESS_RELAY_REJECTED` / `_FAILED` / `_REVERTED`             | **No**             |
+| Outcome                                                                                                                | SDK behavior                                                                      | Wallet fallback    |
+| ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- | ------------------ |
+| `429`, or `503` with the gateway `{ error }` envelope                                                                  | Resent under the same key, up to twice, then thrown                               | **Yes**            |
+| Fee code (`FEE_POLICY_WOULD_REVERT` / `INSUFFICIENT_ALLOWANCE`) on any `4xx`                                           | Thrown as-is                                                                      | **Yes**            |
+| `400 SIMULATION_REVERTED` with a billing revert (`OperationalFee: …`, `DailyFreeOpsLimitExceeded`, `FeeLimitExceeded`) | Thrown as-is                                                                      | **Yes**            |
+| A stored record that ended `rejected` for a billing reason                                                             | Thrown by the dispatcher / `confirmGaslessRequest`                                | **Yes**            |
+| Status `0`, a timeout, `500`, `502`, `504`, `503` without the envelope                                                 | Resent once after a backoff, then `GASLESS_SUBMIT_UNCONFIRMED`                    | **No** — resubmit  |
+| Any failure of that resend — a `429`, a gateway `503` or a fee code included                                           | `GASLESS_SUBMIT_UNCONFIRMED`, the answer kept as `cause`                          | **No** — resubmit  |
+| A `2xx` with no `request_id`                                                                                           | `GASLESS_SUBMIT_UNCONFIRMED`                                                      | **No** — resubmit  |
+| A `2xx` from another protocol instance                                                                                 | `GASLESS_INSTANCE_MISMATCH`, body kept in `responseData`                          | **No** — reconcile |
+| A `202` with the request the key is already bound to                                                                   | Followed like a fresh accept: the earlier request's outcome is returned or thrown | **No**             |
+| `409 IDEMPOTENCY_KEY_CONFLICT` (not sent by the current service; a safeguard)                                          | Thrown as-is                                                                      | **No** — reconcile |
+| `404` with the gateway envelope                                                                                        | Thrown as-is                                                                      | **No** — config    |
+| `401` / `403` / `422`, any other `4xx`                                                                                 | Thrown as-is                                                                      | **No**             |
+| Anything after a `202` that is not a billing `rejected`                                                                | `GASLESS_RELAY_REJECTED` / `_FAILED` / `_REVERTED`                                | **No**             |
 
 `502` and `504` look like outages and are not treated as one on purpose. The gateway returns `502` for an upstream failure **and** for a protocol-instance identity mismatch, and either can happen after the body reached the service — which is exactly the shape that produced a double execution when the SDK treated them as "definitely not accepted".
 
@@ -98,9 +99,12 @@ Resending the identical request under the same key either lands it or returns th
 
 One key describes **one user action**. Every gasless submit takes one: `gasless.idempotencyKey` on a [relayable write](/core/gasless/relayable-writes), and `idempotencyKey` on [`relayGaslessBatch`](/core/gasless/relay-gasless-batch), [`relayInstantOperations`](/core/gasless/relay-instant-operations), [`relayGrantDelegation`](/core/gasless/relay-grant-delegation), [`gaslessWalletExecute`](/core/gasless/gasless-wallet-execute) and both deposit settlements. Without one, the SDK generates a key per call.
 
-- Create it with [`generateGaslessIdempotencyKey`](/core/gasless/generate-gasless-idempotency-key), save it before calling, and reuse it on every attempt of that action — signed again or not. While the service holds the key, it accepts it at most once.
-- A new action needs a new key, even with identical inputs. A request that reached a terminal status is over, so trying again is a new action.
-- `409 IDEMPOTENCY_KEY_CONFLICT` (`isGaslessIdempotencyConflictError`) means an earlier attempt of this action holds the key, and its outcome is not known yet. Keep the action pending and reconcile it; never send it again — not under a new key, and not through the wallet.
+- Create it with [`generateGaslessIdempotencyKey`](/core/gasless/generate-gasless-idempotency-key), save it before calling, and reuse it on every attempt of that action — signed again or not. The service binds the key to the first request that reaches it and answers every later submit under the key — the same bytes, signed again, or another body — with that request (`202`, the same `requestId`, its current status). Nothing runs twice, and the retry tells you what became of the earlier attempt.
+- A key is used up once its request ends. After `succeeded`, `failed`, `rejected` or `reverted`, the same key keeps returning that result. Trying again is a new action with a new key — after `failed`, only once [reconciliation](/core/gasless/recovering-writes#resolve-an-unresolved-action) shows it did not run.
+- A refused submit (`4xx`) creates no request and leaves the key free: a corrected retry under it becomes the request.
+- A new action needs a new key, even with identical inputs. Reused for another action, a key returns the old request — possibly `succeeded` — and your app would report an outcome for an action that never ran.
+- Keys are global to the deployment, not per user, so a key must be unique across all users.
+- `409 IDEMPOTENCY_KEY_CONFLICT` (`isGaslessIdempotencyConflictError`) is not sent by the current service; the SDK keeps recognizing it as a safeguard. Should it arrive, the action is unresolved: an earlier attempt may hold the key. Keep the action pending and reconcile it; never send it again — not under a new key, and not through the wallet.
 - A key makes a transparent write strictly gasless; combining it with `enabled: false` or `fallback: "wallet"` throws `GASLESS_IDEMPOTENCY_KEY_INVALID` before any prompt.
 
 Every acceptance receipt echoes the key that was used, so a relay you did not key yourself is still reconcilable — persist `requestId`, `owner`, `walletIds` and `idempotencyKey` together.
@@ -158,21 +162,21 @@ switch (classifyGaslessFailure(err)) {
 }
 ```
 
-| Reason                                                                                               | What the user can do                                                                   |
-| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `"payer-balance"`                                                                                    | Top up the billing account's SYMMIO collateral. Approving more allowance does nothing. |
-| `"fee-allowance"`                                                                                    | Approve more with [`approveOperationalFee`](/core/gasless/approve-operational-fee).    |
-| `"free-quota"`                                                                                       | Wait for the UTC reset, or pay from the wallet.                                        |
-| `"fee-limit"`                                                                                        | The fee policy refused it; refresh the policy before rebuilding.                       |
-| `"failed-operation"`                                                                                 | Decode the entry with `decodeGaslessOperationFailure` and fix that call.               |
-| `"nonce-or-deadline"`                                                                                | Refresh the nonce and deadline and ask for a new signature.                            |
-| `"deposit-below-minimum"` / `"deposit-not-above-fees"`                                               | Fund the deposit address further, or wait for finality.                                |
-| `"idempotency-conflict"`                                                                             | An earlier attempt holds the key: keep the action pending and reconcile it.            |
-| `"client-schema"`                                                                                    | A client bug — fix the payload, do not retry.                                          |
-| `"rate-limited"` / `"unauthorized"` / `"forbidden"` / `"unknown-instance"` / `"gateway-unavailable"` | Gateway-level; see the status table below.                                             |
-| `"submit-unconfirmed"`                                                                               | Retry under the same key, or resubmit. Never re-run the intent under a new key.        |
-| `"simulation-reverted"`                                                                              | Rebuild, re-sign, new key. Never resend the same signature.                            |
-| `"unknown"`                                                                                          | Show the raw diagnostics.                                                              |
+| Reason                                                                                               | What the user can do                                                                                               |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `"payer-balance"`                                                                                    | Top up the billing account's SYMMIO collateral. Approving more allowance does nothing.                             |
+| `"fee-allowance"`                                                                                    | Approve more with [`approveOperationalFee`](/core/gasless/approve-operational-fee).                                |
+| `"free-quota"`                                                                                       | Wait for the UTC reset, or pay from the wallet.                                                                    |
+| `"fee-limit"`                                                                                        | The fee policy refused it; refresh the policy before rebuilding.                                                   |
+| `"failed-operation"`                                                                                 | Decode the entry with `decodeGaslessOperationFailure` and fix that call.                                           |
+| `"nonce-or-deadline"`                                                                                | Refresh the nonce and deadline and ask for a new signature.                                                        |
+| `"deposit-below-minimum"` / `"deposit-not-above-fees"`                                               | Fund the deposit address further, or wait for finality.                                                            |
+| `"idempotency-conflict"`                                                                             | A `409` the current service never sends (a safeguard). The action is unresolved: keep it pending and reconcile it. |
+| `"client-schema"`                                                                                    | A client bug — fix the payload, do not retry.                                                                      |
+| `"rate-limited"` / `"unauthorized"` / `"forbidden"` / `"unknown-instance"` / `"gateway-unavailable"` | Gateway-level; see the status table below.                                                                         |
+| `"submit-unconfirmed"`                                                                               | Retry under the same key, or resubmit. Never re-run the intent under a new key.                                    |
+| `"simulation-reverted"`                                                                              | Rebuild and re-sign; never resend the same signature. With your own key, keep it: a refused submit leaves it free. |
+| `"unknown"`                                                                                          | Show the raw diagnostics.                                                                                          |
 
 To decide whether an action is over, ask `isGaslessRequestRejectedOrRevertedError(err)`. It is `true` only when the request was accepted and then ended `rejected` (refused before broadcast) or `reverted` (rolled back on-chain) — neither runs again. A `failed` request is deliberately excluded: the service lost track of it, and its transaction may still mine.
 
@@ -212,17 +216,17 @@ The gateway answers some failures itself, before any service sees the request, w
 
 From the service itself, via `parseGaslessErrorDetail(err)?.code`:
 
-| Code                                             | Meaning / action                                                                                                                                                                |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `FEE_POLICY_WOULD_REVERT`                        | The fee or free-quota policy blocks the request; refresh the policy before rebuilding. Fallback-eligible.                                                                       |
-| `INSUFFICIENT_ALLOWANCE`                         | Raise the billing account's gateway allowance. Fallback-eligible.                                                                                                               |
-| `SIMULATION_REVERTED`                            | The relay could not execute in simulation. Inspect the decoded cause, then correct funding, authorization or payload — **never resend the same signature**.                     |
-| `DEPOSIT_BELOW_MINIMUM`                          | Wait for funding or finality, or add collateral.                                                                                                                                |
-| `CHAIN_CONFIGURATION_ERROR`                      | The backend deployment is incompatible; escalate to the operators.                                                                                                              |
-| `CHAIN_EXECUTION_ERROR`                          | An RPC or contract call failed; inspect `rpcError` before deciding whether to retry.                                                                                            |
-| `IDEMPOTENCY_KEY_CONFLICT`                       | HTTP `409`: the key already belongs to an earlier request with a different payload — an earlier attempt of the same action. Reconcile it (`isGaslessIdempotencyConflictError`). |
-| `NOT_FOUND`                                      | The id or hash is not stored in the selected instance. After a `202`, expect this briefly — the accept-vs-record race.                                                          |
-| `INVALID_ADDRESS` / `INVALID_OPERATION_SELECTOR` | The payload named something the service will not relay.                                                                                                                         |
+| Code                                             | Meaning / action                                                                                                                                                                                                                 |
+| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `FEE_POLICY_WOULD_REVERT`                        | The fee or free-quota policy blocks the request; refresh the policy before rebuilding. Fallback-eligible.                                                                                                                        |
+| `INSUFFICIENT_ALLOWANCE`                         | Raise the billing account's gateway allowance. Fallback-eligible.                                                                                                                                                                |
+| `SIMULATION_REVERTED`                            | The relay could not execute in simulation. Inspect the decoded cause, then correct funding, authorization or payload — **never resend the same signature**.                                                                      |
+| `DEPOSIT_BELOW_MINIMUM`                          | Wait for funding or finality, or add collateral.                                                                                                                                                                                 |
+| `CHAIN_CONFIGURATION_ERROR`                      | The backend deployment is incompatible; escalate to the operators.                                                                                                                                                               |
+| `CHAIN_EXECUTION_ERROR`                          | An RPC or contract call failed; inspect `rpcError` before deciding whether to retry.                                                                                                                                             |
+| `IDEMPOTENCY_KEY_CONFLICT`                       | HTTP `409`. Not sent by the current service, which answers a reused key with the request the key is bound to. Kept as a safeguard: if it arrives, the action is unresolved — reconcile it (`isGaslessIdempotencyConflictError`). |
+| `NOT_FOUND`                                      | The id or hash is not stored in the selected instance. After a `202`, expect this briefly — the accept-vs-record race.                                                                                                           |
+| `INVALID_ADDRESS` / `INVALID_OPERATION_SELECTOR` | The payload named something the service will not relay.                                                                                                                                                                          |
 
 A FastAPI schema failure returns `422` with no code at all; read `validationErrors`.
 

@@ -132,10 +132,16 @@ export interface GaslessWriteOptions {
    * before calling. While the service holds the key, a call under it is
    * accepted at most once, so after an unknown outcome you may call the same
    * write again with the same key, inside your retry window. A repeat whose
-   * earlier attempt was accepted either follows that request or throws
-   * `409 IDEMPOTENCY_KEY_CONFLICT` (`isGaslessIdempotencyConflictError`); the
-   * earlier attempt's outcome is then still unknown. Use a new key for every
-   * new user action, even when the inputs are identical.
+   * earlier attempt reached the service gets that request back, whatever it
+   * sends, and the SDK follows it: the call returns or throws the earlier
+   * request's outcome, and nothing runs twice.
+   *
+   * A key is used up once its request ends: after `succeeded`, `failed`,
+   * `rejected` or `reverted`, the same key keeps returning that result, so
+   * trying again is a new action with a new key. Keys are global to the
+   * deployment, not per user. Use a new key for every new user action, even
+   * when the inputs are identical: a key reused for another action returns the
+   * old request's outcome for an action that never ran.
    *
    * A key makes the call strictly gasless: it never takes the wallet path and
    * never falls back to it, whatever the chain's `execution` defaults say.

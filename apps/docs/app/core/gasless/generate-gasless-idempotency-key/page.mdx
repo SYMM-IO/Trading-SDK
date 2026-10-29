@@ -17,7 +17,9 @@ While the service holds a key, it accepts that key at most once — so retrying 
 
 ## Rules for a key
 
-- **One key per user action.** Reuse it for every attempt of that action — another signer after `GASLESS_SIGNER_NOT_DELEGATED`, or "Try again" after a reload. A new action gets a new key, even when its inputs are identical.
+- **One key per user action.** Reuse it for every attempt of that action — another signer after `GASLESS_SIGNER_NOT_DELEGATED`, or "Try again" after a reload. A new action gets a new key, even when its inputs are identical: the service answers a reused key with the old request, possibly `succeeded`, so your app would report an outcome for an action that never ran.
+- **Used up once its request ends.** After `succeeded`, `failed`, `rejected` or `reverted`, the key keeps returning that result. Trying again is a new action with a new key.
+- **Unique across all users.** Keys are global to the deployment, not scoped to a user or signer. A fixed key such as `wallet-exit-1` would collide with another user's action.
 - **Random.** A readable prefix of your own is fine (`create-subaccount:<key>`). Never build a key only from the action's inputs: two identical actions would merge into one, and anyone could predict the key.
 - **No secrets or personal data.** The service stores the key and returns it in every status response, and it can appear in logs.
 - **At most 128 characters**, and not blank. Anything else throws `GASLESS_IDEMPOTENCY_KEY_INVALID` before any prompt.

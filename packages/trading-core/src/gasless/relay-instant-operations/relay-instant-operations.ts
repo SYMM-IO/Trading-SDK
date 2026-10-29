@@ -128,10 +128,14 @@ function toGaslessBatchWalletIds(
  * bare request id is not enough context to reconcile a workflow after a reload.
  *
  * `idempotencyKey` is one key per **user action** (default: a random UUID per
- * call). Resending the same signed operations under it returns the existing
- * record; operations signed again for the same action may reuse it too, and a
- * service that already accepted the key answers `409 IDEMPOTENCY_KEY_CONFLICT`
- * (`isGaslessIdempotencyConflictError`). A new action needs a new key.
+ * call). Any later submit under the key, the same signed operations or ones
+ * signed again, returns the request the key is bound to (`202`, the same
+ * `requestId`) and runs nothing new. The key is used up once that request
+ * ends; a new action needs a new key.
+ *
+ * Sign every operation with a near deadline, as the SDK's own writes do
+ * (`GASLESS_SIGNATURE_LIFETIME_SECONDS`). A deadline of `0` never expires, so
+ * an unresolved request could never be settled by waiting.
  *
  * @param config - The SDK config.
  * @param parameters - Signed operations, workflow labels, idempotency key.

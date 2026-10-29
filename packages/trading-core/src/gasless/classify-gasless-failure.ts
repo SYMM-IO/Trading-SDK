@@ -28,7 +28,9 @@ import { getGaslessUnconfirmedSubmit, isGaslessIdempotencyConflictError } from "
  *   settlement minimum, or the funds are not visible yet.
  * - `"deposit-not-above-fees"` — the balance clears the minimum but not the
  *   deposit and wallet-creation fees.
- * - `"idempotency-conflict"` — the key belongs to another workflow; mint a new one.
+ * - `"idempotency-conflict"` — a `409 IDEMPOTENCY_KEY_CONFLICT`, a safeguard:
+ *   the current service never sends it. The action is unresolved; keep it
+ *   pending and reconcile it, and never resend it under a new key.
  * - `"client-schema"` — a `422`: the payload's shape is wrong. A client bug.
  * - `"rate-limited"` / `"unauthorized"` / `"forbidden"` / `"unknown-instance"` /
  *   `"gateway-unavailable"` — the gateway answered, before any service saw it.

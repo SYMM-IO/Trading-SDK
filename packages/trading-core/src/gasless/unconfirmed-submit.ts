@@ -134,15 +134,18 @@ export function getGaslessUnconfirmedSubmit(err: unknown): GaslessUnconfirmedSub
 }
 
 /**
- * Whether an error is the gateway's `409 IDEMPOTENCY_KEY_CONFLICT` — the key
- * is already bound to an earlier request whose payload differs from this one.
+ * Whether an error is a `409 IDEMPOTENCY_KEY_CONFLICT`.
  *
- * With a caller-owned key (one per user action, reused on every attempt) it
- * means an earlier attempt of this action holds the key, and that attempt's
- * outcome is unknown: it may be queued, executing, done or failed. Do not send
- * the action again — not under this key, not under a new one, and never
- * through the wallet. Keep the action pending and reconcile it once its last
- * attempt can no longer execute (`GASLESS_SIGNATURE_LIFETIME_SECONDS`).
+ * The current service never sends it: a submit under a key that is already
+ * bound to a request gets that request back instead (`202`), whatever its
+ * body. The check is a safeguard for a deployment that adopts the conflict
+ * answer.
+ *
+ * Should it arrive, treat the action as unresolved: an earlier attempt may
+ * hold the key, and its outcome is unknown. Do not send the action again — not
+ * under this key, not under a new one, and never through the wallet. Keep the
+ * action pending and reconcile it once its last attempt can no longer execute
+ * (`GASLESS_SIGNATURE_LIFETIME_SECONDS`).
  *
  * @param err - Anything caught from a gasless submit, including an error a
  *   framework layer re-wrapped.

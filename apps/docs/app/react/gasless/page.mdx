@@ -29,9 +29,9 @@ The variable is a per-call **override**, so it wins over the chain's `gasless.ex
 directions: `gasless: true` relays a write on a chain still defaulted to `"wallet"`, and
 `gasless: false` forces the wallet path on a chain running in `"gasless"` mode. Passing the
 `GaslessWriteOptions` bag instead of a boolean sets `fallback`, `broadcastTimeoutMs`,
-`signal`, or an explicit billing `account` for that one call. There is no `idempotencyKey` on it: a relayed write
-signs a fresh operation every call, so the dispatcher mints the key and puts it on the receipt — see [idempotency
-keys](/core/gasless/errors-and-fallback#idempotency-keys).
+`signal`, an explicit billing `account`, or your own `idempotencyKey` for that one call. Without a key, the dispatcher
+mints one per call and puts it on the receipt; with one, the write is strictly gasless and retryable under that key —
+see [idempotency keys](/core/gasless/errors-and-fallback#idempotency-keys).
 
 <Callout type="warning">
   An explicit `gasless: true` on a chain that carries no gasless block **throws** `GASLESS_NOT_CONFIGURED` rather than
@@ -263,12 +263,7 @@ invalidates like the other relay hooks, on the service and chain the record name
 a hook threw — no unwrapping:
 
 ```tsx
-import {
-  classifyGaslessFailure,
-  decodeGaslessOperationFailure,
-  isGaslessIdempotencyConflictError,
-  parseGaslessErrorDetail,
-} from "@symmio/trading-core";
+import { classifyGaslessFailure, decodeGaslessOperationFailure, parseGaslessErrorDetail } from "@symmio/trading-core";
 
 switch (classifyGaslessFailure(relay.error)) {
   case "fee-allowance":
@@ -280,8 +275,10 @@ switch (classifyGaslessFailure(relay.error)) {
 }
 ```
 
-`isGaslessIdempotencyConflictError` catches the one failure a retry can never fix: the key belongs to another workflow,
-so the action needs a fresh one. The [errors & fallback](/core/gasless/errors-and-fallback) page has the full matrix.
+`isGaslessIdempotencyConflictError` (`"idempotency-conflict"`) is a safeguard: the current service never sends the
+`409` it matches, and answers a retry under a bound key with the earlier request instead. Should it arrive, the action
+is unresolved — see [idempotency keys](/core/gasless/errors-and-fallback#idempotency-keys). The [errors &
+fallback](/core/gasless/errors-and-fallback) page has the full matrix.
 
 ### Granting a delegation
 
