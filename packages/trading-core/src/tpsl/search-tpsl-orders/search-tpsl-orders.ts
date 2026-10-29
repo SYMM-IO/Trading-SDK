@@ -1,5 +1,6 @@
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
+import { SymmError } from "../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import type { QuoteTpSlRow } from "../get-quote-tpsl";
 import { rethrowTpSlError } from "../internal/axios";
@@ -169,7 +170,11 @@ export async function searchTpSlOrders(
  * caller cannot distinguish from "this account has no orders".
  */
 function toSearchResult(body: unknown, size: number): SearchTpSlOrdersReturnType {
-  const orders = (Array.isArray(body) ? body : ((body as { data?: unknown })?.data ?? [])) as QuoteTpSlRow[];
+  const rows: unknown = Array.isArray(body) ? body : (body as { data?: unknown })?.data;
+  if (!Array.isArray(rows)) {
+    throw new SymmError("api", "SEARCH_TPSL_INVALID_RESPONSE", "Handler returned an invalid conditional-order page.");
+  }
+  const orders = rows as QuoteTpSlRow[];
   const reported = Array.isArray(body) ? undefined : (body as { count?: unknown })?.count;
   return {
     orders,

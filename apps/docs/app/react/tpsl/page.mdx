@@ -160,6 +160,10 @@ deleteMutation.mutate({
 
 ### `useInstantOpenWithTpSl`
 
+For exact submitted sizing, pass mutation variable `tpslQuantityMode: "prepared"`. The hook prepares once and uses that quantity for both open and attachment. The default `"provided"` preserves the caller's quantity. A preview alone cannot guarantee the submitted size.
+
+Applications with their own TP/SL query owner can pass hook option `tpslState: "external"` to skip SDK TP/SL-store writes, while retaining open/balance refreshes. The default is `"sdk"`. The returned `tpslParameters` contains the resolved attachment inputs on both acceptance and attachment failure when construction succeeded. The accepted open remains in `instantOpen`; retrying attachment must not rerun it. HTTP acceptance is not confirmation; reconcile REST state and never automatically replay an ambiguous write.
+
 One-shot orchestrator: instant-open a position **and** attach a TP/SL in a single call. The TP/SL is signed against the predicted VA and posted under the returned `tempQuoteId` — no wait for on-chain reconciliation.
 
 ```tsx

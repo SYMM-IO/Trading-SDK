@@ -49,10 +49,13 @@ await deleteQuoteTpSl(config, {
 
 ## Throws
 
+- `DELETE_TPSL_INVALID_RESPONSE` for a missing/malformed `successful` field. Only boolean `true` or string `"true"` establishes acceptance; explicit `false` / `"false"` yields `DELETE_TPSL_REJECTED`.
 - `SymmError` when the chain has no `tpsl` config or signing fails.
 - `SymmApiError` when the handler request fails.
 
 ## Mutation options
+
+Acceptance does not confirm deletion. Check a complete live-order search before interpreting absence as removal. A malformed response or transport failure can leave the outcome unknown; the action does not retry automatically. Notifications are useful refresh signals but cannot distinguish successive mutations without backend correlation/version metadata.
 
 ```ts
 import { deleteQuoteTpSlMutationOptions } from "@symmio/trading-core";

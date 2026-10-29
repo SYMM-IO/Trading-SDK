@@ -80,10 +80,14 @@ At least one of `tp` or `sl` must be provided.
 
 ## Throws
 
+- `SET_TPSL_INVALID_RESPONSE` when `successful` is missing or is neither boolean `true` nor string `"true"` (explicit `false` / `"false"` instead yields `SET_TPSL_REJECTED`). A malformed response or transport failure may follow an accepted write: reconcile state before considering a retry.
+- Validation errors for zero or unsafe quote IDs and non-positive or unsafe symbol IDs. Negative temporary quote IDs are supported; numeric wire fields must represent the input exactly.
 - `SymmError` when the chain has no `tpsl` config, both `tp` and `sl` are omitted, or signing fails.
 - `SymmApiError` when the handler request fails.
 
 ## Mutation options
+
+A resolved call means submission **acceptance**, not confirmed creation. TP and SL can complete independently. Observe live order state through search; notifications can prompt a read but do not identify a particular mutation or provide an order revision. These are signed EIP-712 messages, not on-chain transactions. The action does not automatically retry writes.
 
 ```ts
 import { setQuoteTpSlMutationOptions } from "@symmio/trading-core";
