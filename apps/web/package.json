@@ -10,7 +10,8 @@
     "check-types": "next typegen && tsc --noEmit",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:unit": "vitest run"
+    "test": "vitest run",
+    "test:unit": "pnpm test"
   },
   "dependencies": {
     "@symmio/session-key": "workspace:*",

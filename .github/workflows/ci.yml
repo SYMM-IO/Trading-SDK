@@ -57,8 +57,9 @@ jobs:
       # after one fails (so a PR surfaces all failures at once); Turbo still
       # exits non-zero on any failure. Integration tests stay gated behind
       # SYMM_RUN_INTEGRATION and a funded key, and never run here.
+      # The reference app runs its unit tests without coverage instrumentation.
       - name: Build · Lint · Types · Test + Coverage
-        run: pnpm exec turbo run build lint check-types test:coverage --continue
+        run: pnpm exec turbo run build lint check-types test:coverage '@symmio/web#test' --continue
 
       # Post a coverage summary as a sticky PR comment (one per package) plus a
       # table in the Actions job summary. Self-hosted — no external account or

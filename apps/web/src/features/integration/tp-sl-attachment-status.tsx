@@ -29,7 +29,7 @@ export function TpSlAttachmentStatus({ idPrefix, data, attaching, retry, onRetry
   if (retry.isSuccess || data?.tpsl) {
     return (
       <ResultNote testId={`${idPrefix}-tpsl-success`}>
-        TP/SL request accepted; activation is still pending. Check current TP/SL orders before relying on protection.
+        TP/SL request accepted. Check current TP/SL orders to verify activation.
       </ResultNote>
     );
   }

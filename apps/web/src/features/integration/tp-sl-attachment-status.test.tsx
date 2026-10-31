@@ -38,9 +38,10 @@ function render(data: Props["data"], retry: Partial<Props["retry"]> = {}, attach
   );
 }
 
-test("acceptance never promises activation or a guaranteed WebSocket event", () => {
+test("acceptance directs users to current orders without claiming activation is pending or complete", () => {
   const html = render({ ...open, tpsl: { success: true } });
-  expect(html).toContain("activation is still pending");
+  expect(html).toContain("TP/SL request accepted. Check current TP/SL orders to verify activation.");
+  expect(html).not.toContain("activation is still pending");
   expect(html).not.toContain("WebSocket will confirm");
   expect(html).not.toContain("Retry TP/SL only");
 });
@@ -75,6 +76,8 @@ test("pending attachment hides retry controls", () => {
 test("successful recovery supersedes the original rejection", () => {
   const html = render({ ...open, tpslError: error("SET_TPSL_REJECTED") }, { isSuccess: true });
   expect(html).toContain("request accepted");
+  expect(html).toContain("Check current TP/SL orders to verify activation.");
+  expect(html).not.toContain("activation is still pending");
   expect(html).not.toContain("request rejected");
   expect(html).not.toContain("Retry TP/SL only");
 });
