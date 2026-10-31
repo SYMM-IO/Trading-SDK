@@ -26,7 +26,9 @@ import {
   usePriceByName,
   useSubAccount,
   useSupportsLimitOrder,
+  useSymmioChainId,
   useSymmioConfig,
+  useWalletAccount,
   validateInstantOpenAgainstMarket,
   type QuoteConstraintViolation,
 } from "@symmio/trading-react";
@@ -42,6 +44,8 @@ import { useEffect, useMemo, useState } from "react";
 import { formatUnits, type Address } from "viem";
 import { EstimatedPricePreview } from "./estimated-price-preview";
 import { InstantOpenFeesPreview } from "./instant-open-fees-preview";
+import { TpSlAttachmentStatus } from "./tp-sl-attachment-status";
+import { useTpSlAttachmentRecovery } from "./use-tp-sl-attachment-recovery";
 
 type TradeSide = "long" | "short";
 type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
@@ -67,9 +71,29 @@ interface Props {
  * both the Integration wizard and the Solvers page card; both pass an already-
  * gated `subAccount` and `sessionKey`.
  */
-export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = "instant-open" }: Props) {
+export function OpenPositionStep(props: Props) {
   const config = useSymmioConfig();
-  const resolvedSolverId = solverId ?? config.getDefaultSolverId();
+  const chainId = useSymmioChainId();
+  const wallet = useWalletAccount();
+  if (!wallet.isConnected || !wallet.isOnExpectedChain) {
+    return <ResultNote>Connect a wallet on the selected deployment to open a position.</ResultNote>;
+  }
+  // Drop old mutation results and recovery controls when the signing context changes.
+  const contextKey = [
+    config.getChainConfigKey(chainId),
+    wallet.address,
+    wallet.isConnected,
+    props.subAccount,
+    props.sessionKey,
+    props.solverId,
+  ].join(":");
+  return <OpenPositionForm key={contextKey} {...props} />;
+}
+
+function OpenPositionForm({ subAccount, sessionKey, solverId, idPrefix = "instant-open" }: Props) {
+  const config = useSymmioConfig();
+  const chainId = useSymmioChainId();
+  const resolvedSolverId = solverId ?? config.getDefaultSolverId(chainId);
   // The margin/execution model follows the SUB-ACCOUNT's isolation type, not the
   // solver: CUSTOM isolation trades cross-margin on the sub-account directly
   // (no VA, no TP/SL leg, allocated-balance funding); the VA isolations spend
@@ -311,9 +335,11 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
   // Single SDK-side orchestrator: fires instant open, then TP/SL against the
   // predicted VA using the hedger's `tempQuoteId`. All request/response logic
   // lives in `@symmio/trading-react`; this component just gathers the inputs.
-  const mutation = useInstantOpenWithTpSl();
+  // This app uses SDK reads/store; external ownership would require its own reconciler.
+  const mutation = useInstantOpenWithTpSl({ tpslState: "sdk" });
+  const attachmentRetry = useTpSlAttachmentRecovery(mutation);
   const limitMutation = useLimitOpenAuto();
-  const submitting = isLimit ? limitMutation.isPending : mutation.isPending;
+  const submitting = (isLimit ? limitMutation.isPending : mutation.isPending) || attachmentRetry.isPending;
 
   const [tpPrice, setTpPrice] = useState("");
   const [slPrice, setSlPrice] = useState("");
@@ -342,6 +368,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     marketName &&
     fundingReady &&
     quoteReady &&
+    (isLimit || !(tpPrice || slPrice) || (predictedVaQuery.data && tradeParams?.quantity)) &&
     inputsReady &&
     !exceedsAvailable &&
     quoteViolations.length === 0 &&
@@ -350,6 +377,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
 
   async function handleSubmit() {
     if (!canSubmit || !selectedMarket || !marketName) return;
+    if (!attachmentRetry.resetForOpen()) return;
     if (isLimit) {
       // LIMIT (majors): user-set resting price, no slippage, no TP/SL combo.
       await limitMutation.mutateAsync({
@@ -375,8 +403,8 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     const hasSl = slPrice.length > 0;
     const wantsTpSl = hasTp || hasSl;
     const virtualAccount = predictedVaQuery.data;
-    // The TP/SL leg rides the exact prepared quantity (`canSubmit` guarantees the
-    // quote is loaded) — the same SDK-sized value the open submits, both modes.
+    // The required quantity starts with the preview; prepared mode replaces it
+    // with the actual submitted size inside the SDK, including full-balance sizing.
     const tpslQuantity = tradeParams?.quantity;
     const tpsl =
       wantsTpSl && virtualAccount && tpslQuantity !== undefined
@@ -393,6 +421,8 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
           }
         : undefined;
     await mutation.mutateAsync({
+      chainId,
+      tpslQuantityMode: "prepared",
       subAccountAddress: subAccount,
       from: sessionKey,
       solverId: resolvedSolverId,
@@ -716,7 +746,13 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
           <SubmitStatus mutation={mutation} sessionKey={sessionKey} idPrefix={idPrefix} />
 
           {mutation.data?.tpsl || mutation.data?.tpslError || mutation.phase === "attaching-tpsl" ? (
-            <TpSlAttachmentStatus idPrefix={idPrefix} mutation={mutation} />
+            <TpSlAttachmentStatus
+              idPrefix={idPrefix}
+              data={mutation.data}
+              attaching={mutation.phase === "attaching-tpsl"}
+              retry={attachmentRetry}
+              onRetry={attachmentRetry.retryAttachment}
+            />
           ) : null}
         </>
       )}
@@ -1332,8 +1368,8 @@ function solverErrorOf(error: unknown): SolverErrorBody | undefined {
 
 /**
  * Optional pre-fill for TP/SL. Values ride with the instant open request: on
- * hedger accept we capture the tempQuoteId, poll until an on-chain quote id
- * arrives, then post `setQuoteTpSl` for it.
+ * hedger acceptance, the SDK posts the attachment against the returned
+ * temporary quote ID using the exact prepared submission quantity.
  */
 function TpSlPresetCard({
   idPrefix,
@@ -1424,42 +1460,5 @@ function TpSlPresetSide({
         ))}
       </div>
     </div>
-  );
-}
-
-/**
- * Status for the TP/SL attachment leg. The orchestrator hook's `phase` +
- * partial-success payload (`tpsl` / `tpslError`) drive the render — no local
- * mutation state needed.
- */
-function TpSlAttachmentStatus({
-  idPrefix,
-  mutation,
-}: {
-  idPrefix: string;
-  mutation: UseInstantOpenWithTpSlReturnType;
-}) {
-  if (mutation.data?.tpsl) {
-    return (
-      <ResultSuccess testId={`${idPrefix}-tpsl-success`}>
-        TP/SL submitted — WebSocket will confirm activation.
-      </ResultSuccess>
-    );
-  }
-  if (mutation.data?.tpslError) {
-    return (
-      <ResultError
-        testId={`${idPrefix}-tpsl-error`}
-        kind={mutation.data.tpslError.kind ?? "generic"}
-        message={mutation.data.tpslError.message ?? "TP/SL submission failed."}
-      />
-    );
-  }
-  return (
-    <ResultNote testId={`${idPrefix}-tpsl-status`}>
-      <span className="inline-flex items-center gap-2">
-        <Spinner className="size-3" /> Submitting TP/SL for temp quote…
-      </span>
-    </ResultNote>
   );
 }
