@@ -2,7 +2,7 @@
 
 React-query wrappers over `@symmio/trading-core`'s TP/SL slice, plus a shared Zustand store that keeps every render for one quote coherent — even across the temp → on-chain anchor transition.
 
-The store is the mental model. Every hook and mutation reads from or writes to the same record; the WebSocket keeps it fresh. No REST refetch after mutations — the WS report is authoritative.
+Every hook and mutation reads from or writes to the same record. WebSocket reports update it, while successful standalone mutations also invalidate TP/SL reads as a reconciliation backstop.
 
 ## The store
 
@@ -112,12 +112,14 @@ Fetch the EIP-712 typed-data domain + schema (`primaryType`, `types`, `domain`).
 
 ## Writes
 
+`useSetQuoteTpSl` and `useDeleteQuoteTpSl` preserve the core factories' `retry: false` policy, even when the host QueryClient enables mutation retries. An ambiguous acknowledgment or transport failure must not automatically repeat a signed write. Explicit recovery remains available after checking current order state; an error alone does not prove the write was rejected.
+
 ### `useSetQuoteTpSl`
 
 Submit a TP and/or SL order for one quote. On success:
 
 1. `markConfirming(quoteId, "tp", { price, priceType, cohQuoteId })` for each side that was submitted — the store's `tpState` / `slState` flip to `"confirming"` and the target trigger price is stamped immediately.
-2. No REST invalidation — the WS report is the source of truth.
+2. Invalidate TP/SL reads as a backstop for missed reports. HTTP acceptance is not confirmed creation.
 
 ```tsx
 import { useSetQuoteTpSl } from "@symmio/trading-react";
@@ -142,7 +144,7 @@ await mutation.mutateAsync({
 Cancel one side by its `cohQuoteId`. On success:
 
 1. `markConfirming(quoteId, side)` — target side flips to `"confirming"`.
-2. The WS `cancel` / `canceled` `report` transitions it to `"canceled"` and clears the trigger price via `applyNotification`.
+2. Invalidate TP/SL reads. A WS `cancel` / `canceled` report or a complete read observing removal clears the confirming cancellation; HTTP acceptance alone does not confirm removal.
 
 ```tsx
 import { useDeleteQuoteTpSl } from "@symmio/trading-react";

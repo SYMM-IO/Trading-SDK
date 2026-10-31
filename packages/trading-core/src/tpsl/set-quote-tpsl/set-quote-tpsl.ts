@@ -4,6 +4,7 @@ import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../shared/types/properties";
 import { PositionType } from "../../symmio-contracts/symmio/types";
+import { assertTpSlAcceptance } from "../assert-tpsl-acceptance";
 import { rethrowTpSlError } from "../internal/axios";
 import { resolveTpSlConfig } from "../internal/resolve-tpsl-config";
 import { getTpSlSigningSpec } from "../signing-spec/get-tpsl-signing-spec";
@@ -166,21 +167,7 @@ export async function setQuoteTpSl(
       headers: { "App-Name": tpsl.appName, "Content-Type": "application/json", Accept: "application/json" },
     });
     const body = response.data ?? {};
-    if (body.successful === false || body.successful === "false") {
-      const detail = (body as { error_message?: unknown }).error_message;
-      throw new SymmError(
-        "api",
-        "SET_TPSL_REJECTED",
-        body.message ?? (typeof detail === "string" ? detail : "Handler rejected TP/SL submission."),
-      );
-    }
-    if (body.successful !== true && body.successful !== "true") {
-      throw new SymmError(
-        "api",
-        "SET_TPSL_INVALID_RESPONSE",
-        "Handler did not explicitly acknowledge TP/SL submission; outcome is unknown.",
-      );
-    }
+    assertTpSlAcceptance(body, "SET");
     const extra = body as { coh_quote_id?: string; cohQuoteId?: string };
     return { success: true, cohQuoteId: extra.coh_quote_id ?? extra.cohQuoteId };
   } catch (err) {

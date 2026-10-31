@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
-import { SymmError } from "../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../shared/types/properties";
+import { assertTpSlAcceptance } from "../assert-tpsl-acceptance";
 import { rethrowTpSlError } from "../internal/axios";
 import { resolveTpSlConfig } from "../internal/resolve-tpsl-config";
 import { buildTpSlDeleteMessage } from "../set-quote-tpsl/build-conditional-order-message";
@@ -68,21 +68,7 @@ export async function deleteQuoteTpSl(
       headers: { "App-Name": tpsl.appName, "Content-Type": "application/json", Accept: "application/json" },
     });
     const body = response.data ?? {};
-    if (body.successful === false || body.successful === "false") {
-      const detail = (body as { error_message?: unknown }).error_message;
-      throw new SymmError(
-        "api",
-        "DELETE_TPSL_REJECTED",
-        body.message ?? (typeof detail === "string" ? detail : "Handler rejected TP/SL delete."),
-      );
-    }
-    if (body.successful !== true && body.successful !== "true") {
-      throw new SymmError(
-        "api",
-        "DELETE_TPSL_INVALID_RESPONSE",
-        "Handler did not explicitly acknowledge TP/SL removal; outcome is unknown.",
-      );
-    }
+    assertTpSlAcceptance(body, "DELETE");
     return { success: true };
   } catch (err) {
     return rethrowTpSlError(err, { code: "DELETE_TPSL_FAILED", baseURL: tpsl.url });

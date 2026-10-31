@@ -64,7 +64,7 @@ import { useMutation } from "@tanstack/react-query";
 useMutation(deleteQuoteTpSlMutationOptions(config));
 ```
 
-`deleteQuoteTpSlMutationOptions` returns `{ mutationKey, mutationFn }`; the `mutationFn` takes the same parameters object as the action.
+`deleteQuoteTpSlMutationOptions` returns `{ mutationKey, mutationFn, retry: false }`; the `mutationFn` takes the same parameters object as the action. Automatic retries are explicitly disabled, including host-level mutation retry defaults. A lost acknowledgment, timeout or network error may follow an accepted write. Reconcile state before explicitly submitting again; do not override this policy without a proven replay guarantee.
 
 ## Related
 

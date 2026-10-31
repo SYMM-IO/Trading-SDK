@@ -38,7 +38,7 @@ export function useDeleteQuoteTpSl(parameters: UseDeleteQuoteTpSlParameters = {}
   const markConfirming = useTpSlStore((state) => state.markConfirming);
 
   return useMutation<DeleteQuoteTpSlReturnType, SymmioRequestError, DeleteQuoteTpSlParameters>({
-    mutationKey: base.mutationKey,
+    ...base,
     mutationFn: async (variables) => {
       try {
         return await base.mutationFn({ ...variables, chainId: variables.chainId ?? chainId });
