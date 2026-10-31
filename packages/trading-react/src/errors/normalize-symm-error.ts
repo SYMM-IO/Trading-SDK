@@ -39,6 +39,15 @@ export function normalizeSymmError(err: unknown): SymmioRequestError {
   }
 
   if (err instanceof SymmError) {
+    if (err.code === "TIMELOCK_REQUIRED") {
+      return new SymmioRequestError({
+        kind: "contract-revert",
+        code: err.code,
+        message: err.message,
+        reason: "TimelockOpNotApprovedOrScheduled",
+        cause: err,
+      });
+    }
     return new SymmioRequestError({
       kind: "sdk",
       message: err.message,

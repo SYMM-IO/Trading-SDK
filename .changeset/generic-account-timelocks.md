@@ -16,3 +16,7 @@ Allow gasless batches to use an explicit shorter signature deadline, rejecting i
 Share wrapped-operation cache effects with direct timelock execution hooks. Confirmed sub-account deletion refreshes account lists and details; failed or unconfirmed execution does not refresh them. Preserve existing submission, approval, and gasless behavior.
 
 Expose policy-change authorization requirements before setup, including exact calldata, affected existing unlockers and the no-approval schedule delay. Report missing or unusable authorization without prompting a wallet; preserve execution through an already mature schedule. Accept byte-encoded EIP-1271 approval signatures without imposing an EOA signature length.
+
+Declare timelock approval support as a solver capability and expose React routing for normal, approval and delayed paths. Keep delayed account reads independent of solver availability and require reconciliation for ambiguous attempts.
+
+Allow consumers to disable automatic timelock discovery and policy reads, and expose the Core-call encoder through a React hook for exact scheduled-operation recovery.

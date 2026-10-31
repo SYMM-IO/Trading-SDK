@@ -9,6 +9,7 @@ import {
   type Hex,
 } from "viem";
 import type { Config } from "../core/config";
+import { getGaslessAttemptStart, withGaslessAttemptStart } from "../gasless/dispatch/attempt-start";
 import { SymmError } from "../shared/errors/symm-error";
 import type { GaslessWriteParameter, WriteContractParameter } from "../shared/types/properties";
 import { accountLayerAbi } from "../symmio-contracts/abi/v0.8.6/account-layer";
@@ -92,6 +93,7 @@ export async function executeProtectedCoreBatch(
     },
 ): Promise<Hash> {
   const { account, chainId, timelock } = parameters;
+  const gasless = withGaslessAttemptStart(parameters.gasless);
   const callDatas = [...parameters.callDatas];
   const authorizations = [...timelock.calls];
   assertTimelockBatchUnused(timelock);
@@ -221,8 +223,8 @@ export async function executeProtectedCoreBatch(
       chainId,
       from: parameters.from ?? owner,
       gasless: delegated
-        ? { ...(typeof parameters.gasless === "object" ? parameters.gasless : {}), enabled: true, fallback: "error" }
-        : parameters.gasless,
+        ? withGaslessAttemptStart({ ...gasless, enabled: true, fallback: "error" }, getGaslessAttemptStart(gasless))
+        : gasless,
       simulateBeforeWrite: parameters.simulateBeforeWrite,
       approvals,
       innerCallData,

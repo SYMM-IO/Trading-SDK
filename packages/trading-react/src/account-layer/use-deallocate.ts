@@ -15,13 +15,14 @@ import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
+import { resolveWriteResult, type AutomaticTimelockWriteParameters, type WriteResult } from "../transactions";
 import { predicateMatch } from "../utils";
+import { useAutomaticTimelock } from "./use-automatic-timelock";
 
 /**
  * Parameters for {@link useDeallocate}.
  */
-export type UseDeallocateParameters = WriteParameters;
+export type UseDeallocateParameters = AutomaticTimelockWriteParameters;
 
 /**
  * Variables for the {@link useDeallocate} mutation: the core action's inputs
@@ -64,30 +65,46 @@ export function useDeallocate(parameters: UseDeallocateParameters = {}): UseDeal
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const queryClient = useQueryClient();
+  const automaticTimelock = useAutomaticTimelock(config, parameters.automaticTimelock);
 
   const base = deallocateMutationOptions(config);
 
   return useMutation<DeallocateResult, SymmioRequestError, DeallocateVariables>({
     mutationKey: base.mutationKey,
     mutationFn: async (variables) => {
+      let authorization = variables.timelock;
       try {
-        if (variables.timelock) assertTimelockAuthorizationUnused(variables.timelock);
         const resolvedChainId = variables.chainId ?? chainId;
+        authorization = await automaticTimelock(variables, {
+          account: variables.account,
+          chainId: resolvedChainId,
+          functionName: "deallocate",
+          explicit: authorization,
+        });
+        if (authorization) assertTimelockAuthorizationUnused(authorization);
         const upnlSig =
           variables.upnlSig ??
           (await getDeallocateUpnlSig(config, {
             virtualAccount: variables.account,
             chainId: resolvedChainId,
           }));
-        const hash = await base.mutationFn({ ...variables, upnlSig, chainId: resolvedChainId });
+        const hash = await base.mutationFn({
+          ...variables,
+          upnlSig,
+          chainId: resolvedChainId,
+          ...(authorization ? { timelock: authorization } : {}),
+        });
         const result = resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,
           confirmations: parameters.confirmations,
         });
-        return variables.timelock ? await result : result;
+        const settled = await result;
+        automaticTimelock.finish(variables, settled);
+        return settled;
       } catch (err) {
-        throw variables.timelock ? normalizeProtectedWriteError(err, variables.timelock) : normalizeSymmError(err);
+        automaticTimelock.fail(variables, err);
+        throw authorization ? normalizeProtectedWriteError(err, authorization) : normalizeSymmError(err);
       }
     },
     onSuccess: (_result, variables) => {

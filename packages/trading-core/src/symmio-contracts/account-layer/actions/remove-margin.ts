@@ -5,6 +5,7 @@ import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-ga
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
+import { rethrowTimelockRevert } from "../../../timelock/normalize-timelock-revert";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import type { SingleUpnlSig } from "../types";
 import { simulateRemoveMargin } from "./simulate-remove-margin";
@@ -124,7 +125,7 @@ export async function removeMargin(
       amount,
       upnlSig,
       from: walletClient.account.address,
-    });
+    }).catch(rethrowTimelockRevert);
   }
 
   return walletClient.writeContract({
@@ -134,5 +135,5 @@ export async function removeMargin(
     args: [virtualAccount, amount, upnlSig],
     account: walletClient.account,
     chain: walletClient.chain,
-  });
+  }).catch(rethrowTimelockRevert);
 }

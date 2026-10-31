@@ -1,4 +1,94 @@
-import type { Hex } from "viem";
+import { isAddress, type Address, type Hex } from "viem";
+
+const RECOVERY_CHANGED = "symm:timelock-recovery-changed";
+const HISTORY_PREFIX = "symm:timelock-history:v1:";
+
+/** Permanent deployment/owner history scopes coordination across root accounts and configuration changes. */
+export function timelockHistoryKey(chainId: number, accountLayer: Address, owner: Address): string {
+  return `${HISTORY_PREFIX}${chainId}:${accountLayer.toLowerCase()}:${owner.toLowerCase()}`;
+}
+
+function historyKeyFromJournal(key: string): string {
+  const parts = key.split(":");
+  if (parts.length !== 7 || parts[0] !== "symm" || parts[1] !== "timelock-attempt" || parts[2] !== "v2")
+    throw new Error("Cannot safely coordinate an unknown timelock journal scope.");
+  return `${HISTORY_PREFIX}${parts[3]}:${parts[4]}:${parts[6]}`.toLowerCase();
+}
+
+/** Mark history before beginning the first protected operation. */
+export function rememberTimelockHistory(key: string): void {
+  localStorage.setItem(key, "1");
+  notifyTimelockRecoveryChanged();
+}
+
+/** A deployment without recorded timelock history keeps its legacy write behavior. */
+export function hasTimelockHistory(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === "1";
+  } catch {
+    return false;
+  }
+}
+
+async function withOwnerTimelockLock<T>(historyKey: string, action: () => Promise<T>): Promise<T> {
+  if (!navigator.locks) throw new Error("This browser cannot safely coordinate protected operations across tabs.");
+  return navigator.locks.request(`symm:timelock-owner-lock:${historyKey}`, { ifAvailable: true }, async (lock) => {
+    if (!lock) throw new Error("Another tab is already processing an operation for this owner and deployment.");
+    return action();
+  });
+}
+
+/** Ordinary writes share the lock; protected writes take it exclusively. */
+export async function withTimelockHistoryLock<T>(historyKey: string, action: () => Promise<T>): Promise<T> {
+  // Legacy writes continue to work in browsers without Web Locks. Protected
+  // writes fail closed in that environment and therefore cannot race them.
+  if (!navigator.locks) return action();
+  return navigator.locks.request(
+    `symm:timelock-owner-lock:${historyKey}`,
+    { ifAvailable: true, mode: "shared" },
+    async (lock) => {
+      if (!lock) throw new Error("Another tab is already processing an operation for this owner and deployment.");
+      return action();
+    },
+  );
+}
+
+/** Wake same-tab consumers as well as the other tabs notified by the storage event. */
+export function notifyTimelockRecoveryChanged(): void {
+  window.dispatchEvent(new Event(RECOVERY_CHANGED));
+}
+
+export function subscribeTimelockRecoveryChanged(listener: () => void): () => void {
+  window.addEventListener("storage", listener);
+  window.addEventListener(RECOVERY_CHANGED, listener);
+  return () => {
+    window.removeEventListener("storage", listener);
+    window.removeEventListener(RECOVERY_CHANGED, listener);
+  };
+}
+
+/** A root is unknown until read on chain. Conservatively include legacy owner records. */
+export function mayHaveTimelockRecovery(chainId: number, accountLayer: Address, owner?: Address): boolean {
+  if (!owner || typeof window === "undefined") return false;
+  const prefix = `symm:timelock-attempt:v2:${chainId}:${accountLayer.toLowerCase()}:`;
+  const legacy = "symm:timelock-attempt:";
+  const suffix = `:${owner.toLowerCase()}`;
+  try {
+    for (let index = 0; index < localStorage.length; index++) {
+      const key = localStorage.key(index)?.toLowerCase();
+      if (
+        key?.endsWith(suffix) &&
+        (key.startsWith(prefix) || (key.startsWith(legacy) && !key.startsWith(`${legacy}v2:`)))
+      )
+        return true;
+    }
+    return false;
+  } catch {
+    // A deployment without timelock keeps its legacy behavior when browser
+    // storage is unavailable. In that situation prior recovery is unknowable.
+    return false;
+  }
+}
 
 /** Browser-only journal format for this console, never an SDK persistence policy. */
 export interface ScheduledRecovery {
@@ -6,6 +96,7 @@ export interface ScheduledRecovery {
   confirmed: boolean;
   callData: Hex;
   innerCallData: Hex;
+  originalAccount?: Address;
 }
 
 function legacyTimelockKeys(key: string): string[] {
@@ -44,6 +135,7 @@ export async function clearReviewedTimelockRecovery(key: string, expectedRecover
             throw new Error("Recovery records changed; review them again before clearing.");
           for (const legacyKey of legacyKeys) localStorage.removeItem(legacyKey);
           localStorage.removeItem(key);
+          notifyTimelockRecoveryChanged();
           return;
         }
         await navigator.locks.request(
@@ -80,12 +172,16 @@ export async function withTimelockAttemptLock<T>(
   expectedRecovery: string | null = null,
 ): Promise<T> {
   if (!navigator.locks) throw new Error("This browser cannot safely coordinate protected operations across tabs.");
-  return navigator.locks.request(`symm:timelock-lock:${key}`, { ifAvailable: true }, async (lock) => {
-    if (!lock) throw new Error("Another tab is already processing a protected operation for this account.");
-    if (readTimelockRecovery(key) !== expectedRecovery)
-      throw new Error("An earlier protected operation needs reconciliation.");
-    return action();
-  });
+  const historyKey = historyKeyFromJournal(key);
+  rememberTimelockHistory(historyKey);
+  return withOwnerTimelockLock(historyKey, () =>
+    navigator.locks.request(`symm:timelock-lock:${key}`, { ifAvailable: true }, async (lock) => {
+      if (!lock) throw new Error("Another tab is already processing a protected operation for this account.");
+      if (readTimelockRecovery(key) !== expectedRecovery)
+        throw new Error("An earlier protected operation needs reconciliation.");
+      return action();
+    }),
+  );
 }
 
 export function readScheduledRecovery(value: string | null): ScheduledRecovery | undefined {
@@ -107,11 +203,14 @@ export function readScheduledRecovery(value: string | null): ScheduledRecovery |
       !/^0x(?:[\da-fA-F]{2}){4,}$/.test(data.innerCallData)
     )
       return undefined;
+    if ("originalAccount" in data && (typeof data.originalAccount !== "string" || !isAddress(data.originalAccount)))
+      return undefined;
     return {
       kind: data.kind,
       confirmed: data.confirmed,
       callData: data.callData as Hex,
       innerCallData: data.innerCallData as Hex,
+      ...("originalAccount" in data ? { originalAccount: data.originalAccount as Address } : {}),
     };
   } catch {
     return undefined;

@@ -4,6 +4,7 @@ import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-ga
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
+import { rethrowTimelockRevert } from "../../../timelock/normalize-timelock-revert";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { simulateDeleteSubAccount } from "./simulate-delete-sub-account";
 
@@ -109,7 +110,9 @@ export async function deleteSubAccount(
   const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
-    await simulateDeleteSubAccount(config, { chainId, subAccount, from: walletClient.account.address });
+    await simulateDeleteSubAccount(config, { chainId, subAccount, from: walletClient.account.address }).catch(
+      rethrowTimelockRevert,
+    );
   }
 
   return walletClient.writeContract({
@@ -119,5 +122,5 @@ export async function deleteSubAccount(
     args: [subAccount],
     account: walletClient.account,
     chain: walletClient.chain,
-  });
+  }).catch(rethrowTimelockRevert);
 }

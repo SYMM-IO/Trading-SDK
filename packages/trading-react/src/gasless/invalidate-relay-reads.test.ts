@@ -9,14 +9,19 @@ import {
   getGaslessWalletNonceQueryKey,
   getInstantLayerNonceQueryKey,
   getIsDelegationActiveQueryKey,
+  getOperationalFeeAllowanceQueryKey,
   getPartyAPendingQuotesQueryKey,
   getPendingRevocationEtasQueryKey,
   getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getSelectorTimelockQueryKey,
+  getSubAccountQueryKey,
   getTimelockPolicyQueryKey,
   getTimelockScheduleStateQueryKey,
   getUserSubAccountsQueryKey,
+  getVirtualAccountQueryKey,
+  getVirtualAccountsCountOfSubAccountQueryKey,
+  symmioAbi,
   type GaslessBatchCall,
 } from "@symmio/trading-core";
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
@@ -27,6 +32,7 @@ import {
   invalidateDepositSettlementReads,
   invalidateGaslessBatchReads,
   invalidateGaslessWalletExecuteReads,
+  invalidateTimelockExecutionReads,
 } from "./invalidate-relay-reads";
 
 const CHAIN = arbitrum.id;
@@ -47,6 +53,46 @@ function seeded(keys: readonly QueryKey[]): QueryClient {
 function isInvalidated(queryClient: QueryClient, key: QueryKey): boolean | undefined {
   return queryClient.getQueryState(key)?.isInvalidated;
 }
+
+describe("protected account writes", () => {
+  it.each(["approveOperationalFee", "approveOperationalFeeWithMultiplier"] as const)(
+    "refreshes the fee allowance after %s",
+    (name) => {
+      const key = getOperationalFeeAllowanceQueryKey({ payer: SUB_ACCOUNT, configKey: CONFIG_KEY });
+      const other = getOperationalFeeAllowanceQueryKey({ payer: SUB_ACCOUNT, configKey: "other" });
+      const client = seeded([key, other]);
+      const data =
+        name === "approveOperationalFee"
+          ? encodeFunctionData({ abi: symmioAbi, functionName: name, args: [[OWNER], [1n]] })
+          : encodeFunctionData({ abi: symmioAbi, functionName: name, args: [[OWNER], [1n], [1n]] });
+      invalidateTimelockExecutionReads(client, SCOPE, data);
+      expect(isInvalidated(client, key)).toBe(true);
+      expect(isInvalidated(client, other)).toBe(false);
+    },
+  );
+  it.each(["transferSubAccountOwnership", "setSingleVAMode", "createCustomVirtualAccount"] as const)(
+    "refreshes account and virtual-account reads after %s",
+    (name) => {
+      const account = getSubAccountQueryKey({ account: SUB_ACCOUNT, configKey: CONFIG_KEY });
+      const virtual = getVirtualAccountQueryKey({ account: SUB_ACCOUNT, configKey: CONFIG_KEY });
+      const count = getVirtualAccountsCountOfSubAccountQueryKey({ subAccount: SUB_ACCOUNT, configKey: CONFIG_KEY });
+      const other = getSubAccountQueryKey({ account: SUB_ACCOUNT, configKey: "other" });
+      const client = seeded([account, virtual, count, other]);
+      const args =
+        name === "transferSubAccountOwnership"
+          ? [SUB_ACCOUNT, OWNER]
+          : name === "setSingleVAMode"
+            ? [SUB_ACCOUNT, true]
+            : [SUB_ACCOUNT, "0x", 1, 1n];
+      const data = encodeFunctionData({ abi: accountLayerAbi, functionName: name, args } as never);
+      invalidateTimelockExecutionReads(client, SCOPE, data);
+      expect(isInvalidated(client, account)).toBe(true);
+      expect(isInvalidated(client, virtual)).toBe(true);
+      expect(isInvalidated(client, count)).toBe(true);
+      expect(isInvalidated(client, other)).toBe(false);
+    },
+  );
+});
 
 describe("invalidateGaslessWalletExecuteReads", () => {
   const wallet0Nonce = getGaslessWalletNonceQueryKey({

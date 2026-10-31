@@ -3,6 +3,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { encodeFunctionData, getAbiItem, keccak256, toFunctionSelector, zeroAddress, type Hex } from "viem";
 import { describe, expect, it } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders, TEST_EOA, TEST_TX_HASH } from "../test/test-utils";
+import { TransactionRevertedError } from "../transactions/resolve-write-result";
 import { useAddMargin } from "./use-add-margin";
 import { useExecuteAccountCalls } from "./use-execute-account-calls";
 
@@ -11,6 +12,44 @@ const VA = "0x3333333333333333333333333333333333333333" as const;
 const UNLOCKER = "0x4444444444444444444444444444444444444444" as const;
 
 describe("protected margin confirmation", () => {
+  it("preserves a mined revert and its approval recovery", async () => {
+    const f = createMockSymmioConfig();
+    f.readContract.mockImplementation(({ functionName }) => {
+      if (functionName === "getVirtualAccount") return { isExists: true, parentAccount: ROOT };
+      if (functionName === "getSubAccount") return { isExists: true, owner: TEST_EOA };
+      if (functionName === "getSelectorTimelock") return { unlocker: UNLOCKER, delay: 600n };
+      throw new Error(`Unexpected read ${functionName}`);
+    });
+    f.simulateContract.mockResolvedValue({ request: {} });
+    f.writeContract.mockResolvedValue(TEST_TX_HASH);
+    const receipt = { status: "reverted", transactionHash: TEST_TX_HASH } as const;
+    f.waitForTransactionReceipt.mockResolvedValue(receipt);
+    const callData = encodeFunctionData({ abi: accountLayerAbi, functionName: "addMargin", args: [VA, 12n] });
+    const approval = {
+      approval: {
+        account: ROOT,
+        unlocker: UNLOCKER,
+        callDataHash: keccak256(callData),
+        deadline: 2_000_000_000n,
+        salt: `0x${"11".repeat(32)}` as Hex,
+      },
+      signature: "0x1234" as Hex,
+    };
+    const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: 2, retryDelay: 0 } } });
+    const { result } = renderHookWithProviders(() => useAddMargin({ config: f.config }), { queryClient });
+    const error = await result.current
+      .mutateAsync({ virtualAccount: VA, amount: 12n, gasless: false, timelock: { approval } })
+      .catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(TransactionRevertedError);
+    expect(error).toMatchObject({
+      kind: "contract-revert",
+      code: "TRANSACTION_REVERTED",
+      hash: TEST_TX_HASH,
+      receipt,
+      cause: { hash: TEST_TX_HASH, approval },
+    });
+    expect(f.writeContract).toHaveBeenCalledOnce();
+  });
   it("preserves the approval and hash on receipt failure without repeating submission", async () => {
     const f = createMockSymmioConfig();
     f.readContract.mockImplementation(({ functionName }) => {

@@ -5,6 +5,7 @@ import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-ga
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
 import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
+import { rethrowTimelockRevert } from "../../../timelock/normalize-timelock-revert";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { simulateAddMargin } from "./simulate-add-margin";
 
@@ -96,7 +97,9 @@ export async function addMargin(config: Config, parameters: AddMarginParameters)
   const walletClient = await config.getWalletClient({ chainId, from });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
-    await simulateAddMargin(config, { chainId, virtualAccount, amount, from: walletClient.account.address });
+    await simulateAddMargin(config, { chainId, virtualAccount, amount, from: walletClient.account.address }).catch(
+      rethrowTimelockRevert,
+    );
   }
 
   return walletClient.writeContract({
@@ -106,5 +109,5 @@ export async function addMargin(config: Config, parameters: AddMarginParameters)
     args: [virtualAccount, amount],
     account: walletClient.account,
     chain: walletClient.chain,
-  });
+  }).catch(rethrowTimelockRevert);
 }

@@ -26,10 +26,17 @@ export function WriteAllocate() {
 
   const validAccount = isAddress(account) ? (account as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
-  const protection = useProtectedWrite(validAccount, owner, "allocate");
+  const protection = useProtectedWrite(
+    validAccount,
+    owner,
+    "allocate",
+    validAccount && validAmount !== undefined
+      ? { target: "core", functionName: "allocate", args: [validAmount] }
+      : undefined,
+  );
   const canSubmit = isConnected && isOnExpectedChain && validAccount && validAmount !== undefined;
 
-  const mutation = useAllocate();
+  const mutation = useAllocate({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("allocate");
 

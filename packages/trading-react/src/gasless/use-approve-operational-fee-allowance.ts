@@ -6,17 +6,18 @@ import {
   type ApproveOperationalFeeAllowanceParameters,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+import { useAutomaticTimelock } from "../account-layer/use-automatic-timelock";
 import { normalizeProtectedWriteError } from "../errors/normalize-protected-write-error";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { resolveWriteResult } from "../transactions/resolve-write-result";
-import type { WriteParameters, WriteResult } from "../transactions/write-types";
+import type { AutomaticTimelockWriteParameters, WriteResult } from "../transactions/write-types";
 import { predicateMatch } from "../utils/predicate-match";
 
 /** Parameters for {@link useApproveOperationalFeeAllowance}. */
-export type UseApproveOperationalFeeAllowanceParameters = WriteParameters;
+export type UseApproveOperationalFeeAllowanceParameters = AutomaticTimelockWriteParameters;
 
 /** Mutation variables of {@link useApproveOperationalFeeAllowance}: the core action's parameters. */
 export type ApproveOperationalFeeAllowanceVariables = ApproveOperationalFeeAllowanceParameters;
@@ -60,6 +61,7 @@ export function useApproveOperationalFeeAllowance(
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const queryClient = useQueryClient();
+  const automaticTimelock = useAutomaticTimelock(config, parameters.automaticTimelock);
 
   const base = approveOperationalFeeAllowanceMutationOptions(config);
 
@@ -67,17 +69,31 @@ export function useApproveOperationalFeeAllowance(
     {
       mutationKey: base.mutationKey,
       mutationFn: async (variables) => {
+        let authorization = variables.timelock;
         try {
           const resolvedChainId = variables.chainId ?? chainId;
-          const hash = await base.mutationFn({ ...variables, chainId: resolvedChainId });
+          authorization = await automaticTimelock(variables, {
+            account: variables.account,
+            chainId: resolvedChainId,
+            functionName: "approveOperationalFee",
+            explicit: authorization,
+          });
+          const hash = await base.mutationFn({
+            ...variables,
+            chainId: resolvedChainId,
+            ...(authorization ? { timelock: authorization } : {}),
+          });
           const result = resolveWriteResult(config, hash, {
             chainId: resolvedChainId,
             waitForReceipt: parameters.waitForReceipt,
             confirmations: parameters.confirmations,
           });
-          return variables.timelock ? await result : result;
+          const settled = await result;
+          automaticTimelock.finish(variables, settled);
+          return settled;
         } catch (err) {
-          throw variables.timelock ? normalizeProtectedWriteError(err, variables.timelock) : normalizeSymmError(err);
+          automaticTimelock.fail(variables, err);
+          throw authorization ? normalizeProtectedWriteError(err, authorization) : normalizeSymmError(err);
         }
       },
       onSuccess: (_result, variables) => {

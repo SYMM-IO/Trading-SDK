@@ -26,10 +26,17 @@ export function WriteAddMargin() {
 
   const validVa = isAddress(virtualAccount) ? (virtualAccount as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
-  const protection = useProtectedWrite(validVa, owner, "addMargin");
+  const protection = useProtectedWrite(
+    validVa,
+    owner,
+    "addMargin",
+    validVa && validAmount !== undefined
+      ? { target: "account-layer", functionName: "addMargin", args: [validVa, validAmount] }
+      : undefined,
+  );
   const canSubmit = isConnected && isOnExpectedChain && validVa && validAmount !== undefined;
 
-  const mutation = useAddMargin();
+  const mutation = useAddMargin({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("addMargin");
   /** A relayed margin write runs under — and is billed to — the virtual account's parent sub-account. */

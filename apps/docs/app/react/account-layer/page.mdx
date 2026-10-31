@@ -338,19 +338,38 @@ does not retry automatically and refreshes affected reads only after confirmatio
 
 The React package exposes the same provider-neutral timelock flow as core:
 
-| Hook                         | Purpose                                                                                      |
-| ---------------------------- | -------------------------------------------------------------------------------------------- |
-| `useSelectorTimelock`        | Read the unlocker and delay configured for one root-account selector.                        |
-| `useSetupTimelocks`          | Configure or update selector policy on the root account.                                     |
-| `useClearTimelocks`          | Remove selector policies from the root account.                                              |
-| `useRequestTimelockApproval` | Sign and send exactly one approval request; automatic retries are disabled.                  |
-| `useScheduleTimelockOp`      | Schedule exact raw operation calldata for delayed fallback execution.                        |
-| `useTimelockScheduleState`   | Read the derived `readyAt` and `expiresAt` execution window.                                 |
-| `useCancelTimelockOp`        | Cancel a pending fallback schedule.                                                          |
-| `useExecuteTimelockOp`       | Execute wrapped AccountLayer calldata with signed approvals or a mature schedule.            |
-| `useTimelockPolicy`          | Resolve root/VA and read all 22 selector statuses in one pass.                               |
-| `useSetupTimelockPolicy`     | Configure with safe defaults; return confirmed receipt and separate indexing status.         |
-| `useEarlyWithdraw`           | Obtain one approval and execute an owner-wallet withdrawal; preserve recovery data on error. |
+| Hook                           | Purpose                                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| `useSelectorTimelock`          | Read the unlocker and delay configured for one root-account selector.                                         |
+| `useSetupTimelocks`            | Configure or update selector policy on the root account.                                                      |
+| `useClearTimelocks`            | Remove selector policies from the root account.                                                               |
+| `useRequestTimelockApproval`   | Sign and send exactly one approval request; automatic retries are disabled.                                   |
+| `useScheduleTimelockOp`        | Schedule exact raw operation calldata for delayed fallback execution.                                         |
+| `useTimelockScheduleState`     | Read the derived `readyAt` and `expiresAt` execution window.                                                  |
+| `useCancelTimelockOp`          | Cancel a pending fallback schedule.                                                                           |
+| `useExecuteTimelockOp`         | Execute wrapped AccountLayer calldata with signed approvals or a mature schedule.                             |
+| `useTimelockPolicy`            | Resolve root/VA and read all 22 selector statuses in one pass.                                                |
+| `useTimelockRoute`             | Select normal, approval or delayed handling for one operation using solver configuration and on-chain policy. |
+| `useAutomaticTimelockRecovery` | Observe and acknowledge a reconciled automatic operation on a root account.                                   |
+| `useTimelockedCoreCallEncoder` | Return the Core-call wrapper encoder for exact delayed execution calldata.                                    |
+| `useSetupTimelockPolicy`       | Configure with safe defaults; return confirmed receipt and separate indexing status.                          |
+| `useEarlyWithdraw`             | Obtain one approval and execute an owner-wallet withdrawal; preserve recovery data on error.                  |
+
+### Automatic route selection
+
+The standard protected write hooks automatically inspect the selected deployment and selector before issuing an approval. Existing explicit `timelock` mutation inputs always take precedence. On chains or solvers explicitly configured without support, the previous plain write path is preserved. If solver discovery fails, an on-chain selector read can still establish that the operation is unlocked; if it cannot, the hook returns an error rather than assuming a plain write is safe. For app-owned routing, pass `automaticTimelock: false` in the hook options. Integrations with another provider can pass `{ capability, provider, deadline?, onApproval? }` instead; keep the provider object stable during the operation and persist approvals in `onApproval` when recovery must survive reload.
+
+For multi-call writes, each protected inner call receives a distinct authorization. Automatic handling does not schedule a delayed operation or retry an ambiguous approval request; use the explicit scheduling hooks after reconciling any earlier attempt. The default request deadline is five minutes after the current chain block time.
+
+Automatic hooks coordinate attempts for the same root account within their shared QueryClient. After an uncertain result, `useAutomaticTimelockRecovery({ rootAccount, chainId })` exposes `status: "reconciliation"`; call `clearAfterReconciliation()` only after independently determining the outcome. A pending operation cannot be cleared. A confirmed receipt releases the attempt automatically; a broadcast-only result requires reconciliation. This state is in memory and is not shared across browser tabs or reloads. Applications must maintain a durable journal and cross-tab lock when those guarantees are required, including while switching to app-owned routing.
+
+For fee allowance operations, `OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER` is also available from the React package; its value comes from core.
+
+`useTimelockRoute({ account, selector, chainId, solverId })` checks the solver's `timelockApproval` capability and the selected root-account policy. Pass `enabled: false` to skip discovery and policy reads. An explicit disabled capability retains the normal route. When the setting is unspecified, the hook discovers Enigma support from `/info` or accepts supplied provider metadata. If support is still unknown and discovery fails, it returns `error` instead of assuming the normal route. A protected selector with a matching online provider returns `approval`; an unavailable `/info` before a request returns `delayed` when support is already known; inconsistent metadata or a failed chain read returns `error`. A provider other than Enigma may supply `capability` and `provider` explicitly.
+
+Call `run` with a normal write callback and a protected write callback. For `approval`, supply the request deadline and `onApproval` to persist the issued approval. A `delayed` result is **not a completed write**: ask the user to schedule the exact raw calldata with `useScheduleTimelockOp`, track `useTimelockScheduleState`, then execute or cancel with the corresponding hooks. Never reuse calldata containing a short-lived signature after it expires.
+
+The hook prevents another attempt within the mounted instance after an ambiguous protected outcome; it does not persist state, coordinate tabs, or reconcile past attempts. The application must persist the approval and transaction recovery context before submission and restore it after reload. Call `clearReconciledAttempt()` only after the earlier operation is independently reconciled. Approval rejections and ambiguous submissions do not automatically start a schedule.
 
 ### High-level hooks
 

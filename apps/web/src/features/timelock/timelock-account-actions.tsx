@@ -43,11 +43,11 @@ export function TimelockAccountActions({ account, context, recovery, saveRecover
     };
   }, []);
   const provider = useTimelockApprovalProvider({ chainId: context.chainId, solverId: context.solverId });
-  const add = useAddMargin();
-  const remove = useRemoveMargin();
-  const allocate = useAllocate();
-  const deallocate = useDeallocate();
-  const deletion = useDeleteSubAccount();
+  const add = useAddMargin({ automaticTimelock: false });
+  const remove = useRemoveMargin({ automaticTimelock: false });
+  const allocate = useAllocate({ automaticTimelock: false });
+  const deallocate = useDeallocate({ automaticTimelock: false });
+  const deletion = useDeleteSubAccount({ automaticTimelock: false });
   const write = useGaslessWriteOption(method);
   const parsed = parseAmount(amount, 18);
   const canSubmit = context.ready && !recovery && !busy && (method === "deleteSubAccount" || parsed !== undefined);

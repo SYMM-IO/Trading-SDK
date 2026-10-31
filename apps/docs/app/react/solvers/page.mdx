@@ -180,7 +180,7 @@ Gate a flow or UI on what the resolved solver declares it supports, so an unsupp
 
 ### `useSolverCapabilities`
 
-The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService }`, all definite booleans). `listingService` is declarative metadata — the listing functions do not gate on it (see [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service)).
+The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService, timelockApproval }`, all definite booleans). `timelockApproval` declares whether the configured solver deployment offers timelock approvals; an unset flag is false. It does not prove that a particular on-chain selector is unlocked or that the service is online. `listingService` is declarative metadata — the listing functions do not gate on it (see [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service)).
 
 ```tsx
 const { limitOrder, groupClose } = useSolverCapabilities();

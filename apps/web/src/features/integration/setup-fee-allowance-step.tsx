@@ -7,8 +7,11 @@ import { GaslessFailureNote } from "@/features/gasless/gasless-failure-note";
 import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { formatUsd, isUnlimitedAllowance, WEI_DECIMALS } from "@/lib/format";
 import {
+  OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER,
   useAccountBalanceOf,
   useApproveOperationalFee,
+  useSymmioChainId,
+  useSymmioConfig,
   useWalletAccount,
   type UseOperationalFeeAllowanceReturnType,
 } from "@symmio/trading-react";
@@ -55,13 +58,26 @@ export function SetupFeeAllowanceStep({ subAccount, allowance, nativeBalance }: 
   const [amount, setAmount] = useState(DEFAULT_APPROVAL_USDC);
   const [chosen, setChosen] = useState<ApprovalRoute>();
   const balance = useAccountBalanceOf({ account: subAccount });
-  const approve = useApproveOperationalFee();
+  const approve = useApproveOperationalFee({ automaticTimelock: false });
   const wallet = useWalletAccount();
-  const protection = useProtectedWrite(subAccount, wallet.address, "approveOperationalFeeWithMultiplier");
 
   const cannotPayGas = nativeBalance !== undefined && nativeBalance === 0n;
   const route = chosen ?? (cannotPayGas ? "relayed" : "wallet");
   const parsed = parseApproval(amount);
+  const chainId = useSymmioChainId();
+  const charger = useSymmioConfig().getChainConfig(chainId).gasless?.gaslessLayerAddress;
+  const protection = useProtectedWrite(
+    subAccount,
+    wallet.address,
+    "approveOperationalFeeWithMultiplier",
+    charger && parsed !== null
+      ? {
+          target: "core",
+          functionName: "approveOperationalFeeWithMultiplier",
+          args: [[charger], [parsed], [OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER]],
+        }
+      : undefined,
+  );
 
   return (
     <div className="flex flex-col gap-4">

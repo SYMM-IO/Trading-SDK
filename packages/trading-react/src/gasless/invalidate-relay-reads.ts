@@ -1,6 +1,7 @@
 import {
   accountLayerAbi,
   getActiveDelegationsQueryKey,
+  getActiveVirtualAccountByKeyQueryKey,
   getCollateralAllowanceQueryKey,
   getCollateralBalanceQueryKey,
   getDelegationExpiryQueryKey,
@@ -18,15 +19,21 @@ import {
   getPendingRevocationEtasQueryKey,
   getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
+  getPredictedNextVirtualAccountQueryKey,
   getQuotePendingFundingQueryKey,
   getQuoteQueryKey,
   getSelectorTimelockQueryKey,
   getSubAccountQueryKey,
+  getSubAccountVirtualNonceQueryKey,
   getSubAccountsCountOfUserQueryKey,
   getTimelockPolicyQueryKey,
   getTimelockScheduleStateQueryKey,
   getUserSubAccountsAddressesQueryKey,
   getUserSubAccountsQueryKey,
+  getVirtualAccountQueryKey,
+  getVirtualAccountsAddressesOfSubAccountQueryKey,
+  getVirtualAccountsCountOfSubAccountQueryKey,
+  getVirtualAccountsOfSubAccountQueryKey,
   getWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
   instantLayerAbi,
@@ -199,6 +206,21 @@ const SUB_ACCOUNT_WRITES: ReadonlySet<Hex> = new Set([
   selectorOf(accountLayerAbi as Abi, "createSubAccounts"),
   selectorOf(accountLayerAbi as Abi, "deleteSubAccount"),
   selectorOf(accountLayerAbi as Abi, "editAccountName"),
+  selectorOf(accountLayerAbi as Abi, "transferSubAccountOwnership"),
+  selectorOf(accountLayerAbi as Abi, "setSingleVAMode"),
+  selectorOf(accountLayerAbi as Abi, "createCustomVirtualAccount"),
+]);
+
+const VIRTUAL_ACCOUNT_WRITES: ReadonlySet<Hex> = new Set([
+  selectorOf(accountLayerAbi as Abi, "transferSubAccountOwnership"),
+  selectorOf(accountLayerAbi as Abi, "deleteSubAccount"),
+  selectorOf(accountLayerAbi as Abi, "setSingleVAMode"),
+  selectorOf(accountLayerAbi as Abi, "createCustomVirtualAccount"),
+]);
+
+const OPERATIONAL_FEE_WRITES: ReadonlySet<Hex> = new Set([
+  selectorOf(symmioAbi as Abi, "approveOperationalFee"),
+  selectorOf(symmioAbi as Abi, "approveOperationalFeeWithMultiplier"),
 ]);
 
 /** Relayable writes that pull collateral from the signer's own token balance. */
@@ -352,6 +374,22 @@ function invalidateOperationReads(queryClient: QueryClient, scope: Scope, select
   if (touches(DEPOSIT_WRITES)) {
     void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralBalanceQueryKey, scope) });
     void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralAllowanceQueryKey, scope) });
+  }
+  if (touches(VIRTUAL_ACCOUNT_WRITES)) {
+    for (const queryKey of [
+      getVirtualAccountQueryKey,
+      getVirtualAccountsOfSubAccountQueryKey,
+      getVirtualAccountsAddressesOfSubAccountQueryKey,
+      getVirtualAccountsCountOfSubAccountQueryKey,
+      getActiveVirtualAccountByKeyQueryKey,
+      getPredictedNextVirtualAccountQueryKey,
+      getSubAccountVirtualNonceQueryKey,
+    ]) {
+      void queryClient.invalidateQueries({ predicate: predicateMatch(queryKey, scope) });
+    }
+  }
+  if (touches(OPERATIONAL_FEE_WRITES)) {
+    void queryClient.invalidateQueries({ predicate: predicateMatch(getOperationalFeeAllowanceQueryKey, scope) });
   }
   if (touches(GRANT_DELEGATIONS)) {
     /** Scoped by config only: one grant covers every selector it lists, for every delegate. */

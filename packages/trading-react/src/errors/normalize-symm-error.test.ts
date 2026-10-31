@@ -13,6 +13,15 @@ import { normalizeSymmError } from "./normalize-symm-error";
 import { SymmioRequestError } from "./symmio-request-error";
 
 describe("normalizeSymmError", () => {
+  it("retains contract classification for a core timelock-required error", () => {
+    const cause = new Error("original revert");
+    const error = new SymmError("validation", "TIMELOCK_REQUIRED", "Approval required", { cause });
+    expect(normalizeSymmError(error)).toMatchObject({
+      kind: "contract-revert",
+      code: "TIMELOCK_REQUIRED",
+      cause: error,
+    });
+  });
   it("identifies a decoded timelock revert without changing other contract errors", () => {
     const data = encodeErrorResult({
       abi: accountLayerAbi,

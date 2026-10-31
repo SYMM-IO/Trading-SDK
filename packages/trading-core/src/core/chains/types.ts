@@ -85,6 +85,8 @@ export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
  * to `false` — a solver must **declare** a capability to enable it.
  */
 export interface SolverCapabilitiesConfig {
+  /** Whether this solver deployment offers timelock approval. Unset defaults to false. */
+  timelockApproval?: boolean;
   /**
    * Whether the solver supports closing a whole market + side group of quotes in
    * one flow. Enigma (Virtual-Account isolation, one VA per market + side)

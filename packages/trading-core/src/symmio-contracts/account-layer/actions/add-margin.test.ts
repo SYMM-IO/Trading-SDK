@@ -1,8 +1,9 @@
-import type { Address } from "viem";
+import { ContractFunctionRevertedError, encodeErrorResult, type Address } from "viem";
 import { describe, expect, it } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
+import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { addMargin } from "./add-margin";
 
 const DEFAULT = getChainConfig(SymmioSupportedChainId.ARBITRUM);
@@ -10,6 +11,29 @@ const VIRTUAL_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const AMOUNT = 50_000000000000000000n;
 
 describe("addMargin", () => {
+  it("classifies the decoded timelock simulation revert before broadcasting", async () => {
+    const { config, writeContract, simulateContract } = mockConfig();
+    const data = encodeErrorResult({
+      abi: accountLayerAbi,
+      errorName: "TimelockOpNotApprovedOrScheduled",
+      args: [VIRTUAL_ACCOUNT, `0x${"12".repeat(32)}`],
+    });
+    const cause = new ContractFunctionRevertedError({ abi: accountLayerAbi, data, functionName: "addMargin" });
+    simulateContract.mockRejectedValueOnce(cause);
+    await expect(addMargin(config, { virtualAccount: VIRTUAL_ACCOUNT, amount: AMOUNT })).rejects.toMatchObject({
+      code: "TIMELOCK_REQUIRED",
+      cause,
+    });
+    expect(writeContract).not.toHaveBeenCalled();
+  });
+
+  it("classifies a decoded wallet submission revert when simulation is disabled", async () => {
+    const { config, writeContract } = mockConfig();
+    const data = encodeErrorResult({ abi: accountLayerAbi, errorName: "TimelockOpNotApprovedOrScheduled", args: [VIRTUAL_ACCOUNT, `0x${"12".repeat(32)}`] });
+    const cause = new ContractFunctionRevertedError({ abi: accountLayerAbi, data, functionName: "addMargin" });
+    writeContract.mockRejectedValueOnce(cause);
+    await expect(addMargin(config, { virtualAccount: VIRTUAL_ACCOUNT, amount: AMOUNT, simulateBeforeWrite: false })).rejects.toMatchObject({ code: "TIMELOCK_REQUIRED", cause });
+  });
   it("writes addMargin to the AccountLayer", async () => {
     const { config, writeContract } = mockConfig();
 

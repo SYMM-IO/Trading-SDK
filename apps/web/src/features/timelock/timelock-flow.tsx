@@ -13,7 +13,7 @@ import { TimelockBatchCard } from "./timelock-batch-card";
 import { TimelockNamedFunction } from "./timelock-named-function";
 import { TimelockPolicyPanel } from "./timelock-policy-panel";
 import { TimelockProtectedCall } from "./timelock-protected-call";
-import { clearReviewedTimelockRecovery, readScheduledRecovery, readTimelockRecovery } from "./timelock-recovery";
+import { clearReviewedTimelockRecovery, notifyTimelockRecoveryChanged, readScheduledRecovery, readTimelockRecovery, subscribeTimelockRecoveryChanged } from "./timelock-recovery";
 import { TimelockSchedulePanel } from "./timelock-schedule-panel";
 import { TimelockSelectorCard } from "./timelock-selector-card";
 import { TimelockWithdrawal } from "./timelock-withdrawal";
@@ -57,7 +57,7 @@ export function TimelockFlow({ owner, subAccount, onSelectSubAccount, ready }: P
 }
 
 function TimelockAccount({ account, owner }: { account: Address; owner: Address }) {
-  const context = useTimelockContext(account);
+  const context = useTimelockContext(account, undefined, owner);
   const storageKey = context.journalScope
     ? `symm:timelock-attempt:${context.journalScope}:${owner.toLowerCase()}`
     : undefined;
@@ -68,17 +68,21 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
   const [active, setActive] = useState(false);
   useEffect(() => {
     if (!storageKey) return;
+    const activeKey = storageKey;
     try {
       setRecovery(readTimelockRecovery(storageKey));
       setLoaded(true);
     } catch {
       setStorageError(true);
     }
-    function onStorage(event: StorageEvent) {
-      if (event.key === storageKey) setRecovery(event.newValue);
+    function onStorage() {
+      try {
+        setRecovery(readTimelockRecovery(activeKey));
+      } catch {
+        setStorageError(true);
+      }
     }
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return subscribeTimelockRecoveryChanged(onStorage);
   }, [storageKey]);
 
   function saveRecovery(value: string | null) {
@@ -87,6 +91,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
     try {
       if (value === null) localStorage.removeItem(storageKey);
       else localStorage.setItem(storageKey, value);
+      notifyTimelockRecoveryChanged();
     } catch (error) {
       setStorageError(true);
       throw error;
@@ -186,13 +191,6 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             saveRecovery={saveRecovery}
             onBusyChange={setActive}
           />
-          <TimelockSchedulePanel
-            context={context}
-            recovery={recovery}
-            saveRecovery={saveRecovery}
-            onBusyChange={setActive}
-            storageKey={storageKey}
-          />
           <TimelockSelectorCard
             context={context}
             disabled={active || Boolean(recovery)}
@@ -204,6 +202,23 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
       ) : (
         <ResultNote>Select an account on a deployment advertising timelock approvals to use these actions.</ResultNote>
       )}
+      {loaded &&
+      storageKey &&
+      !storageError &&
+      !context.chainUnsupported &&
+      context.rootAccount &&
+      context.account &&
+      (context.capability ||
+        context.config.getSolver({ chainId: context.chainId, solverId: context.solverId }).capabilities
+          ?.timelockApproval === true) ? (
+        <TimelockSchedulePanel
+          context={context}
+          recovery={recovery}
+          saveRecovery={saveRecovery}
+          onBusyChange={setActive}
+          storageKey={storageKey}
+        />
+      ) : null}
     </>
   );
 }

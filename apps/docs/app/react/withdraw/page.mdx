@@ -236,6 +236,12 @@ A `CUSTOM` sub-account holds its funds in the allocated balance and deallocates 
 - A relayed **finalize** adds nothing to the Core balance, so the fee must still be there when it runs. Withdrawing the whole balance leaves nothing to pay it with. Keep the fee back, or finalize from the wallet (`gasless: false`), which costs native gas but no operational fee.
 - A relayed **cancel** of a pending request refunds the amount before the fee is collected, so the refund can cover the fee. A cancel that only asks the request's withdraw provider to cancel refunds nothing yet, so it needs the reserve as well.
 
+## Timelock routing
+
+Withdrawal hooks automatically inspect the selected solver and relevant selector policy before requesting an early approval. Explicit `timelock` mutation input overrides automatic routing. Set `automaticTimelock: false` on the hook when the application manages routing itself, or supply provider metadata, transport, and an approval-persistence callback in that option. An ambiguous approval request is not automatically retried; reconcile it before starting another request or delayed fallback.
+
+Use [`useAutomaticTimelockRecovery`](/react/account-layer#automatic-route-selection) to inspect and clear an independently reconciled attempt for the root account. Its coordination is limited to the current QueryClient; applications must persist recovery and coordinate across tabs themselves when needed.
+
 ## Related
 
 - [SYMMIO Contract](../symmio-contract) — the underlying `createClassicWithdrawPart` primitive.

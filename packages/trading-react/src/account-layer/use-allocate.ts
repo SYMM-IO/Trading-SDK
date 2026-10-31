@@ -12,13 +12,14 @@ import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
+import { resolveWriteResult, type AutomaticTimelockWriteParameters, type WriteResult } from "../transactions";
 import { predicateMatch } from "../utils";
+import { useAutomaticTimelock } from "./use-automatic-timelock";
 
 /**
  * Parameters for {@link useAllocate}.
  */
-export type UseAllocateParameters = WriteParameters;
+export type UseAllocateParameters = AutomaticTimelockWriteParameters;
 
 /** Result returned by the {@link useAllocate} mutation. */
 export type AllocateResult = WriteResult;
@@ -41,23 +42,38 @@ export function useAllocate(parameters: UseAllocateParameters = {}): UseAllocate
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const queryClient = useQueryClient();
+  const automaticTimelock = useAutomaticTimelock(config, parameters.automaticTimelock);
 
   const base = allocateMutationOptions(config);
 
   return useMutation<AllocateResult, SymmioRequestError, AllocateParameters>({
     mutationKey: base.mutationKey,
     mutationFn: async (variables) => {
+      let authorization = variables.timelock;
       try {
         const resolvedChainId = variables.chainId ?? chainId;
-        const hash = await base.mutationFn({ ...variables, chainId: resolvedChainId });
+        authorization = await automaticTimelock(variables, {
+          account: variables.account,
+          chainId: resolvedChainId,
+          functionName: "allocate",
+          explicit: authorization,
+        });
+        const hash = await base.mutationFn({
+          ...variables,
+          chainId: resolvedChainId,
+          ...(authorization ? { timelock: authorization } : {}),
+        });
         const result = resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,
           confirmations: parameters.confirmations,
         });
-        return variables.timelock ? await result : result;
+        const settled = await result;
+        automaticTimelock.finish(variables, settled);
+        return settled;
       } catch (err) {
-        throw variables.timelock ? normalizeProtectedWriteError(err, variables.timelock) : normalizeSymmError(err);
+        automaticTimelock.fail(variables, err);
+        throw authorization ? normalizeProtectedWriteError(err, authorization) : normalizeSymmError(err);
       }
     },
     onSuccess: (_result, variables) => {

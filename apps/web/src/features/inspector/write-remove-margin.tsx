@@ -36,7 +36,7 @@ export function WriteRemoveMargin() {
   const protection = useProtectedWrite(validVa, owner, "removeMargin");
   const canSubmit = isConnected && isOnExpectedChain && validVa && validAmount !== undefined;
 
-  const mutation = useRemoveMargin();
+  const mutation = useRemoveMargin({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("removeMargin");
   /** A relayed margin write runs under — and is billed to — the virtual account's parent sub-account. */

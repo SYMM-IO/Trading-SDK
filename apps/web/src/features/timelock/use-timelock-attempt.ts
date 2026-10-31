@@ -1,16 +1,53 @@
 "use client";
 
+import { STAGING_CHAIN_OVERRIDES } from "@/config/symmio-presets";
 import type { TimelockAuthorization, ValidatedTimelockApproval } from "@symmio/trading-core";
 import { useTimelockApprovalProvider } from "@symmio/trading-react";
 import { useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 import {
   clearReviewedTimelockRecovery,
+  hasTimelockHistory,
+  mayHaveTimelockRecovery,
+  notifyTimelockRecoveryChanged,
   readTimelockRecovery,
   recoveryTransactionHash,
+  rememberTimelockHistory,
+  subscribeTimelockRecoveryChanged,
+  timelockHistoryKey,
   withTimelockAttemptLock,
+  withTimelockHistoryLock,
 } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
+
+const PREPARING = "A protected operation is being prepared. Reconcile its outcome before trying again.";
+function isUnavailableApproval(error: unknown): boolean {
+  let current = error;
+  for (let depth = 0; depth < 12 && current && typeof current === "object"; depth++) {
+    if (
+      "name" in current &&
+      current.name === "TimelockApprovalHttpError" &&
+      "status" in current &&
+      typeof current.status === "number" &&
+      (current.status === 0 || current.status >= 500)
+    )
+      return true;
+    current = "cause" in current ? current.cause : undefined;
+  }
+  return false;
+}
+
+function isUnavailableRecovery(recovery: string | null): boolean {
+  if (!recovery) return false;
+  try {
+    const parsed: unknown = JSON.parse(recovery);
+    return Boolean(
+      parsed && typeof parsed === "object" && "kind" in parsed && parsed.kind === "approval-service-unavailable",
+    );
+  } catch {
+    return false;
+  }
+}
 
 /** Browser-owned recovery journal shared with the timelock integration flow. */
 export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
@@ -27,24 +64,31 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
   currentScope.current = context.scope;
   useEffect(() => {
     if (!key) return;
+    const activeKey = key;
     currentKey.current = key;
     try {
       const value = readTimelockRecovery(key);
       saved.current.set(key, value);
       setRecovery(value);
       setLoadedKey(key);
+      setError(undefined);
     } catch {
       setError("Browser storage is unavailable; protected actions are disabled.");
     }
-    function changed(event: StorageEvent) {
-      if (event.key === key) {
-        saved.current.set(key, event.newValue);
-        setRecovery(event.newValue);
+    function changed() {
+      try {
+        const value = readTimelockRecovery(activeKey);
+        saved.current.set(activeKey, value);
+        setRecovery(value);
+        setLoadedKey(activeKey);
+        setError(undefined);
+      } catch {
+        setError("Browser storage is unavailable; protected actions are disabled.");
       }
     }
-    window.addEventListener("storage", changed);
+    const unsubscribe = subscribeTimelockRecoveryChanged(changed);
     return () => {
-      window.removeEventListener("storage", changed);
+      unsubscribe();
       if (currentKey.current === key) currentKey.current = undefined;
     };
   }, [key]);
@@ -53,6 +97,8 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
     if (!key) throw new Error("Connect an owner wallet before requesting an approval.");
     if (value === null) localStorage.removeItem(key);
     else localStorage.setItem(key, value);
+    setError(undefined);
+    notifyTimelockRecoveryChanged();
     saved.current.set(key, value);
     if (currentKey.current === key) setRecovery(value);
   }
@@ -70,7 +116,7 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
     )
       throw new Error("Complete policy setup and reconcile earlier attempts before continuing.");
     if (readTimelockRecovery(key)) throw new Error("A previous operation needs reconciliation.");
-    save("A protected operation is being prepared. Reconcile its outcome before trying again.");
+    save(PREPARING);
     const block = await context.config.getClient({ chainId: context.chainId }).getBlock();
     if (currentKey.current !== key || currentScope.current !== requestedScope)
       throw new Error("The account changed. Reconcile the previous attempt before continuing.");
@@ -98,20 +144,57 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
     }
     save(JSON.stringify({ approval: previous, transactionHash: hash }, null, 2));
   }
+  /** Recheck at submission in case another tab just wrote a recovery record. */
+  function canProceed() {
+    if (!owner) return true;
+    try {
+      if (key && loadedKey === key) return !readTimelockRecovery(key);
+      return !mayHaveTimelockRecovery(
+        context.chainId,
+        context.config.getChainConfig(context.chainId).addresses.accountLayerAddress,
+        owner,
+      );
+    } catch {
+      return false;
+    }
+  }
   return {
     begin,
-    recovery: context.chainUnsupported ? null : recovery,
-    error: context.chainUnsupported ? undefined : (error ?? context.rootError?.message),
-    loaded: context.chainUnsupported || !owner || Boolean(key && loadedKey === key),
+    storageKey: key,
+    saveScheduledRecovery: save,
+    recovery: key && loadedKey === key ? recovery : null,
+    approvalServiceUnavailable: isUnavailableRecovery(recovery),
+    error: context.checkRecovery ? (error ?? context.rootError?.message) : undefined,
+    loaded: !context.checkRecovery || !owner || Boolean(key && loadedKey === key),
+    canProceed,
+    runNormal: <T>(action: () => Promise<T>) => {
+      if (!owner) return action();
+      const accountLayer = context.config.getChainConfig(context.chainId).addresses.accountLayerAddress;
+      const historyKey = timelockHistoryKey(context.chainId, accountLayer, owner);
+      const possibleRecovery = mayHaveTimelockRecovery(context.chainId, accountLayer, owner);
+      const isStaging =
+        context.chainId === 42161 &&
+        accountLayer.toLowerCase() === STAGING_CHAIN_OVERRIDES[42161].addresses.accountLayerAddress.toLowerCase();
+      if (!context.timelockEnabled && !isStaging && !possibleRecovery && !hasTimelockHistory(historyKey))
+        return action();
+      if (possibleRecovery) rememberTimelockHistory(historyKey);
+      return withTimelockHistoryLock(historyKey, async () => {
+        if (!canProceed()) throw new Error("An earlier protected operation needs reconciliation.");
+        return action();
+      });
+    },
     clear: () => save(null),
     clearReviewed: async () => {
-      if (!key || !recovery) return;
+      if (!key || !recovery) return false;
       try {
         await clearReviewedTimelockRecovery(key, recovery);
         saved.current.set(key, null);
         if (currentKey.current === key) setRecovery(null);
+        setError(undefined);
+        return true;
       } catch (failure) {
         setError(failure instanceof Error ? failure.message : String(failure));
+        return false;
       }
     },
     submitted,
@@ -121,7 +204,39 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
     },
     run: <T>(action: () => Promise<T>) => {
       if (!key) throw new Error("Connect the owner wallet.");
-      return withTimelockAttemptLock(key, action);
+      return withTimelockAttemptLock(key, async () => {
+        try {
+          return await action();
+        } catch (failure) {
+          const marker = PREPARING;
+          if (
+            saved.current.get(key) === marker &&
+            readTimelockRecovery(key) === marker &&
+            failure &&
+            typeof failure === "object" &&
+            "kind" in failure &&
+            failure.kind === "api" &&
+            "timelock" in failure &&
+            failure.timelock &&
+            typeof failure.timelock === "object" &&
+            "knownCode" in failure.timelock &&
+            (failure.timelock.knownCode === 3703 || failure.timelock.knownCode === 3704)
+          )
+            save(null);
+          else if (isUnavailableApproval(failure)) {
+            const previous = saved.current.get(key);
+            if (previous && readTimelockRecovery(key) === previous)
+              save(
+                JSON.stringify({
+                  kind: "approval-service-unavailable",
+                  message: "Reconcile every previous approval and transaction before delayed recovery.",
+                  previous,
+                }),
+              );
+          }
+          throw failure;
+        }
+      });
     },
   };
 }

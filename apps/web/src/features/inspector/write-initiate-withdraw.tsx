@@ -4,6 +4,7 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { createClassicWithdrawPart } from "@symmio/trading-core";
 import {
   useInitiateWithdraw,
@@ -41,7 +42,7 @@ export function WriteInitiateWithdraw() {
     validAmount !== undefined &&
     chainId !== undefined;
 
-  const mutation = useInitiateWithdraw();
+  const mutation = useInitiateWithdraw({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("initiateWithdraw");
 
@@ -49,6 +50,12 @@ export function WriteInitiateWithdraw() {
     validReceiver && validAmount !== undefined && chainId !== undefined
       ? [createClassicWithdrawPart({ id: 0n, amount: validAmount, receiver: validReceiver, chainId: BigInt(chainId) })]
       : undefined;
+  const protection = useProtectedWrite(
+    validAccount,
+    address,
+    "initiateWithdraw",
+    validParts ? { target: "core", functionName: "initiateWithdraw", args: [validParts, false, "0x"] } : undefined,
+  );
 
   /**
    * The fee preview prices the call by its selector, so until a receiver and an
@@ -149,7 +156,7 @@ export function WriteInitiateWithdraw() {
         <Button
           type="button"
           size="sm"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || mutation.isPending || !protection.available}
           onClick={() => {
             if (!validAccount || !validReceiver || validAmount === undefined) return;
             const part = createClassicWithdrawPart({
@@ -158,7 +165,14 @@ export function WriteInitiateWithdraw() {
               receiver: validReceiver,
               chainId: BigInt(chainId!),
             });
-            mutation.mutate({ account: validAccount, parts: [part], ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({
+                account: validAccount,
+                parts: [part],
+                ...write,
+                ...(timelock ? { timelock } : {}),
+              }),
+            );
           }}
           data-testid="button-send-initiate-withdraw"
         >
@@ -179,6 +193,7 @@ export function WriteInitiateWithdraw() {
         testId="result-simulate-initiateWithdraw"
       />
 
+      <ProtectedWriteNotice protection={protection} />
       <WritePanel mutation={mutation} />
     </MethodCard>
   );

@@ -5,8 +5,8 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess, ResultWarning } from "@/components/result";
 import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { formatUsd, isUnlimitedAllowance, WEI_DECIMALS } from "@/lib/format";
-import { OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER } from "@symmio/trading-core";
 import {
+  OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER,
   useAccountBalanceOf,
   useApproveOperationalFee,
   useApproveOperationalFeeAllowance,
@@ -95,8 +95,8 @@ export function GaslessAllowanceCard() {
     query: { enabled: Boolean(payer) },
   });
   const balance = useAccountBalanceOf({ account: payer });
-  const resetApprove = useApproveOperationalFee();
-  const keepApprove = useApproveOperationalFeeAllowance();
+  const resetApprove = useApproveOperationalFee({ automaticTimelock: false });
+  const keepApprove = useApproveOperationalFeeAllowance({ automaticTimelock: false });
   /** No relay toggle here, so these only change the call while the key toggle is on. */
   const resetWrite = useGaslessWriteOption(RESET_METHOD);
   const keepWrite = useGaslessWriteOption(KEEP_METHOD);
@@ -108,17 +108,26 @@ export function GaslessAllowanceCard() {
 
   const keep = choice === "keep";
   const wallet = useWalletAccount();
-  const protection = useProtectedWrite(
-    payer,
-    wallet.address,
-    keep ? "approveOperationalFee" : "approveOperationalFeeWithMultiplier",
-  );
   const approve = keep ? keepApprove : resetApprove;
   const method = keep ? KEEP_METHOD : RESET_METHOD;
   const relayed = keep ? keepRelayed : resetRelayed;
 
   /** `null` while the box cannot describe an approval. */
   const approvalAmount = parseApproval(amount);
+  const protection = useProtectedWrite(
+    payer,
+    wallet.address,
+    keep ? "approveOperationalFee" : "approveOperationalFeeWithMultiplier",
+    gaslessLayerAddress && approvalAmount !== null
+      ? keep
+        ? { target: "core", functionName: "approveOperationalFee", args: [[gaslessLayerAddress], [approvalAmount]] }
+        : {
+            target: "core",
+            functionName: "approveOperationalFeeWithMultiplier",
+            args: [[gaslessLayerAddress], [approvalAmount], [OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER]],
+          }
+      : undefined,
+  );
   const currentMultiplier = allowance.data?.feeMultiplier;
 
   /**

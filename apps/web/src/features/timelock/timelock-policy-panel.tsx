@@ -57,7 +57,7 @@ export function TimelockPolicyPanel({ context }: { context: TimelockContext }) {
           </details>
           {!policy.data.ready ? (
             <Button
-              disabled={!canWrite || setup.isPending || Boolean(setup.error)}
+              disabled={!canWrite || setup.isPending || Boolean(setup.error && setup.error.kind !== "user-rejected")}
               onClick={() => {
                 if (!policy.data || !canWrite) return;
                 context.acknowledgeIndexing(false);

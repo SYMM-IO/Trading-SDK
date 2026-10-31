@@ -30,7 +30,7 @@ export function WriteDeallocate() {
   const protection = useProtectedWrite(validAccount, owner, "deallocate");
   const canSubmit = isConnected && isOnExpectedChain && validAccount && validAmount !== undefined;
 
-  const mutation = useDeallocate();
+  const mutation = useDeallocate({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("deallocate");
 

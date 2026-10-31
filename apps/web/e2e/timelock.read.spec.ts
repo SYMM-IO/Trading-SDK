@@ -11,11 +11,22 @@ import {
   type AbiParameter,
   type Hex,
 } from "viem";
+import { readScheduledRecovery } from "../src/features/timelock/timelock-recovery";
 
 const OWNER = "0x0AF32c77e9431c8a618E821a719A5cdA9D703F67";
 const ROOT = "0x1111111111111111111111111111111111111111";
 const VA = "0x2222222222222222222222222222222222222222";
 const UNLOCKER = "0x3333333333333333333333333333333333333333";
+
+test("schedule recovery preserves the original account and accepts legacy records", async () => {
+  const legacy = { kind: "scheduled-operation", confirmed: true, callData: "0x12345678", innerCallData: "0x12345678" };
+  expect(readScheduledRecovery(JSON.stringify(legacy))).toEqual(legacy);
+  expect(readScheduledRecovery(JSON.stringify({ ...legacy, originalAccount: VA }))).toEqual({
+    ...legacy,
+    originalAccount: VA,
+  });
+  expect(readScheduledRecovery(JSON.stringify({ ...legacy, originalAccount: "not-an-account" }))).toBeUndefined();
+});
 
 /** Deterministic read fixtures: every external HTTP request is intercepted; no real writes are possible. */
 async function mockDeployment(
@@ -26,6 +37,9 @@ async function mockDeployment(
     unsupported?: boolean;
     mockSignature?: boolean;
     mockWriteSuccess?: boolean;
+    rejectWrites?: boolean;
+    rejectApproval?: boolean;
+    approvalUnavailable?: boolean;
     locked?: readonly string[];
     isolationType?: number;
   } = {},
@@ -38,6 +52,7 @@ async function mockDeployment(
   const outerSelector = toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "_call" }));
   const reads: string[] = [];
   const writes: string[] = [];
+  let infoReads = 0;
   const state = { minimum: 300, now: 1_800_000_000n, scheduledAt: 0n };
   function empty(parameter: AbiParameter): unknown {
     if (parameter.type.endsWith("[]")) return [];
@@ -90,6 +105,7 @@ async function mockDeployment(
   await page.route("https://**/*", async (route) => {
     const request = route.request();
     if (new URL(request.url()).pathname.endsWith("/info")) {
+      infoReads++;
       await route.fulfill({
         status: options.unavailable ? 503 : 200,
         json:
@@ -113,6 +129,17 @@ async function mockDeployment(
     }
     if (request.url().includes("timelock-approval")) {
       writes.push("approval");
+      if (options.approvalUnavailable) {
+        await route.fulfill({ status: 503, json: {} });
+        return;
+      }
+      if (options.rejectApproval) {
+        await route.fulfill({
+          status: 400,
+          json: { code: 3703, error_category: "account_state", error_message: "Pending open" },
+        });
+        return;
+      }
       if (options.mockWriteSuccess) {
         const payload = request.postDataJSON();
         await route.fulfill({
@@ -149,6 +176,10 @@ async function mockDeployment(
         if (entry.method.startsWith("eth_sign") && options.mockSignature) {
           writes.push(entry.method);
           return { jsonrpc: "2.0", id: entry.id, result: `0x${"11".repeat(64)}1b` };
+        }
+        if (entry.method.startsWith("eth_send") && options.rejectWrites) {
+          writes.push(entry.method);
+          return { jsonrpc: "2.0", id: entry.id, error: { code: 4001, message: "User rejected the request" } };
         }
         if (entry.method.startsWith("eth_send") && options.mockWriteSuccess) {
           writes.push(entry.method);
@@ -192,23 +223,50 @@ async function mockDeployment(
     await route.fulfill({ json: Array.isArray(body) ? body.map(rpc) : rpc(body) });
   });
   await page.routeWebSocket("wss://**/*", (socket) => socket.close());
-  return { reads, writes, state };
+  return {
+    reads,
+    writes,
+    state,
+    get infoReads() {
+      return infoReads;
+    },
+  };
 }
 
 async function openTimelock(page: Page, account = ROOT) {
-  await page.goto("/integration?flow=timelock");
+  await page.goto("/integration?flow=timelock", { waitUntil: "domcontentloaded" });
   await page.getByTestId("tab-timelock").click();
   await expect(page.getByTestId("tab-timelock")).toHaveAttribute("aria-selected", "true");
+  await connectMockWallet(page);
+  await page.getByTestId("timelock-account").fill(account);
+}
+
+async function connectMockWallet(page: Page) {
   const connect = page.getByTestId("connect-wallet");
   if (await connect.isVisible()) {
     await connect.click();
     await page.getByTestId("connect-mock").click();
   }
-  await page.getByTestId("timelock-account").fill(account);
+}
+
+async function enableTimelockSolver(page: Page) {
+  await page.addInitScript(() => {
+    if (localStorage.getItem("symmio.config.overrides.v4") !== null) return;
+    localStorage.setItem(
+      "symmio.config.overrides.v4",
+      JSON.stringify({
+        42161: {
+          addresses: { affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D" },
+          solvers: { enigma: { capabilities: { timelockApproval: true } } },
+        },
+      }),
+    );
+  });
 }
 
 test("virtual-account policy reads the root and reports all 22 missing selectors without signing", async ({ page }) => {
   const mock = await mockDeployment(page);
+  await enableTimelockSolver(page);
   await openTimelock(page, VA);
   await expect(page.getByTestId("timelock-policy")).toContainText("0 / 22 selectors configured");
   await expect(page.getByTestId("timelock-setup")).toBeEnabled();
@@ -218,8 +276,23 @@ test("virtual-account policy reads the root and reports all 22 missing selectors
   expect(mock.writes).toEqual([]);
 });
 
+test("a rejected setup can be retried without a refresh", async ({ page }) => {
+  const mock = await mockDeployment(page, { rejectWrites: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const button = page.getByRole("button", { name: "Configure trading protection" });
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect(page.getByTestId("timelock-policy").getByRole("alert")).toBeVisible();
+  await expect(button).toBeEnabled();
+  expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toHaveLength(1);
+  await button.click();
+  await expect.poll(() => mock.writes.filter((method) => method.startsWith("eth_send")).length).toBe(2);
+});
+
 test("a selector policy can be inspected without signing", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.locator("#timelock-selector-input").fill("0x12345678");
   await expect(page.getByTestId("timelock-selector")).toContainText("delay: 300 seconds");
@@ -230,6 +303,7 @@ test("policy readiness does not assume indexing, and a raised minimum disables w
   page,
 }, testInfo) => {
   const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await expect(page.getByTestId("timelock-policy")).toContainText("22 / 22 selectors configured");
   await page.locator("#timelock-amount").fill("1");
@@ -247,15 +321,69 @@ test("policy readiness does not assume indexing, and a raised minimum disables w
 
 test("metadata errors do not become unsupported-deployment success", async ({ page }) => {
   const mock = await mockDeployment(page, { unavailable: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await expect(page.getByTestId("timelock-policy").getByRole("alert")).toBeVisible();
   await expect(page.getByTestId("timelock-early-withdraw")).toHaveCount(0);
+  await expect(page.getByTestId("timelock-schedule")).toHaveCount(0);
   await expect(page.getByText("This deployment does not advertise timelock approvals.")).toHaveCount(0);
   expect(mock.writes).toEqual([]);
 });
 
+test("delayed recovery remains accessible when solver metadata is unavailable", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true, unavailable: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await expect(page.getByTestId("timelock-policy").getByRole("alert")).toBeVisible();
+  await expect(page.getByTestId("timelock-schedule")).toBeVisible();
+  expect(mock.writes).toEqual([]);
+});
+
+test("a timelock-enabled solver exposes delayed recovery from a protected margin action when offline", async ({
+  page,
+}) => {
+  await mockDeployment(page, { configured: true, unavailable: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.goto("/contracts/account-layer", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  await page.getByTestId("add-margin-va-account").fill(VA);
+  await page.getByTestId("input-add-margin-amount").fill("1");
+  const panel = page.getByTestId("timelock-schedule");
+  await expect(panel).toBeVisible();
+  await expect(panel.locator("#timelock-raw")).toHaveValue(/^0x[0-9a-f]+$/i);
+  await expect(panel.locator("#timelock-inner")).toHaveValue(await panel.locator("#timelock-raw").inputValue());
+  await expect(panel.locator("#timelock-raw")).toBeDisabled();
+});
+
+test("an older saved staging configuration restores timelock routing", async ({ page }) => {
+  await mockDeployment(page, { configured: true, unavailable: true });
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "symmio.config.overrides.v4",
+      JSON.stringify({
+        42161: {
+          addresses: {
+            affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
+            accountLayerAddress: "0x5733107211B2801Acd39933a54d482FE303c4907",
+            instantLayerAddress: "0x89d1e2a9d2429722f756edffad149d7947b672ff",
+          },
+          solvers: { enigma: { url: "https://arb-staging.enigma.bz/api" } },
+        },
+      }),
+    );
+  });
+  await openTimelock(page);
+  await page.goto("/contracts/account-layer", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  await page.getByTestId("add-margin-va-account").fill(VA);
+  await page.getByTestId("input-add-margin-amount").fill("1");
+  await expect(page.getByTestId("timelock-schedule")).toBeVisible();
+});
+
 test("delayed execution uses chain time and cannot execute before cooldown or after expiry", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
   mock.state.scheduledAt = mock.state.now;
   await openTimelock(page);
   await page.locator("#timelock-raw").fill("0x12345678");
@@ -272,8 +400,37 @@ test("delayed execution uses chain time and cannot execute before cooldown or af
   expect(mock.writes).toEqual([]);
 });
 
+for (const action of ["Execute after cooldown", "Cancel cooldown"]) {
+  test(`a rejected ${action} preserves the confirmed schedule and allows manual retry`, async ({ page }) => {
+    const { getChainConfig } = await import("@symmio/trading-core");
+    const mock = await mockDeployment(page, { configured: true, rejectWrites: true });
+    await enableTimelockSolver(page);
+    mock.state.scheduledAt = mock.state.now - 300n;
+    const key = `symm:timelock-attempt:v2:42161:${getChainConfig(42161).addresses.accountLayerAddress.toLowerCase()}:${ROOT.toLowerCase()}:${OWNER.toLowerCase()}`;
+    const recovery = JSON.stringify({
+      kind: "scheduled-operation",
+      confirmed: true,
+      callData: "0x12345678",
+      innerCallData: "0x12345678",
+    });
+    await page.addInitScript(({ key, recovery }) => localStorage.setItem(key, recovery), { key, recovery });
+    await openTimelock(page);
+    const button = page.getByRole("button", { name: action });
+    await expect(button).toBeEnabled();
+    await button.click();
+    await expect(page.getByTestId("timelock-schedule").getByRole("alert")).toBeVisible();
+    await expect(button).toBeEnabled();
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), key)).toBe(recovery);
+    expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toHaveLength(1);
+    await button.click();
+    await expect.poll(() => mock.writes.filter((method) => method.startsWith("eth_send")).length).toBe(2);
+    await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), key)).toBe(recovery);
+  });
+}
+
 test("an unknown approval response is not retried, including after reload", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-amount").fill("1");
@@ -291,6 +448,7 @@ test("an unknown approval response is not retried, including after reload", asyn
 
 test("root and virtual accounts share the same unresolved approval journal", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
+  await enableTimelockSolver(page);
   await openTimelock(page, ROOT);
   await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-amount").fill("1");
@@ -305,6 +463,7 @@ test("root and virtual accounts share the same unresolved approval journal", asy
 
 test("unresolved recovery survives unrelated deployment configuration changes", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
+  await enableTimelockSolver(page);
   await openTimelock(page, ROOT);
   await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-amount").fill("1");
@@ -317,6 +476,7 @@ test("unresolved recovery survives unrelated deployment configuration changes", 
       JSON.stringify({
         42161: {
           addresses: { affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D" },
+          solvers: { enigma: { capabilities: { timelockApproval: true } } },
           priceService: { url: "https://changed-price.example" },
         },
       }),
@@ -330,6 +490,7 @@ test("unresolved recovery survives unrelated deployment configuration changes", 
 
 test("an unresolved journal from the previous key format is preserved", async ({ page }) => {
   await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
   await openTimelock(page, ROOT);
   await page.evaluate(
     ({ root, owner }) => {
@@ -367,6 +528,7 @@ test("an unresolved journal from the previous key format is preserved", async ({
 
 test("a protected withdrawal confirms one approval and clears its journal", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-amount").fill("1");
@@ -382,6 +544,7 @@ test("a protected withdrawal confirms one approval and clears its journal", asyn
 
 test("a protected margin action executes through the SDK and confirms its receipt", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
+  await enableTimelockSolver(page);
   await openTimelock(page, VA);
   await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-action-amount").fill("1");
@@ -392,8 +555,40 @@ test("a protected margin action executes through the SDK and confirms its receip
   expect(mock.writes.filter((entry) => entry.startsWith("eth_send"))).toHaveLength(1);
 });
 
+test("clearing an ambiguous approval in another tab restores the inspector without refreshing", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true, mockSignature: true });
+  await enableTimelockSolver(page);
+  await page.goto("/contracts/account-layer", { waitUntil: "domcontentloaded" });
+  const connect = page.getByTestId("connect-wallet");
+  if (await connect.isVisible()) {
+    await connect.click();
+    await page.getByTestId("connect-mock").click();
+  }
+  const card = page.getByTestId("method-addMargin");
+  await card.locator("#add-margin-va-account").fill(VA);
+  await card.getByTestId("input-add-margin-amount").fill("1");
+  await card.getByTestId("timelock-indexing").click();
+  const button = card.getByTestId("button-send-add-margin");
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(1);
+  await expect(button).toBeDisabled();
+
+  const second = await page.context().newPage();
+  await mockDeployment(second, { configured: true });
+  await openTimelock(second, ROOT);
+  await expect(second.getByText("An earlier attempt needs reconciliation.", { exact: false })).toBeVisible();
+  second.on("dialog", (dialog) => void dialog.accept());
+  await second.getByRole("button", { name: "Clear after external reconciliation" }).click();
+  await expect(button).toBeEnabled();
+  expect(mock.writes.filter((item) => item === "approval")).toHaveLength(1);
+  expect(mock.writes.some((item) => item.startsWith("eth_send"))).toBe(false);
+  await second.close();
+});
+
 test("an approval can be requested without sending a transaction", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-request-data").fill("0x12345678");
@@ -406,6 +601,7 @@ test("an approval can be requested without sending a transaction", async ({ page
 
 test("a protected named batch sends both calls in one transaction", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-batch-first").fill("1");
@@ -419,6 +615,7 @@ test("a protected named batch sends both calls in one transaction", async ({ pag
 
 test("the named protected-function inspector exposes all 22 functions and executes one", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.getByTestId("timelock-indexing").click();
   const card = page.getByTestId("timelock-named-function");
@@ -434,6 +631,7 @@ test("the named protected-function inspector exposes all 22 functions and execut
 
 test("invalid named-function arguments do not create an approval or recovery record", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.getByTestId("timelock-indexing").click();
   const card = page.getByTestId("timelock-named-function");
@@ -448,17 +646,346 @@ test("invalid named-function arguments do not create an approval or recovery rec
 
 test("a deployment without metadata retains the legacy withdrawal form", async ({ page }) => {
   const mock = await mockDeployment(page, { unsupported: true });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await expect(page.getByText("This deployment does not advertise timelock approvals.")).toBeVisible();
   await page.getByTestId("tab-withdraw").click();
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+  expect(mock.infoReads).toBeGreaterThan(0);
   expect(mock.writes).toEqual([]);
+});
+
+test("an explicitly opted-out deployment keeps the legacy path without solver discovery", async ({ page }) => {
+  const mock = await mockDeployment(page, { unsupported: true });
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "symmio.config.overrides.v4",
+      JSON.stringify({
+        42161: {
+          addresses: { affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D" },
+          solvers: { enigma: { capabilities: { timelockApproval: false } } },
+        },
+      }),
+    ),
+  );
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+  expect(mock.infoReads).toBe(0);
+  expect(mock.writes).toEqual([]);
+});
+
+test("disabling timelock does not bypass an unresolved root journal", async ({ page }) => {
+  const { getChainConfig } = await import("@symmio/trading-core");
+  const layer = getChainConfig(42161).addresses.accountLayerAddress.toLowerCase();
+  const key = `symm:timelock-attempt:v2:42161:${layer}:${ROOT.toLowerCase()}:${OWNER.toLowerCase()}`;
+  const mock = await mockDeployment(page, { unsupported: true });
+  await page.addInitScript(
+    ({ key }) => {
+      localStorage.setItem(key, "An unresolved approval.");
+      localStorage.setItem(
+        "symmio.config.overrides.v4",
+        JSON.stringify({
+          42161: {
+            addresses: { affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D" },
+            solvers: { enigma: { capabilities: { timelockApproval: false } } },
+          },
+        }),
+      );
+    },
+    { key },
+  );
+  await openTimelock(page, VA);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await expect(
+    page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+  ).toBeVisible();
+  await expect(page.getByTestId("button-initiate-withdraw")).toBeDisabled();
+  expect(mock.writes).toEqual([]);
+});
+
+test("the contract inspector also blocks an unresolved journal after timelock is disabled", async ({ page }) => {
+  const { getChainConfig } = await import("@symmio/trading-core");
+  const layer = getChainConfig(42161).addresses.accountLayerAddress.toLowerCase();
+  const key = `symm:timelock-attempt:v2:42161:${layer}:${ROOT.toLowerCase()}:${OWNER.toLowerCase()}`;
+  const mock = await mockDeployment(page, { unsupported: true });
+  await page.addInitScript(
+    ({ key }) => {
+      localStorage.setItem(key, "An unresolved approval.");
+      localStorage.setItem(
+        "symmio.config.overrides.v4",
+        JSON.stringify({
+          42161: {
+            addresses: { affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D" },
+            solvers: { enigma: { capabilities: { timelockApproval: false } } },
+          },
+        }),
+      );
+    },
+    { key },
+  );
+  await page.goto("/contracts/symmio-core", { waitUntil: "domcontentloaded" });
+  const connect = page.getByTestId("connect-wallet");
+  if (await connect.isVisible()) {
+    await connect.click();
+    await page.getByTestId("connect-mock").click();
+  }
+  const card = page.getByTestId("method-initiateWithdraw");
+  await card.locator("#withdraw-account-account").fill(VA);
+  await card.getByTestId("input-withdraw-amount").fill("1");
+  await card.getByTestId("input-withdraw-receiver").fill(OWNER);
+  await expect(
+    card.getByText("An earlier protected operation needs reconciliation before another attempt."),
+  ).toBeVisible();
+  await expect(card.getByTestId("button-send-initiate-withdraw")).toBeDisabled();
+  expect(mock.writes).toEqual([]);
+});
+
+test("legacy withdrawal remains available when browser storage is unavailable", async ({ page }) => {
+  await mockDeployment(page, { unsupported: true });
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.evaluate(() => {
+    Object.defineProperty(Storage.prototype, "length", {
+      configurable: true,
+      get() {
+        throw new Error("blocked");
+      },
+    });
+    Storage.prototype.getItem = () => {
+      throw new Error("blocked");
+    };
+    Storage.prototype.setItem = () => {
+      throw new Error("blocked");
+    };
+  });
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+  await expect(page.getByText(/Browser storage is unavailable/)).toHaveCount(0);
+});
+
+test("production opt-out with no history sends a normal withdrawal without requesting a lock", async ({ page }) => {
+  const mock = await mockDeployment(page, { unsupported: true, mockSignature: true, mockWriteSuccess: true });
+  await page.addInitScript(() =>
+    localStorage.setItem(
+      "symmio.config.overrides.v4",
+      JSON.stringify({
+        42161: {
+          addresses: { affiliatesAddress: "0x58bB5Bdc279321507DfB7AB54B9e7EF3DdA6E24D" },
+          solvers: { enigma: { capabilities: { timelockApproval: false } } },
+        },
+      }),
+    ),
+  );
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  const button = page.getByTestId("button-initiate-withdraw");
+  await expect(button).toBeEnabled();
+  await page.evaluate(() => {
+    Object.defineProperty(navigator.locks, "request", {
+      configurable: true,
+      value: () => {
+        throw new Error("unexpected lock request");
+      },
+    });
+  });
+  await button.click();
+  await expect.poll(() => mock.writes.some((method) => method.startsWith("eth_send"))).toBe(true);
+  await expect(page.getByText("unexpected lock request")).toHaveCount(0);
+});
+
+test("staging opt-out still takes a shared owner lock for a normal withdrawal", async ({ page }) => {
+  const layer = "0x5733107211B2801Acd39933a54d482FE303c4907";
+  const mock = await mockDeployment(page, { unsupported: true, mockSignature: true, mockWriteSuccess: true });
+  await page.addInitScript(
+    ({ layer }) =>
+      localStorage.setItem(
+        "symmio.config.overrides.v4",
+        JSON.stringify({
+          42161: {
+            addresses: {
+              affiliatesAddress: "0xe99c18CF3C62B9229f9251fd2562077a33e7600a",
+              accountLayerAddress: layer,
+              instantLayerAddress: "0x89d1e2a9d2429722f756edffad149d7947b672ff",
+            },
+            solvers: { enigma: { capabilities: { timelockApproval: false } } },
+          },
+        }),
+      ),
+    { layer },
+  );
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  const button = page.getByTestId("button-initiate-withdraw");
+  await expect(button).toBeEnabled();
+  await page.evaluate(() => {
+    const original = navigator.locks.request.bind(navigator.locks);
+    const calls: { name: string; mode?: string }[] = [];
+    (window as Window & { observedLocks?: typeof calls }).observedLocks = calls;
+    Object.defineProperty(navigator.locks, "request", {
+      configurable: true,
+      value: (name: string, options: LockOptions, callback: LockGrantedCallback<unknown>) => {
+        calls.push({ name, mode: options.mode });
+        return original(name, options, callback);
+      },
+    });
+  });
+  await button.click();
+  const expected = `symm:timelock-owner-lock:symm:timelock-history:v1:42161:${layer.toLowerCase()}:${OWNER.toLowerCase()}`;
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as Window & { observedLocks?: { name: string; mode?: string }[] }).observedLocks),
+    )
+    .toContainEqual({ name: expected, mode: "shared" });
+  await expect.poll(() => mock.writes.some((method) => method.startsWith("eth_send"))).toBe(true);
+});
+
+test("a temporary journal read failure recovers without refreshing", async ({ page }) => {
+  const { getChainConfig } = await import("@symmio/trading-core");
+  const layer = getChainConfig(42161).addresses.accountLayerAddress.toLowerCase();
+  const key = `symm:timelock-attempt:v2:42161:${layer}:${ROOT.toLowerCase()}:${OWNER.toLowerCase()}`;
+  const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page, ROOT);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("timelock-indexing").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  const button = page.getByTestId("button-initiate-withdraw");
+  await expect(button).toBeEnabled();
+  await page.evaluate((key) => {
+    const previous = Storage.prototype.getItem;
+    (window as Window & { restoreJournalRead?: () => void }).restoreJournalRead = () => {
+      Storage.prototype.getItem = previous;
+      window.dispatchEvent(new Event("symm:timelock-recovery-changed"));
+    };
+    Storage.prototype.getItem = function (name: string) {
+      if (name === key) throw new Error("temporary read failure");
+      return previous.call(this, name);
+    };
+    window.dispatchEvent(new Event("symm:timelock-recovery-changed"));
+  }, key);
+  await expect(page.getByText("Browser storage is unavailable; protected actions are disabled.")).toBeVisible();
+  await expect(button).toBeDisabled();
+  await page.evaluate(() => (window as Window & { restoreJournalRead?: () => void }).restoreJournalRead?.());
+  await expect(page.getByText("Browser storage is unavailable; protected actions are disabled.")).toHaveCount(0);
+  await expect(button).toBeEnabled();
+  expect(mock.writes).toEqual([]);
+});
+
+test("a second tab cannot send a normal withdrawal while the owner timelock lock is held", async ({ page }) => {
+  const { getChainConfig } = await import("@symmio/trading-core");
+  const layer = getChainConfig(42161).addresses.accountLayerAddress.toLowerCase();
+  const historyKey = `symm:timelock-history:v1:42161:${layer}:${OWNER.toLowerCase()}`;
+  const mock = await mockDeployment(page, { unsupported: true });
+  await page.addInitScript(({ historyKey }) => localStorage.setItem(historyKey, "1"), { historyKey });
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+  const second = await page.context().newPage();
+  await mockDeployment(second, { unsupported: true });
+  await second.goto("/integration?flow=timelock", { waitUntil: "domcontentloaded" });
+  await second.evaluate(async (historyKey) => {
+    let acquired!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    void navigator.locks.request(`symm:timelock-owner-lock:${historyKey}`, () => {
+      acquired();
+      return new Promise<void>((resolve) => {
+        (window as Window & { releaseTestLock?: () => void }).releaseTestLock = resolve;
+      });
+    });
+    await ready;
+  }, historyKey);
+  await page.getByTestId("button-initiate-withdraw").click();
+  await expect(
+    page.getByText("Another tab is already processing an operation for this owner and deployment."),
+  ).toBeVisible();
+  expect(mock.writes).toEqual([]);
+  await second.evaluate(() => (window as Window & { releaseTestLock?: () => void }).releaseTestLock?.());
+  await second.close();
+});
+
+test("a normal withdrawal is not blocked by another normal shared lock", async ({ page }) => {
+  const { getChainConfig } = await import("@symmio/trading-core");
+  const layer = getChainConfig(42161).addresses.accountLayerAddress.toLowerCase();
+  const historyKey = `symm:timelock-history:v1:42161:${layer}:${OWNER.toLowerCase()}`;
+  const mock = await mockDeployment(page, { unsupported: true, mockSignature: true, mockWriteSuccess: true });
+  await page.addInitScript(({ historyKey }) => localStorage.setItem(historyKey, "1"), { historyKey });
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  const second = await page.context().newPage();
+  await mockDeployment(second, { unsupported: true });
+  await second.goto("/integration?flow=timelock", { waitUntil: "domcontentloaded" });
+  await second.evaluate(async (historyKey) => {
+    let acquired!: () => void;
+    const ready = new Promise<void>((resolve) => {
+      acquired = resolve;
+    });
+    void navigator.locks.request(`symm:timelock-owner-lock:${historyKey}`, { mode: "shared" }, () => {
+      acquired();
+      return new Promise<void>((resolve) => {
+        (window as Window & { releaseTestLock?: () => void }).releaseTestLock = resolve;
+      });
+    });
+    await ready;
+  }, historyKey);
+  await page.getByTestId("button-initiate-withdraw").click();
+  await expect.poll(() => mock.writes.some((method) => method.startsWith("eth_send"))).toBe(true);
+  await expect(
+    page.getByText("Another tab is already processing an operation for this owner and deployment."),
+  ).toHaveCount(0);
+  await second.evaluate(() => (window as Window & { releaseTestLock?: () => void }).releaseTestLock?.());
+  await second.close();
+});
+
+test("a solver outage prepares the exact delayed withdrawal without sending an approval", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true, unavailable: true, isolationType: 1 });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  const panel = page.getByTestId("timelock-schedule");
+  await expect(panel).toBeVisible();
+  const raw = await panel.locator("#timelock-raw").inputValue();
+  const inner = await panel.locator("#timelock-inner").inputValue();
+  expect(raw).toMatch(/^0x[0-9a-f]+$/i);
+  expect(inner).not.toBe(raw);
+  await expect(panel.locator("#timelock-raw")).toBeDisabled();
+  expect(mock.writes).toEqual([]);
+});
+
+test("a solver outage does not offer an expiring signed deallocation as a delayed withdrawal", async ({ page }) => {
+  await mockDeployment(page, { configured: true, unavailable: true, isolationType: 3 });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await expect(page.getByText(/deallocation signature may expire during the waiting period/)).toBeVisible();
+  await expect(page.getByTestId("timelock-schedule")).toHaveCount(0);
 });
 
 test("an unlocked account can withdraw even when the solver advertises timelocks", async ({ page }) => {
   await mockDeployment(page, { configured: false });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.getByTestId("tab-withdraw").click();
   await page.getByTestId("integration-withdraw-amount").fill("1");
@@ -468,6 +995,7 @@ test("an unlocked account can withdraw even when the solver advertises timelocks
 
 test("a partially locked withdrawal requires indexing acknowledgement only for its protected leg", async ({ page }) => {
   await mockDeployment(page, { locked: ["initiateWithdraw"] });
+  await enableTimelockSolver(page);
   await openTimelock(page);
   await page.getByTestId("tab-withdraw").click();
   await page.getByTestId("integration-withdraw-amount").fill("1");
@@ -475,4 +1003,45 @@ test("a partially locked withdrawal requires indexing acknowledgement only for i
   await expect(page.getByTestId("button-initiate-withdraw")).toBeDisabled();
   await page.getByTestId("timelock-indexing").click();
   await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+});
+
+test("a definite solver rejection permits a later main-path withdrawal without scheduling", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true, mockSignature: true, rejectApproval: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("timelock-indexing").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  const button = page.getByTestId("button-initiate-withdraw");
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(1);
+  await expect(button).toBeEnabled();
+  expect(mock.writes.some((item) => item.startsWith("eth_send"))).toBe(false);
+});
+
+test("approval outage offers delayed withdrawal only after reconciliation", async ({ page }) => {
+  const mock = await mockDeployment(page, {
+    configured: true,
+    mockSignature: true,
+    approvalUnavailable: true,
+    isolationType: 1,
+  });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.getByTestId("tab-withdraw").click();
+  await page.getByTestId("timelock-indexing").click();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await page.getByTestId("button-initiate-withdraw").click();
+  await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(1);
+  const button = page.getByRole("button", { name: "Use delayed recovery" });
+  await expect(button).toBeVisible();
+  await expect(page.getByTestId("timelock-schedule")).toHaveCount(0);
+  page.on("dialog", (dialog) => void dialog.accept());
+  await button.click();
+  await expect(page.getByTestId("timelock-schedule")).toBeVisible();
+  expect(mock.writes.filter((item) => item === "approval")).toHaveLength(1);
+  expect(mock.writes.some((item) => item.startsWith("eth_send"))).toBe(false);
 });

@@ -32,7 +32,7 @@ export function TimelockBatchCard({ context, recovery, storageKey, saveRecovery,
       alive.current = false;
     };
   }, []);
-  const action = useExecuteAccountCalls();
+  const action = useExecuteAccountCalls({ automaticTimelock: false });
   const provider = useTimelockApprovalProvider({ chainId: context.chainId, solverId: context.solverId });
   const amount1 = parseAmount(first, 18);
   const amount2 = parseAmount(second, 18);

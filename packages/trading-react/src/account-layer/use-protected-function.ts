@@ -24,6 +24,15 @@ export function useProtectedFunctionEncoder(): typeof encodeProtectedFunction {
   return encodeProtectedFunction;
 }
 
+/**
+ * Return the SDK encoder that wraps a Core call for an account.
+ * @returns A function accepting the original account and raw Core calldata.
+ * @example const inner = useTimelockedCoreCallEncoder()(account, rawCallData);
+ */
+export function useTimelockedCoreCallEncoder(): typeof encodeTimelockedCoreCall {
+  return encodeTimelockedCoreCall;
+}
+
 /** The documented protected functions and their ABI inputs, for SDK-driven forms. */
 export function useProtectedFunctionCatalog(): readonly {
   target: "core" | "account-layer";

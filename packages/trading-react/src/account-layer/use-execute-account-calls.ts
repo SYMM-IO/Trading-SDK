@@ -14,27 +14,39 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { invalidateTimelockExecutionReads } from "../gasless/invalidate-relay-reads";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
+import { resolveWriteResult, type AutomaticTimelockWriteParameters, type WriteResult } from "../transactions";
+import { useAutomaticTimelock } from "./use-automatic-timelock";
 
 /** Execute named Core calls atomically, optionally with per-call timelock authorizations. */
 export function useExecuteAccountCalls(
-  parameters: WriteParameters = {},
+  parameters: AutomaticTimelockWriteParameters = {},
 ): UseMutationResult<WriteResult, SymmioRequestError, ExecuteAccountCallsParameters> {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const client = useQueryClient();
+  const automaticTimelock = useAutomaticTimelock(config, parameters.automaticTimelock);
   const base = executeAccountCallsMutationOptions(config);
   return useMutation({
     mutationKey: base.mutationKey,
     retry: false,
     mutationFn: async (variables) => {
+      let authorization = variables.timelock;
       try {
         const resolvedChainId = variables.chainId ?? chainId;
         const account = variables.account;
         const affected = variables.calls.map((call) =>
           encodeFunctionData({ abi: symmioAbi as Abi, functionName: call.functionName, args: call.args }),
         );
-        const hash = await base.mutationFn({ ...variables, chainId: resolvedChainId });
+        authorization ??= await automaticTimelock.batch(variables, {
+          account,
+          chainId: resolvedChainId,
+          functionNames: variables.calls.map((call) => call.functionName),
+        });
+        const hash = await base.mutationFn({
+          ...variables,
+          chainId: resolvedChainId,
+          ...(authorization ? { timelock: authorization } : {}),
+        });
         const result = await resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,
@@ -45,9 +57,11 @@ export function useExecuteAccountCalls(
           for (const raw of affected)
             invalidateTimelockExecutionReads(client, scope, encodeTimelockedCoreCall(account, raw));
         }
+        automaticTimelock.finish(variables, result);
         return result;
       } catch (error) {
-        throw variables.timelock ? normalizeProtectedWriteError(error, variables.timelock) : normalizeSymmError(error);
+        automaticTimelock.fail(variables, error);
+        throw authorization ? normalizeProtectedWriteError(error, authorization) : normalizeSymmError(error);
       }
     },
   });

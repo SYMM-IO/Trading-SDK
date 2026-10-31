@@ -27,10 +27,15 @@ export function WriteDeleteSubAccount() {
   const [account, setAccount] = useState<string>("");
 
   const validAccount = isAddress(account) ? (account as Address) : undefined;
-  const protection = useProtectedWrite(validAccount, owner, "deleteSubAccount");
+  const protection = useProtectedWrite(
+    validAccount,
+    owner,
+    "deleteSubAccount",
+    validAccount ? { target: "account-layer", functionName: "deleteSubAccount", args: [validAccount] } : undefined,
+  );
   const canSubmit = isConnected && isOnExpectedChain && Boolean(validAccount);
 
-  const mutation = useDeleteSubAccount();
+  const mutation = useDeleteSubAccount({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("deleteSubAccount");
 

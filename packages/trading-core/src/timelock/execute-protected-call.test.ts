@@ -8,11 +8,13 @@ import {
   type Hex,
 } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getGaslessAttemptStart, withGaslessAttemptStart } from "../gasless/dispatch/attempt-start";
 import { getDeallocateUpnlSig } from "../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
 import { TEST_TYPED_SIGNATURE, TEST_USER } from "../shared/test/mock-config";
 import { accountLayerAbi } from "../symmio-contracts/abi/v0.8.6/account-layer";
 import { symmioAbi } from "../symmio-contracts/abi/v0.8.6/symmio";
 import { addMargin } from "../symmio-contracts/account-layer/actions/add-margin";
+import * as timelockActions from "../symmio-contracts/account-layer/actions/timelock";
 import { allocate } from "../symmio-contracts/symmio/actions/allocate";
 import { deallocate } from "../symmio-contracts/symmio/actions/deallocate";
 import { executeAccountCalls } from "../symmio-contracts/symmio/execute-account-calls/execute-account-calls";
@@ -208,6 +210,42 @@ describe("optional protected writes", () => {
     expect(provider.requestApproval).not.toHaveBeenCalled();
     expect(writeContract).not.toHaveBeenCalled();
   });
+
+  it.each(["single", "batch"] as const)(
+    "retains the original gasless action start in delegated %s execution",
+    async (kind) => {
+      const { config, capability, provider, readContract } = rig();
+      const wallet = await config.getWalletClient();
+      vi.spyOn(config, "getWalletClient").mockResolvedValue({
+        ...wallet,
+        account: { ...wallet.account, address: UNLOCKER },
+      });
+      const previous = readContract.getMockImplementation()!;
+      readContract.mockImplementation((request) =>
+        request.functionName === "isDelegationActive" ? true : previous(request),
+      );
+      const write = vi.spyOn(timelockActions, "executeTimelockOp").mockResolvedValue(`0x${"aa".repeat(32)}`);
+      const gasless = withGaslessAttemptStart({ enabled: true }, 1_000);
+      const authorization = { capability, provider, deadline: NOW + 300n };
+      try {
+        if (kind === "single") {
+          await allocate(config, { account: VA, amount: 12n, from: UNLOCKER, gasless, timelock: authorization });
+        } else {
+          await executeProtectedCoreBatch(config, {
+            account: VA,
+            from: UNLOCKER,
+            gasless,
+            callDatas: [encodeFunctionData({ abi: symmioAbi, functionName: "allocate", args: [12n] })],
+            timelock: { calls: [authorization] },
+          });
+        }
+        expect(getGaslessAttemptStart(write.mock.calls[0]![1].gasless)).toBe(1_000);
+        expect(write.mock.calls[0]![1].gasless).toMatchObject({ enabled: true, fallback: "error" });
+      } finally {
+        write.mockRestore();
+      }
+    },
+  );
 
   it("rejects a delegated signer using another account family before issuance", async () => {
     const { config, capability, provider, writeContract } = rig();

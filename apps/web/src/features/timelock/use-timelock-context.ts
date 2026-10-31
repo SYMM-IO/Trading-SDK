@@ -8,20 +8,41 @@ import {
   useTimelockPolicy,
   useVirtualAccount,
 } from "@symmio/trading-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { zeroAddress, type Address } from "viem";
+import {
+  mayHaveTimelockRecovery,
+  rememberTimelockHistory,
+  subscribeTimelockRecoveryChanged,
+  timelockHistoryKey,
+} from "./timelock-recovery";
 
 /** App-only readiness and indexing acknowledgement; protocol validation stays in the SDK. */
-export function useTimelockContext(account?: Address, solverId?: SolverId) {
+export function useTimelockContext(account?: Address, solverId?: SolverId, owner?: Address) {
   const config = useSymmioConfig();
   const chainId = useSymmioChainId();
   const solver = config.getSolver({ chainId, solverId });
   const chainUnsupported = config.getChainConfig(chainId).timelockSupported === false;
-  const supportsInfo = solver.id === "enigma" && !chainUnsupported;
+  const supportsInfo = solver.id === "enigma" && solver.capabilities?.timelockApproval === true && !chainUnsupported;
+  const accountLayer = config.getChainConfig(chainId).addresses.accountLayerAddress;
+  useEffect(() => {
+    if (!supportsInfo || !owner) return;
+    try {
+      rememberTimelockHistory(timelockHistoryKey(chainId, accountLayer, owner));
+    } catch {
+      // A protected write will report storage failure before it requests approval.
+    }
+  }, [supportsInfo, chainId, accountLayer, owner]);
+  const getRecoverySnapshot = useCallback(
+    () => mayHaveTimelockRecovery(chainId, accountLayer, owner),
+    [chainId, accountLayer, owner],
+  );
+  const possibleRecovery = useSyncExternalStore(subscribeTimelockRecoveryChanged, getRecoverySnapshot, () => false);
+  const checkRecovery = supportsInfo || possibleRecovery;
   const virtualAccount = useVirtualAccount({
     account,
     chainId,
-    query: { enabled: Boolean(account && !chainUnsupported), retry: false },
+    query: { enabled: Boolean(account && checkRecovery), retry: false },
   });
   const info = useSolverInfo({ chainId, solverId, query: { enabled: supportsInfo, staleTime: 0, retry: false } });
   const capability = info.data?.timelockApproval;
@@ -55,6 +76,8 @@ export function useTimelockContext(account?: Address, solverId?: SolverId) {
   return {
     config,
     chainId,
+    account,
+    rootAccount,
     solverId,
     scope,
     journalScope,
@@ -62,6 +85,8 @@ export function useTimelockContext(account?: Address, solverId?: SolverId) {
     info,
     policy,
     capability,
+    timelockEnabled: supportsInfo,
+    checkRecovery,
     chainUnsupported,
     unsupported,
     ready,

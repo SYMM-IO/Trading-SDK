@@ -28,16 +28,20 @@ export function TimelockSchedulePanel({
   saveRecovery,
   onBusyChange,
   storageKey,
+  initialCallData,
+  initialInnerCallData,
 }: {
   context: TimelockContext;
   recovery: string | null;
   saveRecovery: (value: string | null) => void;
   onBusyChange: (busy: boolean) => void;
   storageKey: string;
+  initialCallData?: Hex;
+  initialInnerCallData?: Hex;
 }) {
   const saved = readScheduledRecovery(recovery);
-  const [rawInput, setRaw] = useState("");
-  const [innerInput, setInner] = useState("");
+  const [rawInput, setRaw] = useState(initialCallData ?? "");
+  const [innerInput, setInner] = useState(initialInnerCallData ?? "");
   const raw = saved?.callData ?? rawInput;
   const inner = saved?.innerCallData ?? innerInput;
   const blocked = Boolean(recovery && !saved?.confirmed);
@@ -45,12 +49,12 @@ export function TimelockSchedulePanel({
   const [unavailable, setUnavailable] = useState(false);
   const [now, setNow] = useState<bigint>();
   const wallet = useWalletAccount();
-  const account = context.policy.data!.rootAccount;
+  const account = context.rootAccount!;
   const root = useSubAccount({ account, chainId: context.chainId });
   const validRaw = /^0x(?:[\da-fA-F]{2}){4,}$/.test(raw);
   const validInner = /^0x(?:[\da-fA-F]{2}){4,}$/.test(inner);
   const matches = useScheduledCallMatch(
-    context.policy.data!.account,
+    context.account!,
     validRaw ? (raw as Hex) : "0x",
     validInner ? (inner as Hex) : "0x",
   );
@@ -85,7 +89,13 @@ export function TimelockSchedulePanel({
       await withTimelockAttemptLock(
         storageKey,
         async () => {
-          const record = { kind: "scheduled-operation", confirmed: false, callData: raw, innerCallData: inner };
+          const record = {
+            kind: "scheduled-operation",
+            confirmed: false,
+            callData: raw,
+            innerCallData: inner,
+            originalAccount: context.account,
+          };
           saveRecovery(JSON.stringify(record));
           ownsRecord = true;
           if (action === "schedule") {
@@ -152,7 +162,7 @@ export function TimelockSchedulePanel({
         <Textarea
           id="timelock-raw"
           value={raw}
-          disabled={busy || Boolean(saved)}
+          disabled={busy || Boolean(saved) || Boolean(initialCallData)}
           onChange={(event) => {
             setRaw(event.target.value.trim());
             schedule.reset();
@@ -170,7 +180,7 @@ export function TimelockSchedulePanel({
         <Textarea
           id="timelock-inner"
           value={inner}
-          disabled={busy || Boolean(saved)}
+          disabled={busy || Boolean(saved) || Boolean(initialInnerCallData)}
           onChange={(event) => setInner(event.target.value.trim())}
           className="font-mono text-xs"
         />
@@ -208,7 +218,7 @@ export function TimelockSchedulePanel({
             !state.isSuccess ||
             Boolean(state.error) ||
             (hasSchedule && !expired) ||
-            Boolean(schedule.error)
+            Boolean(schedule.error && schedule.error.kind !== "user-rejected")
           }
           onClick={() => void submit("schedule")}
         >
@@ -221,7 +231,7 @@ export function TimelockSchedulePanel({
             !matches ||
             !ready ||
             Boolean(state.error) ||
-            Boolean(execute.error) ||
+            Boolean(execute.error && execute.error.kind !== "user-rejected") ||
             execute.isSuccess
           }
           onClick={() => void submit("execute")}
@@ -230,7 +240,12 @@ export function TimelockSchedulePanel({
         </Button>
         <Button
           variant="outline"
-          disabled={!canWrite || !hasSchedule || now === undefined || Boolean(cancel.error)}
+          disabled={
+            !canWrite ||
+            !hasSchedule ||
+            now === undefined ||
+            Boolean(cancel.error && cancel.error.kind !== "user-rejected")
+          }
           onClick={() => void submit("cancel")}
         >
           Cancel cooldown
