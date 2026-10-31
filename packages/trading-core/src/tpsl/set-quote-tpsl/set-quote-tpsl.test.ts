@@ -42,6 +42,47 @@ describe("setQuoteTpSl acceptance", () => {
     });
   });
 
+  it.each(["tp", "sl", "both"])("submits supported best-effort close legs for %s", async (sides) => {
+    const { config, signTypedData } = mockConfig();
+    vi.spyOn(axios, "get").mockResolvedValue({ data: spec });
+    const post = vi.spyOn(axios, "post").mockImplementation(async (_url, payload) => {
+      const message = (
+        payload as {
+          typedData: {
+            message: {
+              takeProfit: { quantity: string; orderType: number };
+              stopLoss: { quantity: string; orderType: number };
+            };
+          };
+        }
+      ).typedData.message;
+      // Absent legs are signed with the existing zero-value sentinel.
+      const legs = [message.takeProfit, message.stopLoss].filter((leg) => leg.quantity !== "0");
+      return {
+        data: legs.every((leg) => leg.orderType === 2)
+          ? { successful: true }
+          : {
+              successful: false,
+              message:
+                "Market orders are not available for take-profit or stop-loss. Choose market-best-effort or limit instead.",
+            },
+      };
+    });
+    await expect(
+      setQuoteTpSl(config, {
+        ...parameters,
+        tp: sides === "sl" ? undefined : parameters.tp,
+        sl: sides === "tp" ? undefined : { triggerPrice: "8", priceType: "lastPrice" },
+      }),
+    ).resolves.toEqual({ success: true, cohQuoteId: undefined });
+    expect(post).toHaveBeenCalledTimes(1);
+    expect(signTypedData).toHaveBeenCalledTimes(1);
+    const message = (post.mock.calls[0]![1] as { typedData: { message: { takeProfit: unknown; stopLoss: unknown } } })
+      .typedData.message;
+    if (sides !== "sl") expect(message.takeProfit).toMatchObject({ orderType: 2, conditionalPriceType: "market" });
+    if (sides !== "tp") expect(message.stopLoss).toMatchObject({ orderType: 2, conditionalPriceType: "last_close" });
+  });
+
   it.each([undefined, {}, { successful: "0" }, { successful: 1 }])(
     "does not accept malformed response %j",
     async (body) => {
