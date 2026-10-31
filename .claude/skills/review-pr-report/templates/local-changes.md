@@ -1,6 +1,6 @@
 # Local changes — report pieces
 
-Use these pieces when the target is **local changes** (see [SKILL.md → Local changes](../SKILL.md#local-changes)). Start from the mode's normal template (fast, medium or high), then apply the three steps below. Everything else in the template stays as it is, including the before/after tables.
+Use these pieces when the target is **local changes** (see [SKILL.md → Local changes](../SKILL.md#local-changes)). Start from the mode's normal template (fast, medium or high), then apply the three steps below. Everything else in the template stays as it is, including the explain-first openings and any before/after table.
 
 ## 1. Replace the header
 
@@ -24,7 +24,7 @@ Title: `# Local Changes Review — <branch> (<scope>)`. Fast mode adds `(fast)` 
 | In the template                                        | For local changes                                                          |
 | ------------------------------------------------------ | -------------------------------------------------------------------------- |
 | "this PR", "the PR"                                    | "these changes"                                                            |
-| "**Before vs after this PR:**" (high, layer A)         | "**Before vs after these changes:**"                                       |
+| "**What this PR adds:**"                               | "**What these changes add:**"                                              |
 | "Before (`origin/main`)", "Before (`<base ref>`)"      | "Before (`<base sha>`)"                                                    |
 | "After (this PR)"                                      | "After (these changes)"                                                    |
 | Verdict "Merge / Merge after fixes / Do not merge"     | "Ready for a PR / Ready after fixes / Not ready"                           |

@@ -8,6 +8,7 @@ import {
   getDeallocateUpnlSig,
   getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
+  getWithdrawCooldownOfQueryKey,
   getWithdrawableTimeQueryKey,
   type DeallocateAndInitiateWithdrawParameters,
   type SingleUpnlSig,
@@ -57,7 +58,7 @@ export type UseDeallocateAndInitiateWithdrawReturnType = UseMutationResult<
  * it to prove the subaccount stays solvent) immediately before submitting, unless
  * you pass one as `upnlSig`. The connected wallet must own the subaccount. On
  * success, the subaccount's balance reads and its pending-requests /
- * withdrawable-time reads are invalidated.
+ * withdrawable-time / withdraw-cooldown reads are invalidated.
  *
  * @remarks
  * The `deallocate` leg is subject to the on-chain deallocate debounce — submitting
@@ -143,6 +144,9 @@ export function useDeallocateAndInitiateWithdraw(
       });
       void queryClient.invalidateQueries({
         predicate: predicateMatch(getWithdrawableTimeQueryKey, withdrawPartial),
+      });
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getWithdrawCooldownOfQueryKey, withdrawPartial),
       });
     },
   });

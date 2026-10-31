@@ -22,12 +22,14 @@
 
 **File:** `path/to/file.ts`
 
-**What it is:** <what the code does, and where it came from (for example "moved from apps/web unchanged")>.
+**What it is:** <what the code does, in plain words, and where it came from (for example "moved from apps/web unchanged")>.
 
-|                | Before (`origin/main`)                   | After (this PR)  | Suggested                  |
-| -------------- | ---------------------------------------- | ---------------- | -------------------------- |
-| Where it lives | <app / SDK / did not exist, `path:line`> | <…, `path:line`> | <app / SDK, neutral input> |
-| Who decides    | <…>                                      | <…>              | <…>                        |
+<Only when the logic moved (from an app into the SDK, or the reverse), add ONE "where it lives" table. Skip it for new code.>
+
+|                | Before (`origin/main`)   | After (this PR)  | Suggested                  |
+| -------------- | ------------------------ | ---------------- | -------------------------- |
+| Where it lives | <app / SDK, `path:line`> | <…, `path:line`> | <app / SDK, neutral input> |
+| Who decides    | <…>                      | <…>              | <…>                        |
 
 **Why it is frontend logic:**
 
@@ -47,9 +49,11 @@
 
 **File:** `path/to/file.ts`
 
-| Hardcoded thing | Before (`origin/main`) | After (this PR) | Why it is a problem | <Fix> |
-| --------------- | ---------------------- | --------------- | ------------------- | ----- |
-| <…>             | <…>                    | <…>             | <…>                 | <…>   |
+**What it is:** <what the code fixes in place, in plain words, and why a frontend may want to choose it>.
+
+| Hardcoded thing | Value | Why it is a problem | <Fix> |
+| --------------- | ----- | ------------------- | ----- |
+| <…>             | <…>   | <…>                 | <…>   |
 
 <What is correctly placed already.>
 
@@ -61,11 +65,7 @@
 
 **File:** `apps/<app>/src/…`
 
-<Why it is a fact about the deployment, and any evidence that it has already gone stale.>
-
-|                | Before (`origin/main`) | After (this PR) | Suggested          |
-| -------------- | ---------------------- | --------------- | ------------------ |
-| Where it lives | <apps/…, `path:line`>  | <…>             | <SDK registry / …> |
+**What it is:** <what the app code does, why it is a fact about the deployment, and any evidence that it has already gone stale>.
 
 **Fix:** <move it into the SDK registry as a capability, or similar>.
 

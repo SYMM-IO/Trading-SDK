@@ -1,5 +1,24 @@
 # @symmio/trading-core
 
+## 4.2.0
+
+### Minor Changes
+
+- 3c2e7ff: Extend grouped pool positions with exact withdrawal previews and a pending LP ratio, and return pending-order and event-specific history metrics directly from their reads. Attribute opening fees to each partial close and omit closing fees on liquidation. Preserve fixed-point realized PnL through price subtraction in the shared quote primitive. Remove superseded unreleased scalar selectors; deposit estimates and running sums remain consumer-owned.
+
+  Support partial normalized cached snapshots in grouped calculations without fabricating missing amounts. Preserve backend ownership precedence, complete deposit/refund buckets, portfolio catalog metadata and historical reward totals, statistics fallback sources, and explicitly opted-in quote-lock liquidation estimates. Network reads retain required identities and authentication.
+
+- ebadaad: Add listing validation, maintenance reads and four composed Pools APIs (portfolio, position, statistics and open positions), with matching React hooks that share existing source caches. Keep exact token/LP arithmetic, explicit partial-read gaps, legacy deposit floors, fractional rates and nullable event snapshots. Add optional single-use listing challenge prefetching.
+
+  Type change: ListingRateLimits.marketConfigUpdatesPerDay and profitClaimsPerDay are now number | null. Handle null as unknown instead of assuming no operations are allowed. Existing rate fields retain their documented 18-decimal bigint contract; plain fractional backend percentages are normalized correctly.
+
+  The unreleased enrichment, scalar calculation and optimistic cache-patching exports from this branch are removed. External token data and consumer optimistic state stay in the app. Withdraw identifiers remain safely encoded. No release is published by this change.
+
+### Patch Changes
+
+- cd7bc3a: Preserve portfolio totals when refunded or non-listed pools are present. Skip profit/detail reads for known non-listed and unfunded pools while retaining deposit history, and recognize only profit HTTP 404/code 22 as a zero LP position. Keep other failures unknown, retry failed per-pool reads once except authentication errors, and limit combined profit/detail concurrency to five in core and React, including React manual refreshes.
+- a11c88e: Keep portfolio deposit projections consistent with catalog-only fallback amounts, and treat failed profit refreshes as unknown even when cached snapshots exist. Stop queued core portfolio reads after authentication failure. Preserve zero marks and unknown quote direction in pool open-position calculations.
+
 ## 4.1.0
 
 ### Minor Changes

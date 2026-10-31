@@ -9,11 +9,13 @@ Your app owns recovery. It keeps one small record per user action, and the SDK s
 - a caller-owned idempotency key on every gasless submit (`gasless.idempotencyKey` on [relayable writes](/core/gasless/relayable-writes), `idempotencyKey` on the explicit relays);
 - [`generateGaslessIdempotencyKey`](/core/gasless/generate-gasless-idempotency-key) and [`getGaslessDeploymentKey`](/core/gasless/get-gasless-deployment-key);
 - `GASLESS_SIGNATURE_LIFETIME_SECONDS`, the point after which an attempt can no longer execute;
-- three predicates that classify an outcome: `isConfirmedGaslessRefusalError`, `isGaslessRequestRejectedOrRevertedError` and `isGaslessIdempotencyConflictError`.
+- three predicates that classify an outcome: `isConfirmedGaslessRefusalError`, `isGaslessRequestRejectedOrRevertedError` and `isGaslessIdempotencyConflictError` (a safeguard: the current service never sends the conflict it matches).
 
 ## Why a retry under the same key is safe
 
-- **The service deduplicates.** While it holds a key, it accepts that key at most once. A retry, even one signed again, either becomes the request or is turned away while the earlier request stands.
+- **The service deduplicates by key.** While it holds a key, the key is bound to at most one request. The first submit that reaches the service creates it; every later submit under the key — the same bytes, signed again, or with another body — gets that request back (`202`, the same `requestId`, its current status) and runs nothing. A retry is therefore also the lookup: it tells you what became of the earlier attempt.
+- **A key is used up once its request ends.** After `succeeded`, `failed`, `rejected` or `reverted`, the same key keeps returning that result. Trying again after a terminal status is a new action with a new key — and after `failed`, only once [reconciliation](#resolve-an-unresolved-action) shows the action did not run.
+- **A refused submit leaves the key free.** A `4xx` refusal (a fee code, `400 SIMULATION_REVERTED`, …) creates no request, so a corrected retry under the same key becomes the request.
 - **The chain covers the same nonce.** The InstantLayer accepts only `nonces[account] + 1` and rejects expired deadlines, so two signatures for one nonce never both run. It does **not** stop a retry signed with a later nonce after the first attempt already ran. That case is covered only while the service still holds the key — which is why retries happen inside a [bounded window](#retry-window).
 - **A keyed write never reaches the wallet on its own.** A key makes the call strictly gasless, whatever the chain's `execution` defaults say. Combining it with `enabled: false` or `fallback: "wallet"` throws `GASLESS_IDEMPOTENCY_KEY_INVALID` before any prompt. Whether to use the wallet path is your decision, under the rules below.
 
@@ -121,14 +123,15 @@ async function attempt(action: PendingCreation, from: Address) {
 - **Fresh** — no earlier call with this key may have reached the service: the key is new, or every earlier call stopped before sending.
 - **Retry** — an earlier call may have reached the service. A record that survives a reload is a retry unless `mayHaveSent` is `false`.
 
-| The call…                                                                                      | Fresh                                                                                      | Retry                                                                  |
-| ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------- |
-| returns                                                                                        | Save the `requestId`, confirm to the receipt, then remove the record.                      | Same.                                                                  |
-| throws `isGaslessRequestRejectedOrRevertedError`                                               | Final, with no on-chain effect. Remove the record.                                         | Same: this call's own request was accepted, so no earlier attempt was. |
-| throws `isConfirmedGaslessRefusalError`                                                        | Did not run. Remove the record; the wallet path (`gasless: false`) is your choice.         | Not proof that an earlier attempt was refused. Keep it; no wallet.     |
-| throws `isGaslessIdempotencyConflictError`                                                     | Unresolved: an earlier attempt holds the key. Keep the record and reconcile; do not retry. | Same.                                                                  |
-| stops before sending (prompt rejected, not delegated, validation)                              | Nothing ran. Retry with another signer under the same key, or remove the record.           | Unresolved: an earlier attempt may still run. Keep the record.         |
-| throws anything else (`GASLESS_RELAY_FAILED`, `GASLESS_SUBMIT_UNCONFIRMED`, timeouts, network) | Unresolved. Keep the record.                                                               | Same.                                                                  |
+| The call…                                                                                    | Fresh                                                                                                                                                                | Retry                                                                                                            |
+| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| returns                                                                                      | Save the `requestId`, confirm to the receipt, then remove the record.                                                                                                | Same.                                                                                                            |
+| throws `isGaslessRequestRejectedOrRevertedError`                                             | Final, with no on-chain effect. Remove the record.                                                                                                                   | Same: a key has only one request, so the answer — this call's or an earlier attempt's — is final for the action. |
+| throws `isConfirmedGaslessRefusalError`                                                      | Did not run. Remove the record — the wallet path (`gasless: false`) is your choice — or fix the cause and retry under the same key: a refused submit leaves it free. | Not proof that an earlier attempt was refused. Keep it; no wallet.                                               |
+| throws `GASLESS_RELAY_FAILED`                                                                | Unresolved, and the key is used up: a retry under it returns this same failed request. Keep the record and reconcile; do not retry.                                  | Same.                                                                                                            |
+| throws `isGaslessIdempotencyConflictError` (a safeguard; the current service never sends it) | Unresolved. Keep the record and reconcile; do not retry, not under a new key either.                                                                                 | Same.                                                                                                            |
+| stops before sending (prompt rejected, not delegated, validation)                            | Nothing ran. Retry with another signer under the same key, or remove the record.                                                                                     | Unresolved: an earlier attempt may still run. Keep the record.                                                   |
+| throws anything else (`GASLESS_SUBMIT_UNCONFIRMED`, timeouts, network)                       | Unresolved. Keep the record; a retry under the same key is safe.                                                                                                     | Same.                                                                                                            |
 
 <Callout type="warning">
   A `failed` request (`GASLESS_RELAY_FAILED`) is not final. It means the service lost track of the request — its
@@ -138,7 +141,7 @@ async function attempt(action: PendingCreation, from: Address) {
 ## Resolve an unresolved action
 
 1. **A `requestId` is known** — `confirmGaslessRequest(config, { chainId, requestId, until: "receipt" })`, with no signature. Success means done; `rejected` or `reverted` means no effect; `failed`, or no answer, goes to step 3.
-2. **No `requestId`, inside the retry window, and the last answer was not a conflict** — let the user "Try again": call `attempt` with the same key, after the context checks.
+2. **No `requestId`, inside the retry window, and the key is not used up** — let the user "Try again": call `attempt` with the same key, after the context checks. If an earlier attempt reached the service, the retry gets that request back and the SDK follows it. The key is used up when the last answer was `GASLESS_RELAY_FAILED` (or the `409` safeguard): a retry would only return the same answer, so go to step 3.
 3. **Otherwise, reconcile.** Once the chain's latest block timestamp passes `lastAttemptStartedAt + GASLESS_SIGNATURE_LIFETIME_SECONDS` (plus a minute of margin), no attempt can still execute. Check the action's own on-chain result — for account creation, whether the new sub-account exists. Present means done; absent means it did not happen. Remove the record either way, and tell the user.
 
 ```ts
@@ -170,7 +173,7 @@ Outside the window, never sign the action again — reconcile it.
 
 Within one page, the SDK serializes gasless writes per billing account so two of them never sign the same nonce. A caller-owned key changes that only for its own action:
 
-- **Same key, outcome unknown** — the retry does not wait for the earlier submit. It signs from the current on-chain nonce and resends under the key; the service accepts only one of the two.
+- **Same key, outcome unknown** — the retry does not wait for the earlier submit. It signs from the current on-chain nonce and resends under the key; the service keeps the first request under the key and answers the other submit with it.
 - **Same key, accepted earlier in this page** — the retry follows that request and signs nothing. A transparent write returns its broadcast hash; an explicit relay returns the earlier acceptance receipt.
 - **Different keys** — different actions keep today's order: the second waits for the first, then throws `GASLESS_NONCE_STREAM_BUSY` after two minutes.
 
@@ -192,6 +195,6 @@ execution: {
 
 ## Limitations
 
-- **There is no lookup by key yet.** A request whose acceptance response was lost can be retried, but not tracked: a `409` leaves its outcome unknown until you reconcile.
+- **There is no lookup by key, and none is needed.** A retry under the same key returns the request the key is bound to. It signs again — silent for a session key, a wallet prompt for the owner — unless this page already saw the key accepted.
 - **Deposit settlements carry no signature deadline.** Their outcome is bounded by the deposit wallet's balance instead.
 - **`resubmitGaslessRequest` still replays exact bytes.** For writes sent without a key it remains the way to recover a `GASLESS_SUBMIT_UNCONFIRMED` — see [Errors & fallback](/core/gasless/errors-and-fallback#when-the-outcome-is-unknown).

@@ -20,7 +20,7 @@ The IDs match my full review, so some numbers are skipped.<Merged items, each wi
 | ----------------------------- | -------- | ------- | ---------------- |
 | [P1](#p1--high--<title-slug>) | High     | <…>     | **Before merge** |
 
-Each item below has: where it is, what goes wrong, a before/after table, an example, a suggested fix, a test to add, and how sure I am.
+Each item below has: the problem, why it happens, where it is, an example, a suggested fix, a test to add, and how sure I am. A before/after table appears only where the PR changed behavior that worked before.
 
 ---
 
@@ -28,11 +28,15 @@ Each item below has: where it is, what goes wrong, a before/after table, an exam
 
 ### P1 · High — <Title that states the defect>
 
+**The problem:** <What goes wrong, from the caller's or the user's side, in two or three sentences.>
+
+**Why it happens:** <The precise mechanism, written for the author, who knows the code.>
+
 **Where:**
 
 - `path/to/file.ts:<lines>` (<symbol>)
 
-**What goes wrong:** <precise mechanism, written for the author, who knows the code>.
+<Only for a regression (it worked on `origin/main` and breaks now) or a changed behavior, add ONE before/after table. Skip it for a bug in new code.>
 
 |            | Before (`origin/main`) | After (this PR) |
 | ---------- | ---------------------- | --------------- |
@@ -79,9 +83,11 @@ Each item below has: where it is, what goes wrong, a before/after table, an exam
 
 **Where:** `path/to/file.ts`.
 
-| Hardcoded | Before (`origin/main`) | After (this PR) | Problem | Suggested change |
-| --------- | ---------------------- | --------------- | ------- | ---------------- |
-| <…>       | <…>                    | <…>             | <…>     | <…>              |
+**What it is:** <what the code fixes in place, and why a frontend may want to choose it>.
+
+| Hardcoded | Value | Problem | Suggested change |
+| --------- | ----- | ------- | ---------------- |
+| <…>       | <…>   | <…>     | <…>              |
 
 What is already right: <the part that is correctly left to the app or to the SDK>.
 

@@ -1,9 +1,13 @@
 # getDeallocateDebounceTime
 
-Read the protocol-configured deallocation debounce duration in seconds.
-Combine it with [getWithdrawCooldownOf](/core/symmio-contract/get-withdraw-cooldown-of)
-when presenting deallocation timing. A zero duration is valid. The contract
-remains authoritative about whether an action can execute.
+Read the protocol-configured deallocation debounce duration in seconds: the
+minimum gap between two deallocations of one account. A deallocation reverts
+until the account's
+[getWithdrawCooldownOf](/core/symmio-contract/get-withdraw-cooldown-of)
+timestamp plus this debounce has passed, so the two reads together give the
+earliest next deallocation. A zero duration is valid. The contract remains authoritative about
+whether an action can execute. In React, read it with
+[`useDeallocateDebounceTime`](/react/withdraw#usedeallocatedebouncetime).
 
 ```ts
 import { getDeallocateDebounceTime, getDeallocateDebounceTimeQueryOptions } from "@symmio/trading-core";
