@@ -4,6 +4,7 @@ import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../shared/types/properties";
 import { PositionType } from "../../symmio-contracts/symmio/types";
+import { assertTpSlAcceptance } from "../assert-tpsl-acceptance";
 import { rethrowTpSlError } from "../internal/axios";
 import { resolveTpSlConfig } from "../internal/resolve-tpsl-config";
 import { getTpSlSigningSpec } from "../signing-spec/get-tpsl-signing-spec";
@@ -78,9 +79,9 @@ export interface SetQuoteTpSlReturnType {
  * 4. Sign it with the session-key wallet client (`config.getWalletClient`).
  * 5. POST `{ typedData, signature, signer }` to the handler.
  *
- * The handler returns 200 on accept but the order is only "confirmed" once
- * the WebSocket reports `state: "new"`; callers should subscribe via
- * `watchTpSlNotifications` and reconcile.
+ * An explicit successful response establishes acceptance. Subscribe with
+ * `watchTpSlNotifications` for refresh hints and reconcile live order state;
+ * notifications do not correlate successive mutations or supply order versions.
  *
  * @throws {SymmError} when the chain has no `tpsl` config, both `tp` and `sl`
  *   are omitted, or signing fails.
@@ -95,6 +96,19 @@ export async function setQuoteTpSl(
       "validation",
       "SET_TPSL_NOTHING_TO_SUBMIT",
       "setQuoteTpSl: at least one of `tp` or `sl` must be provided.",
+    );
+  }
+
+  if (
+    !Number.isSafeInteger(Number(parameters.quoteId)) ||
+    parameters.quoteId === 0n ||
+    !Number.isSafeInteger(Number(parameters.symbolId)) ||
+    parameters.symbolId <= 0n
+  ) {
+    throw new SymmError(
+      "validation",
+      "SET_TPSL_INVALID_ID",
+      "TP/SL quote and symbol IDs must be safe nonzero integers.",
     );
   }
 
@@ -153,10 +167,7 @@ export async function setQuoteTpSl(
       headers: { "App-Name": tpsl.appName, "Content-Type": "application/json", Accept: "application/json" },
     });
     const body = response.data ?? {};
-    const successful = typeof body.successful === "string" ? body.successful !== "false" : body.successful !== false;
-    if (!successful) {
-      throw new SymmError("api", "SET_TPSL_REJECTED", body.message ?? "Handler rejected TP/SL submission.");
-    }
+    assertTpSlAcceptance(body, "SET");
     const extra = body as { coh_quote_id?: string; cohQuoteId?: string };
     return { success: true, cohQuoteId: extra.coh_quote_id ?? extra.cohQuoteId };
   } catch (err) {

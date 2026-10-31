@@ -66,6 +66,12 @@ Absence from the result is how a caller learns an order is **gone**. That infere
 
 ## Query options
 
+Malformed response envelopes throw `SEARCH_TPSL_INVALID_RESPONSE`; they are not
+empty order books. If a read fails, retain the last authoritative state. A full
+page is incomplete even when `count` claims otherwise: fetch subsequent pages
+before using absence to confirm removal. REST observation describes current
+state, not which concurrent request completed.
+
 ```ts
 import { searchTpSlOrdersQueryOptions } from "@symmio/trading-core";
 import { useQuery } from "@tanstack/react-query";

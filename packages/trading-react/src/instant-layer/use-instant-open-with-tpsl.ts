@@ -2,8 +2,11 @@
 
 import {
   getInstantOpensQueryKey,
+  instantOpen,
   instantOpenAutoMutationOptions,
+  prepareInstantOpenParams,
   setQuoteTpSlMutationOptions,
+  SymmError,
   type ConfigParameter,
   type InstantOpenReturnType,
   type PrepareInstantOpenParameters,
@@ -12,6 +15,7 @@ import {
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import { useState } from "react";
+import { formatUnits } from "viem";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
@@ -28,11 +32,13 @@ import { invalidateAccountBalances, predicateMatch } from "../utils";
  * exactly like {@link useInstantOpenAuto}. When present, the SDK dispatches
  * `setQuoteTpSl` immediately after the hedger returns a `tempQuoteId` — the
  * message is signed against the (predicted) VA the caller supplies, so no
- * on-chain reconciliation wait is needed. Confirmation still comes through the
- * TP/SL WebSocket picked up by {@link useQuoteTpSl}.
+ * on-chain reconciliation wait is needed. Acceptance is separate from observed
+ * order state. Consumers can use the SDK store or own REST reconciliation.
  */
 export interface UseInstantOpenWithTpSlVariables extends PrepareInstantOpenParameters {
   tpsl?: Omit<SetQuoteTpSlParameters, "quoteId" | "chainId">;
+  /** Use the exact submitted size for attachment, or retain the provided quantity (default). */
+  tpslQuantityMode?: "provided" | "prepared";
 }
 
 /** Aggregated success payload from {@link useInstantOpenWithTpSl}. */
@@ -40,15 +46,20 @@ export interface UseInstantOpenWithTpSlData {
   instantOpen: InstantOpenReturnType;
   /** Set when the TP/SL leg was attempted and succeeded. */
   tpsl?: SetQuoteTpSlReturnType;
-  /** Set when the TP/SL leg was attempted and failed — instant open still landed. */
+  /** Set when TP/SL attachment could not be submitted or failed — instant open still landed. */
   tpslError?: SymmioRequestError;
+  /** Resolved attachment inputs, including on failure. Contains no signature. */
+  tpslParameters?: SetQuoteTpSlParameters;
 }
 
 /** Which leg the orchestrator is currently on. */
 export type UseInstantOpenWithTpSlPhase = "idle" | "opening" | "attaching-tpsl" | "success" | "error";
 
 /** Parameters for {@link useInstantOpenWithTpSl}. */
-export type UseInstantOpenWithTpSlParameters = ConfigParameter;
+export type UseInstantOpenWithTpSlParameters = ConfigParameter & {
+  /** "external" leaves TP/SL optimism/reconciliation to the consumer. Defaults to "sdk". */
+  tpslState?: "sdk" | "external";
+};
 
 /** Return type of {@link useInstantOpenWithTpSl}. */
 export type UseInstantOpenWithTpSlReturnType = UseMutationResult<
@@ -64,13 +75,13 @@ export type UseInstantOpenWithTpSlReturnType = UseMutationResult<
  * One-shot orchestrator: post an instant open and — if the caller pre-filled
  * a TP/SL block — immediately submit `setQuoteTpSl` using the hedger's returned
  * `tempQuoteId`. Web layer just wires inputs; all mutation logic (both legs +
- * cache invalidation + confirming-slot write) lives in the SDK.
+ * open/balance invalidation and optional confirming-slot write) lives in the SDK.
  *
  * Funding follows the `PrepareInstantOpenParameters` one-of: a typed
  * `initialMargin`, or `fund: { mode: "full-balance", balance }` (lowcap only)
  * to deploy the whole balance. In full-balance mode the submitted quantity is
- * the SDK-rescaled one — take the TP/SL `quantity` from `useInstantOpenFees`
- * (its `quantity` field) rather than re-deriving it from the typed margin.
+ * the SDK-rescaled one. Select `tpslQuantityMode: "prepared"` to use that exact
+ * submitted quantity, even when a prior preview differs.
  *
  * @example
  * ```tsx
@@ -98,12 +109,20 @@ export function useInstantOpenWithTpSl(
 
   const mutation = useMutation<UseInstantOpenWithTpSlData, SymmioRequestError, UseInstantOpenWithTpSlVariables>({
     mutationKey: ["useInstantOpenWithTpSl"] as const,
+    retry: false,
     mutationFn: async (variables) => {
       const resolvedChainId = variables.chainId ?? chainId;
       setPhase("opening");
       let openResult: InstantOpenReturnType;
+      let quantity = variables.tpsl?.quantity;
       try {
-        openResult = await openBase.mutationFn({ ...variables, chainId: resolvedChainId });
+        if (variables.tpslQuantityMode === "prepared" && variables.tpsl) {
+          const prepared = await prepareInstantOpenParams(config, { ...variables, chainId: resolvedChainId });
+          quantity = formatUnits(prepared.order.quantity, 18);
+          openResult = await instantOpen(config, prepared);
+        } else {
+          openResult = await openBase.mutationFn({ ...variables, chainId: resolvedChainId });
+        }
       } catch (err) {
         setPhase("error");
         throw normalizeSymmError(err);
@@ -116,32 +135,45 @@ export function useInstantOpenWithTpSl(
       invalidateAccountBalances(queryClient, { configKey });
 
       const wantsTpSl = Boolean(variables.tpsl && (variables.tpsl.tp || variables.tpsl.sl));
-      if (!wantsTpSl || !openResult.tempQuoteId) {
+      if (!wantsTpSl) {
         setPhase("success");
         return { instantOpen: openResult };
       }
 
-      const tempIdNumber = Number(openResult.tempQuoteId);
-      if (!Number.isFinite(tempIdNumber)) {
+      // Check the original decimal integer syntax before Number can round a fractional ID.
+      const tempId = openResult.tempQuoteId;
+      const tempIdNumber = typeof tempId === "string" && /^-?\d+$/.test(tempId) ? Number(tempId) : NaN;
+      if (!Number.isSafeInteger(tempIdNumber) || tempIdNumber === 0) {
         setPhase("success");
-        return { instantOpen: openResult };
+        return {
+          instantOpen: openResult,
+          tpslError: normalizeSymmError(
+            new SymmError(
+              "validation",
+              "INSTANT_OPEN_TPSL_INVALID_ID",
+              "Open accepted but attachment quote ID is missing or unsafe.",
+            ),
+          ),
+        };
       }
 
       setPhase("attaching-tpsl");
       const quoteId = BigInt(tempIdNumber);
+      const tpslParameters: SetQuoteTpSlParameters = {
+        ...variables.tpsl!,
+        quantity: quantity!,
+        chainId: resolvedChainId,
+        quoteId,
+      };
       try {
-        const tpslResult = await tpslBase.mutationFn({
-          ...(variables.tpsl as Omit<SetQuoteTpSlParameters, "quoteId" | "chainId">),
-          chainId: resolvedChainId,
-          quoteId,
-        });
+        const tpslResult = await tpslBase.mutationFn(tpslParameters);
         // Mirror useSetQuoteTpSl.onSuccess: seed the confirming slot with the
         // target trigger price/type (not just the state) so useQuoteTpSl renders
         // the levels immediately — e.g. inline on the freshly-opened position row,
         // keyed by the tempQuoteId — instead of blank until the WS report lands.
         const tp = variables.tpsl!.tp;
         const sl = variables.tpsl!.sl;
-        if (tp) {
+        if (tp && parameters.tpslState !== "external") {
           markConfirming(quoteId, "tp", {
             price: tp.triggerPrice,
             pricePrecision: variables.tpsl!.pricePrecision,
@@ -149,7 +181,7 @@ export function useInstantOpenWithTpSl(
             cohQuoteId: tpslResult.cohQuoteId,
           });
         }
-        if (sl) {
+        if (sl && parameters.tpslState !== "external") {
           markConfirming(quoteId, "sl", {
             price: sl.triggerPrice,
             pricePrecision: variables.tpsl!.pricePrecision,
@@ -158,13 +190,13 @@ export function useInstantOpenWithTpSl(
           });
         }
         setPhase("success");
-        return { instantOpen: openResult, tpsl: tpslResult };
+        return { instantOpen: openResult, tpsl: tpslResult, tpslParameters };
       } catch (err) {
         // Instant open landed; only the TP/SL leg failed. Surface it on the
         // return payload rather than throwing, so callers can render a partial
         // success state without losing the trade.
         setPhase("success");
-        return { instantOpen: openResult, tpslError: normalizeSymmError(err) };
+        return { instantOpen: openResult, tpslError: normalizeSymmError(err), tpslParameters };
       }
     },
     onError: () => setPhase("error"),

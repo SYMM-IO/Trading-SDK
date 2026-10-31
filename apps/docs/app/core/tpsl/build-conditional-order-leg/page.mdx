@@ -1,6 +1,6 @@
 # buildConditionalOrderLeg
 
-Build one leg (TP or SL) of a conditional-order message ([`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg)). Maps the SDK's [`TpSlPriceType`](/core/tpsl/tpsl-price-type) (`markPrice` / `lastPrice`) onto the handler's wire form (`market` / `last_close`) and defaults `orderType` to market. [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) builds each leg with this.
+Build one leg (TP or SL) of a conditional-order message ([`TpSlConditionalOrderLeg`](/core/tpsl/tpsl-conditional-order-leg)). Maps the SDK's [`TpSlPriceType`](/core/tpsl/tpsl-price-type) (`markPrice` / `lastPrice`) onto the handler's wire form (`market` / `last_close`) and defaults `orderType` to market-best-effort (`2`), the close-only order type accepted for TP/SL. [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) builds each leg with this.
 
 ```ts
 import { buildConditionalOrderLeg } from "@symmio/trading-core";
@@ -29,7 +29,8 @@ const leg = buildConditionalOrderLeg({
     `markPrice` or `lastPrice`; mapped to the wire `conditionalPriceType`.
   </Property>
   <Property name="orderType" type="number" optional>
-    Wire `order_type`. Defaults to `1` (market).
+    Wire `order_type`. Defaults to `2` (market-best-effort). An explicit `0` selects limit; the handler rejects `1`
+    (market) for TP/SL.
   </Property>
 </Properties>
 

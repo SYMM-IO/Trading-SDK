@@ -185,9 +185,10 @@ Orchestrator that opens a position and immediately attaches TP/SL against the re
 2. `setQuoteTpSl` with `quoteId: tempQuoteId` → creates the conditional-order legs.
 
 ```tsx
-const open = useInstantOpenWithTpSl();
+const open = useInstantOpenWithTpSl({ tpslState: "sdk" });
 
 open.mutate({
+  tpslQuantityMode: "prepared",
   ...instantOpenInputs,
   tpsl: hasTpOrSl
     ? {
@@ -207,9 +208,17 @@ open.mutate({
 
 `virtualAccount` is the position's VA, which does not exist on-chain yet — derive it with [`usePredictedNextVirtualAccount`](../../account-layer#usepredictednextvirtualaccount) keyed by `isolationTypeForSide(positionType)` and `symbolId`. `tpsl: undefined` (both legs empty) collapses the call to a plain `useInstantOpenAuto`. The open and the TP/SL leg fail independently: a rejected TP/SL still resolves the mutation and surfaces `data.tpslError` rather than throwing away a landed open.
 
-In full-balance mode (`fund: { mode: "full-balance", balance }` instead of `initialMargin`) the submitted quantity is the **SDK-rescaled** one — not what the trade form derived from a typed margin. Take the `tpsl.quantity` from [`usePrepareInstantOpenParams`](#useprepareinstantopenparams)'s `data.order.quantity` (or [`useInstantOpenFees`](../../instant-layer#useinstantopenfees)'s `data.quantity`): both run the same sizing as the open, so they equal what the open submits.
+Pass `tpslQuantityMode: "prepared"` to prepare the open once and attach using the exact submitted quantity, including full-balance rescaling. A previous preview can differ from the actual submission. The default `"provided"` retains caller-supplied `tpsl.quantity` for compatibility.
+
+Pass `useInstantOpenWithTpSl({ tpslState: "external" })` when the application owns TP/SL optimism and REST reconciliation. This skips writes to the SDK TP/SL store; existing instant-open and balance refreshes remain. The default `"sdk"` retains the store behavior below.
+
+`data.tpslParameters` contains the resolved attachment inputs, including submitted quantity and quote ID, whenever they could be constructed. It is present on attachment rejection as well as acceptance, and contains no signature. An absent or invalid attachment ID after an accepted open returns `data.tpslError`; the accepted open is preserved. Recovery must call only `setQuoteTpSl`, never the open mutation again. Do not replay an ambiguous write automatically: acceptance is separate from observed order state.
 
 On success, `useTpSlStore` is populated with the confirming record keyed by `tempQuoteId`. When the position anchors on-chain, the solver maps `tempQuoteId ↔ quoteId` and the same TP/SL record is reachable by either id. Confirmation is WebSocket-driven — the record sits in `confirming` until the handler's `report` frame flips it to `new`; read it with `useQuoteTpSl({ quoteId, account })`.
+
+The reference app uses prepared quantity and SDK-owned state. It labels HTTP success as acceptance with activation pending. An explicit `SET_TPSL_REJECTED` response offers a user-triggered **Retry TP/SL only** action through `useSetQuoteTpSl`, using the returned `tpslParameters`. A malformed response or transport failure shows unconfirmed protection and asks the user to check current orders; it does not enable a blind retry. A fresh empty read cannot prove that an ambiguous request will not complete later. Switching wallet, session, account, deployment or solver discards the old form's recovery controls.
+
+`external` is intended for consumers that already own optimism and reconciliation; selecting it in the reference app would remove its existing state owner without a replacement. Acceptance and recovery messaging above does not change the SDK store's existing notification/read policy.
 
 See [TP/SL](../../tpsl) for the store + reconciliation model.
 

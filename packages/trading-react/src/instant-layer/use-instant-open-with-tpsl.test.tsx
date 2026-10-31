@@ -15,10 +15,18 @@ import { __resetTpSlStore, useTpSlStore } from "../tpsl/tpsl-store";
 
 const instantOpenAutoMutationOptions = vi.hoisted(() => vi.fn());
 const setQuoteTpSlMutationOptions = vi.hoisted(() => vi.fn());
+const prepareInstantOpenParams = vi.hoisted(() => vi.fn());
+const instantOpen = vi.hoisted(() => vi.fn());
 
 vi.mock("@symmio/trading-core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@symmio/trading-core")>();
-  return { ...actual, instantOpenAutoMutationOptions, setQuoteTpSlMutationOptions };
+  return {
+    ...actual,
+    instantOpenAutoMutationOptions,
+    setQuoteTpSlMutationOptions,
+    prepareInstantOpenParams,
+    instantOpen,
+  };
 });
 
 import { useInstantOpenWithTpSl } from "./use-instant-open-with-tpsl";
@@ -67,6 +75,8 @@ describe("useInstantOpenWithTpSl", () => {
   afterEach(() => {
     instantOpenAutoMutationOptions.mockReset();
     setQuoteTpSlMutationOptions.mockReset();
+    prepareInstantOpenParams.mockReset();
+    instantOpen.mockReset();
     __resetTpSlStore();
   });
 
@@ -106,7 +116,11 @@ describe("useInstantOpenWithTpSl", () => {
       chainId: arbitrum.id,
       quoteId: -1001n,
     });
-    expect(result.current.data).toEqual({ instantOpen: OPEN_OK, tpsl: TPSL_OK });
+    expect(result.current.data).toEqual({
+      instantOpen: OPEN_OK,
+      tpsl: TPSL_OK,
+      tpslParameters: { ...TPSL_BLOCK, chainId: arbitrum.id, quoteId: -1001n },
+    });
     expect(result.current.phase).toBe("success");
   });
 
@@ -131,7 +145,7 @@ describe("useInstantOpenWithTpSl", () => {
     });
   });
 
-  it("skips the TP/SL leg when the hedger returns no tempQuoteId", async () => {
+  it("reports attachment failure without losing the open when the hedger returns no tempQuoteId", async () => {
     const { config } = createMockSymmioConfig();
     mockOpen(vi.fn().mockResolvedValue(OPEN_NO_ID));
     const tpslFn = vi.fn();
@@ -144,8 +158,80 @@ describe("useInstantOpenWithTpSl", () => {
     });
 
     expect(tpslFn).not.toHaveBeenCalled();
-    expect(result.current.data).toEqual({ instantOpen: OPEN_NO_ID });
+    expect(result.current.data?.instantOpen).toEqual(OPEN_NO_ID);
+    expect(result.current.data?.tpslError?.code).toBe("INSTANT_OPEN_TPSL_INVALID_ID");
   });
+
+  it("prepares once and attaches the submitted quantity without writing the SDK store in external mode", async () => {
+    const { config } = createMockSymmioConfig();
+    const automatic = vi.fn();
+    mockOpen(automatic);
+    const attach = vi.fn().mockResolvedValue(TPSL_OK);
+    mockTpSl(attach);
+    const prepared = { order: { quantity: 7250000000000000000n } };
+    prepareInstantOpenParams.mockResolvedValue(prepared);
+    instantOpen.mockResolvedValue(OPEN_OK);
+    const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config, tpslState: "external" }));
+    await act(async () => {
+      await result.current.mutateAsync({ ...OPEN_VARS, tpsl: TPSL_BLOCK, tpslQuantityMode: "prepared" });
+    });
+    expect(prepareInstantOpenParams).toHaveBeenCalledTimes(1);
+    expect(instantOpen).toHaveBeenCalledWith(config, prepared);
+    expect(automatic).not.toHaveBeenCalled();
+    expect(attach).toHaveBeenCalledWith(expect.objectContaining({ quantity: "7.25", quoteId: -1001n }));
+    expect(result.current.data?.tpslParameters?.quantity).toBe("7.25");
+    expect(useTpSlStore.getState().get(-1001n)).toBeUndefined();
+  });
+
+  it.each([
+    "9007199254740993",
+    "-9007199254740993",
+    "0",
+    "not-an-id",
+    "1.0000000000000001",
+    "-1.0000000000000001",
+    "9007199254740990.5",
+    "-9007199254740990.5",
+    "1.5",
+    "1e3",
+    "0x10",
+    " 1 ",
+    "",
+  ])("does not attach using an invalid identifier %s", async (tempQuoteId) => {
+    const { config } = createMockSymmioConfig();
+    mockOpen(vi.fn().mockResolvedValue({ ...OPEN_OK, tempQuoteId }));
+    const attach = vi.fn();
+    mockTpSl(attach);
+    const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config }));
+    await act(async () => {
+      await result.current.mutateAsync({ ...OPEN_VARS, tpsl: TPSL_BLOCK });
+    });
+    expect(attach).not.toHaveBeenCalled();
+    expect(result.current.data?.instantOpen.tempQuoteId).toBe(tempQuoteId);
+    expect(result.current.data?.tpslError?.code).toBe("INSTANT_OPEN_TPSL_INVALID_ID");
+    expect(result.current.phase).toBe("success");
+    expect(result.current.data?.tpslParameters).toBeUndefined();
+  });
+
+  it.each(["9007199254740991", "-9007199254740991"])(
+    "preserves the exact safe integer identifier %s",
+    async (tempQuoteId) => {
+      const { config } = createMockSymmioConfig();
+      mockOpen(vi.fn().mockResolvedValue({ ...OPEN_OK, tempQuoteId }));
+      const attach = vi.fn().mockResolvedValue(TPSL_OK);
+      mockTpSl(attach);
+      const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config }));
+      await act(async () => {
+        await result.current.mutateAsync({ ...OPEN_VARS, tpsl: TPSL_BLOCK });
+      });
+      expect(attach).toHaveBeenCalledExactlyOnceWith({
+        ...TPSL_BLOCK,
+        chainId: arbitrum.id,
+        quoteId: BigInt(tempQuoteId),
+      });
+      expect(result.current.data?.tpslError).toBeUndefined();
+    },
+  );
 
   it("returns partial success (data.tpslError) when only the TP/SL leg fails", async () => {
     const { config } = createMockSymmioConfig();
@@ -162,6 +248,7 @@ describe("useInstantOpenWithTpSl", () => {
     expect(result.current.data?.instantOpen).toEqual(OPEN_OK);
     expect(result.current.data?.tpsl).toBeUndefined();
     expect(result.current.data?.tpslError?.message).toContain("handler rejected");
+    expect(result.current.data?.tpslParameters).toEqual({ ...TPSL_BLOCK, quoteId: -1001n, chainId: arbitrum.id });
     expect(result.current.phase).toBe("success");
   });
 
@@ -179,6 +266,46 @@ describe("useInstantOpenWithTpSl", () => {
 
     expect(tpslFn).not.toHaveBeenCalled();
     await waitFor(() => expect(result.current.phase).toBe("error"));
+  });
+
+  it("never inherits automatic open retries from a consumer's global mutation defaults", async () => {
+    const { config } = createMockSymmioConfig();
+    const open = vi.fn().mockRejectedValue(new Error("response lost"));
+    mockOpen(open);
+    const queryClient = createTestQueryClient();
+    queryClient.setDefaultOptions({ mutations: { retry: 3, retryDelay: 0 } });
+    const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config }), { queryClient });
+    await act(async () => {
+      await expect(result.current.mutateAsync(OPEN_VARS)).rejects.toThrow();
+    });
+    expect(open).toHaveBeenCalledOnce();
+  });
+
+  it("returns prepared full-balance sizing for attachment-only recovery after failure", async () => {
+    const { config } = createMockSymmioConfig();
+    mockOpen(vi.fn());
+    const attach = vi.fn().mockRejectedValue(new Error("definite attachment rejection"));
+    mockTpSl(attach);
+    const prepared = { order: { quantity: 1234567890123456789n } };
+    prepareInstantOpenParams.mockResolvedValue(prepared);
+    instantOpen.mockResolvedValue(OPEN_OK);
+    const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config, tpslState: "external" }));
+    await act(async () => {
+      await result.current.mutateAsync({
+        ...OPEN_VARS,
+        initialMargin: undefined,
+        fund: { mode: "full-balance", balance: "99.123456" },
+        tpsl: TPSL_BLOCK,
+        tpslQuantityMode: "prepared",
+      });
+    });
+    expect(prepareInstantOpenParams).toHaveBeenCalledOnce();
+    expect(instantOpen).toHaveBeenCalledOnce();
+    expect(attach).toHaveBeenCalledOnce();
+    expect(result.current.data?.tpslParameters?.quantity).toBe("1.234567890123456789");
+    expect(result.current.data?.tpslError).toBeDefined();
+    expect(result.current.data?.instantOpen).toEqual(OPEN_OK);
+    expect(useTpSlStore.getState().get(-1001n)).toBeUndefined();
   });
 
   it("invalidates the instant-opens feed after the open leg succeeds", async () => {

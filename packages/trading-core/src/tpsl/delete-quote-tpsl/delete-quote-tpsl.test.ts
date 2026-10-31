@@ -352,18 +352,22 @@ describe("deleteQuoteTpSl", () => {
     await expect(deleteQuoteTpSl(mockSigningConfig().config, PARAMETERS)).resolves.toEqual({ success: true });
   });
 
-  it('treats any string other than "false" as success (only the literal "false" is a rejection)', async () => {
+  it("rejects an unsupported success string as an ambiguous response", async () => {
     mockSigningSpecFetch();
     mockDelete({ successful: "0", message: "rejected" });
 
-    await expect(deleteQuoteTpSl(mockSigningConfig().config, PARAMETERS)).resolves.toEqual({ success: true });
+    await expect(deleteQuoteTpSl(mockSigningConfig().config, PARAMETERS)).rejects.toMatchObject({
+      code: "DELETE_TPSL_INVALID_RESPONSE",
+    });
   });
 
-  it("treats an absent response body as success (the `?? {}` fallback leaves `successful` undefined)", async () => {
+  it("rejects an absent response body without claiming a definite rejection", async () => {
     mockSigningSpecFetch();
     mockDelete(undefined);
 
-    await expect(deleteQuoteTpSl(mockSigningConfig().config, PARAMETERS)).resolves.toEqual({ success: true });
+    await expect(deleteQuoteTpSl(mockSigningConfig().config, PARAMETERS)).rejects.toMatchObject({
+      code: "DELETE_TPSL_INVALID_RESPONSE",
+    });
   });
 
   it("rejects with DELETE_TPSL_REJECTED (untouched by rethrowTpSlError) on `successful: false`", async () => {
