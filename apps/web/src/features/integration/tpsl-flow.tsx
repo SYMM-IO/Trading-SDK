@@ -1,6 +1,6 @@
 "use client";
 
-import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { ResultError, ResultNote } from "@/components/result";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import {
   PositionType,
@@ -15,6 +15,7 @@ import {
   usePriceByMarketId,
   useQuoteTpSl,
   useSetQuoteTpSl,
+  useSymmioChainId,
   useSymmioConfig,
   useTpSlConfig,
   useVirtualAccount,
@@ -37,6 +38,7 @@ import { WalletPanel } from "../inspector/wallet-panel";
 import { FlowLayout } from "./flow-layout";
 import type { FlowStep } from "./flow-rail";
 import { SubaccountStep } from "./subaccount-step";
+import { TpSlConfirmationStatus } from "./tp-sl-confirmation-status";
 
 const WEI_DECIMALS = 18;
 const DELEGATION_TTL_SECONDS = 365 * 24 * 60 * 60;
@@ -59,6 +61,7 @@ export function TpSlFlow({ owner, subAccount, subAccountName, onSelectSubAccount
   const sessionKey = sessionKeyAddress ?? undefined;
 
   const config = useSymmioConfig();
+  const chainId = useSymmioChainId();
   const cohWalletAddress = config.getSolver().tpsl?.cohWalletAddress;
 
   const [virtualAccount, setVirtualAccount] = useState<Address>();
@@ -217,6 +220,7 @@ export function TpSlFlow({ owner, subAccount, subAccountName, onSelectSubAccount
         />
       ) : (
         <SetTpSlStep
+          key={`${config.getChainConfigKey(chainId)}:${owner}:${subAccount}:${virtualAccount}:${sessionKey}:${selectedPosition!.id}`}
           subAccount={subAccount!}
           virtualAccount={virtualAccount!}
           sessionKey={sessionKey!}
@@ -794,10 +798,13 @@ function SetTpSlStep({
         <ResultError testId="tpsl-error" kind={mutation.error.kind} message={mutation.error.message} />
       ) : null}
       {mutation.isSuccess ? (
-        <ResultSuccess testId="tpsl-success">
-          Handler accepted (200). Sides marked <strong>processing</strong> — final confirmation arrives over the
-          WebSocket.
-        </ResultSuccess>
+        <TpSlConfirmationStatus
+          key={mutation.submittedAt}
+          idPrefix="tpsl"
+          record={current.data}
+          tp={Boolean(mutation.variables?.tp)}
+          sl={Boolean(mutation.variables?.sl)}
+        />
       ) : null}
     </div>
   );

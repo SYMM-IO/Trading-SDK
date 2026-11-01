@@ -1,4 +1,4 @@
-import type { UseInstantOpenWithTpSlData } from "@symmio/trading-react";
+import { useTpSlStore, type UseInstantOpenWithTpSlData } from "@symmio/trading-react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { OpenPositionStep } from "./open-position-step";
@@ -40,6 +40,7 @@ vi.mock("@symmio/trading-react", async (importOriginal) => {
       };
     },
     useSetQuoteTpSl: () => ({ mutate: mock.attach, reset: vi.fn(), isPending: false, isSuccess: false, error: null }),
+    useQuoteTpSl: ({ quoteId }: { quoteId: bigint }) => ({ data: actual.useTpSlRecord(quoteId) }),
     useLimitOpenAuto: emptyRead,
     useSupportsLimitOrder: () => false,
     useSubAccount: emptyRead,
@@ -73,6 +74,7 @@ const parameters: NonNullable<UseInstantOpenWithTpSlData["tpslParameters"]> = {
   tp: { triggerPrice: "12.345678", priceType: "markPrice" },
 };
 beforeEach(() => {
+  useTpSlStore.setState({ records: new Map(), index: new Map() });
   mock.deployment = "deployment-a";
   mock.chainId = 42161;
   mock.connected = true;
@@ -93,6 +95,41 @@ beforeEach(() => {
   };
 });
 afterEach(cleanup);
+
+test("accepted at-open attachment stays loading until its SDK notification confirms", () => {
+  mock.nextData = { ...mock.nextData!, tpslError: undefined, tpsl: { success: true } };
+  useTpSlStore.getState().markConfirming(-123n, "tp", { price: parameters.tp!.triggerPrice });
+  render(<OpenPositionStep {...props} />);
+  expect(screen.getByTestId("instant-open-tpsl-status").textContent).toContain("Setting TP/SL");
+  expect(screen.queryByTestId("instant-open-tpsl-success")).toBeNull();
+  act(() =>
+    useTpSlStore.getState().applyNotification(-123n, {
+      quoteId: -123,
+      primaryIdentifier: 0,
+      secondaryIdentifier: -123,
+      account: props.subAccount,
+      conditionalOrderType: "take_profit",
+      state: "new",
+      successful: true,
+      raw: {},
+    }),
+  );
+  expect(screen.getByTestId("instant-open-tpsl-success").textContent).toBe("TP/SL active");
+  expect(mock.open).not.toHaveBeenCalled();
+  expect(mock.attach).not.toHaveBeenCalled();
+});
+
+test("a deployment switch drops the old confirmation panel", () => {
+  mock.nextData = { ...mock.nextData!, tpslError: undefined, tpsl: { success: true } };
+  useTpSlStore.getState().markConfirming(-123n, "tp");
+  const { rerender } = render(<OpenPositionStep {...props} />);
+  expect(screen.getByTestId("instant-open-tpsl-status")).toBeDefined();
+  mock.nextData = undefined;
+  mock.deployment = "deployment-b";
+  rerender(<OpenPositionStep {...props} />);
+  expect(screen.queryByTestId("instant-open-tpsl-status")).toBeNull();
+  expect(screen.queryByTestId("instant-open-tpsl-success")).toBeNull();
+});
 
 test("the mounted retry button sends only attachment parameters, never another open", () => {
   render(<OpenPositionStep {...props} />);

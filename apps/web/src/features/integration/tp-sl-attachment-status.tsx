@@ -1,8 +1,14 @@
 "use client";
 
 import { ResultError, ResultNote, ResultWarning } from "@/components/result";
-import type { SymmioRequestError, UseInstantOpenWithTpSlData, UseSetQuoteTpSlReturnType } from "@symmio/trading-react";
+import {
+  useQuoteTpSl,
+  type SymmioRequestError,
+  type UseInstantOpenWithTpSlData,
+  type UseSetQuoteTpSlReturnType,
+} from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
+import { TpSlConfirmationStatus } from "./tp-sl-confirmation-status";
 
 interface Props {
   idPrefix: string;
@@ -22,15 +28,18 @@ export function TpSlAttachmentStatus({ idPrefix, data, attaching, retry, onRetry
   if (attaching || retry.isPending) {
     return (
       <ResultNote loading testId={`${idPrefix}-tpsl-status`}>
-        Submitting TP/SL attachment…
+        Setting TP/SL…
       </ResultNote>
     );
   }
   if (retry.isSuccess || data?.tpsl) {
+    if (data?.tpslParameters) {
+      return <AcceptedAttachmentStatus idPrefix={idPrefix} parameters={data.tpslParameters} />;
+    }
     return (
-      <ResultNote testId={`${idPrefix}-tpsl-success`}>
-        TP/SL request accepted. Check current TP/SL orders to verify activation.
-      </ResultNote>
+      <ResultWarning testId={`${idPrefix}-tpsl-unconfirmed`}>
+        TP/SL not confirmed yet — check current orders
+      </ResultWarning>
     );
   }
   const error = retry.error ?? data?.tpslError;
@@ -66,5 +75,27 @@ export function TpSlAttachmentStatus({ idPrefix, data, attaching, retry, onRetry
         </Button>
       ) : null}
     </div>
+  );
+}
+
+function AcceptedAttachmentStatus({
+  idPrefix,
+  parameters,
+}: {
+  idPrefix: string;
+  parameters: NonNullable<UseInstantOpenWithTpSlData["tpslParameters"]>;
+}) {
+  const current = useQuoteTpSl({
+    quoteId: parameters.quoteId,
+    account: parameters.subAccount,
+    chainId: parameters.chainId,
+  });
+  return (
+    <TpSlConfirmationStatus
+      idPrefix={`${idPrefix}-tpsl`}
+      record={current.data}
+      tp={Boolean(parameters.tp)}
+      sl={Boolean(parameters.sl)}
+    />
   );
 }
