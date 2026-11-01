@@ -39,6 +39,7 @@ import { FlowLayout } from "./flow-layout";
 import type { FlowStep } from "./flow-rail";
 import { SubaccountStep } from "./subaccount-step";
 import { TpSlConfirmationStatus } from "./tp-sl-confirmation-status";
+import { useTpSlSubmissionFeedback } from "./use-tp-sl-submission-feedback";
 
 const WEI_DECIMALS = 18;
 const DELEGATION_TTL_SECONDS = 365 * 24 * 60 * 60;
@@ -533,10 +534,12 @@ function SetTpSlStep({
   const priceQuery = usePriceByMarketId({ marketId: position.symbolId });
   const markPriceDecimal = priceQuery.markPrice ?? "";
 
-  const current = useQuoteTpSl({ quoteId: position.id, account: subAccount });
+  const chainId = useSymmioChainId();
+  const current = useQuoteTpSl({ quoteId: position.id, account: subAccount, chainId });
 
   const tpslConfig = useTpSlConfig();
   const mutation = useSetQuoteTpSl();
+  const confirmation = useTpSlSubmissionFeedback({ account: subAccount, chainId });
   const deleteMutation = useDeleteQuoteTpSl();
 
   const [tpPrice, setTpPrice] = useState("");
@@ -615,7 +618,8 @@ function SetTpSlStep({
 
   async function handleSubmit() {
     if (!canSubmit) return;
-    await mutation.mutateAsync({
+    const parameters = {
+      chainId,
       from: sessionKey,
       quoteId: position.id,
       virtualAccount,
@@ -627,7 +631,10 @@ function SetTpSlStep({
       slippage: slippageNumber,
       tp: submitTp ? { triggerPrice: tpPrice, priceType: tpPriceType } : undefined,
       sl: submitSl ? { triggerPrice: slPrice, priceType: slPriceType } : undefined,
-    });
+    };
+    const accepted = confirmation.begin(parameters);
+    await mutation.mutateAsync(parameters);
+    accepted(parameters);
   }
 
   return (
@@ -797,15 +804,7 @@ function SetTpSlStep({
       {mutation.error ? (
         <ResultError testId="tpsl-error" kind={mutation.error.kind} message={mutation.error.message} />
       ) : null}
-      {mutation.isSuccess ? (
-        <TpSlConfirmationStatus
-          key={mutation.submittedAt}
-          idPrefix="tpsl"
-          record={current.data}
-          tp={Boolean(mutation.variables?.tp)}
-          sl={Boolean(mutation.variables?.sl)}
-        />
-      ) : null}
+      {mutation.isSuccess ? <TpSlConfirmationStatus idPrefix="tpsl" status={confirmation.status} /> : null}
     </div>
   );
 }

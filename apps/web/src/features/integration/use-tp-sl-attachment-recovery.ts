@@ -1,11 +1,15 @@
 "use client";
 
+import type { SetQuoteTpSlParameters } from "@symmio/trading-core";
 import { useSetQuoteTpSl, type UseInstantOpenWithTpSlReturnType } from "@symmio/trading-react";
 import { useRef } from "react";
 import { canRetryAttachment } from "./tp-sl-attachment-status";
 
 /** App policy: offer manual attachment-only recovery after explicit rejection. */
-export function useTpSlAttachmentRecovery(open: Pick<UseInstantOpenWithTpSlReturnType, "data" | "isPending">) {
+export function useTpSlAttachmentRecovery(
+  open: Pick<UseInstantOpenWithTpSlReturnType, "data" | "isPending">,
+  beginFeedback?: (parameters: SetQuoteTpSlParameters) => (accepted: SetQuoteTpSlParameters) => void,
+) {
   const retry = useSetQuoteTpSl();
   const inFlight = useRef(false);
 
@@ -22,8 +26,10 @@ export function useTpSlAttachmentRecovery(open: Pick<UseInstantOpenWithTpSlRetur
     )
       return;
     inFlight.current = true;
+    const accepted = beginFeedback?.(parameters);
     // Reuse the resolved quote, VA and submitted quantity. Never invoke the open again.
     retry.mutate(parameters, {
+      onSuccess: () => accepted?.(parameters),
       onSettled: () => {
         inFlight.current = false;
       },

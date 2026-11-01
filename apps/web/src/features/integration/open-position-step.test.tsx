@@ -2,6 +2,7 @@ import { useTpSlStore, type UseInstantOpenWithTpSlData } from "@symmio/trading-r
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, expect, test, vi } from "vitest";
 import { OpenPositionStep } from "./open-position-step";
+import type { TpSlSubmissionStatus } from "./use-tp-sl-submission-feedback";
 
 const mock = vi.hoisted(() => ({
   deployment: "deployment-a",
@@ -12,6 +13,12 @@ const mock = vi.hoisted(() => ({
   attach: vi.fn(),
   open: vi.fn(),
   options: vi.fn(),
+  feedbackStatus: "pending" as TpSlSubmissionStatus,
+  feedbackBegin: vi.fn(),
+  feedbackAccepted: vi.fn(),
+}));
+vi.mock("./use-tp-sl-submission-feedback", () => ({
+  useTpSlSubmissionFeedback: () => ({ status: mock.feedbackStatus, begin: mock.feedbackBegin }),
 }));
 vi.mock("./estimated-price-preview", () => ({ EstimatedPricePreview: () => null }));
 vi.mock("./instant-open-fees-preview", () => ({ InstantOpenFeesPreview: () => null }));
@@ -82,6 +89,9 @@ beforeEach(() => {
   mock.attach.mockReset();
   mock.open.mockReset();
   mock.options.mockReset();
+  mock.feedbackStatus = "pending";
+  mock.feedbackBegin.mockReset().mockReturnValue(mock.feedbackAccepted);
+  mock.feedbackAccepted.mockReset();
   mock.nextData = {
     instantOpen: { kind: "enigma", success: true, tempQuoteId: "-123" },
     tpslParameters: parameters,
@@ -96,24 +106,14 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-test("accepted at-open attachment stays loading until its SDK notification confirms", () => {
+test("accepted at-open attachment renders its notification feedback instead of HTTP success", () => {
   mock.nextData = { ...mock.nextData!, tpslError: undefined, tpsl: { success: true } };
   useTpSlStore.getState().markConfirming(-123n, "tp", { price: parameters.tp!.triggerPrice });
-  render(<OpenPositionStep {...props} />);
+  const view = render(<OpenPositionStep {...props} />);
   expect(screen.getByTestId("instant-open-tpsl-status").textContent).toContain("Setting TP/SL");
   expect(screen.queryByTestId("instant-open-tpsl-success")).toBeNull();
-  act(() =>
-    useTpSlStore.getState().applyNotification(-123n, {
-      quoteId: -123,
-      primaryIdentifier: 0,
-      secondaryIdentifier: -123,
-      account: props.subAccount,
-      conditionalOrderType: "take_profit",
-      state: "new",
-      successful: true,
-      raw: {},
-    }),
-  );
+  mock.feedbackStatus = "active";
+  view.rerender(<OpenPositionStep {...props} />);
   expect(screen.getByTestId("instant-open-tpsl-success").textContent).toBe("TP/SL active");
   expect(mock.open).not.toHaveBeenCalled();
   expect(mock.attach).not.toHaveBeenCalled();
@@ -140,6 +140,10 @@ test("the mounted retry button sends only attachment parameters, never another o
   });
   expect(mock.attach).toHaveBeenCalledTimes(1);
   expect(mock.attach.mock.calls[0]?.[0]).toBe(parameters);
+  expect(mock.feedbackBegin).toHaveBeenCalledTimes(1);
+  expect(mock.feedbackBegin).toHaveBeenCalledWith(parameters);
+  act(() => mock.attach.mock.calls[0]?.[1].onSuccess());
+  expect(mock.feedbackAccepted).toHaveBeenCalledWith(parameters);
   expect(mock.open).not.toHaveBeenCalled();
   expect(mock.options).toHaveBeenCalledWith({ tpslState: "sdk" });
 });

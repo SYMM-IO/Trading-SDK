@@ -46,6 +46,7 @@ import { EstimatedPricePreview } from "./estimated-price-preview";
 import { InstantOpenFeesPreview } from "./instant-open-fees-preview";
 import { TpSlAttachmentStatus } from "./tp-sl-attachment-status";
 import { useTpSlAttachmentRecovery } from "./use-tp-sl-attachment-recovery";
+import { useTpSlSubmissionFeedback } from "./use-tp-sl-submission-feedback";
 
 type TradeSide = "long" | "short";
 type Market = NonNullable<ReturnType<typeof useMarkets>["data"]>[number];
@@ -337,7 +338,14 @@ function OpenPositionForm({ subAccount, sessionKey, solverId, idPrefix = "instan
   // lives in `@symmio/trading-react`; this component just gathers the inputs.
   // This app uses SDK reads/store; external ownership would require its own reconciler.
   const mutation = useInstantOpenWithTpSl({ tpslState: "sdk" });
-  const attachmentRetry = useTpSlAttachmentRecovery(mutation);
+  const confirmation = useTpSlSubmissionFeedback({
+    account: subAccount,
+    chainId,
+    solverId: resolvedSolverId,
+    instantOpen: true,
+    enabled: isEnigmaSolver && !isCrossMargin,
+  });
+  const attachmentRetry = useTpSlAttachmentRecovery(mutation, confirmation.begin);
   const limitMutation = useLimitOpenAuto();
   const submitting = (isLimit ? limitMutation.isPending : mutation.isPending) || attachmentRetry.isPending;
 
@@ -420,7 +428,8 @@ function OpenPositionForm({ subAccount, sessionKey, solverId, idPrefix = "instan
             sl: hasSl ? { triggerPrice: slPrice, priceType: slPriceType } : undefined,
           }
         : undefined;
-    await mutation.mutateAsync({
+    const accepted = confirmation.begin();
+    const result = await mutation.mutateAsync({
       chainId,
       tpslQuantityMode: "prepared",
       subAccountAddress: subAccount,
@@ -447,6 +456,7 @@ function OpenPositionForm({ subAccount, sessionKey, solverId, idPrefix = "instan
       estimatedOpenPrice: prepareQuery.estimatedOpenPrice,
       tpsl,
     });
+    if (result.tpsl && result.tpslParameters) accepted(result.tpslParameters);
   }
 
   return (
@@ -747,6 +757,7 @@ function OpenPositionForm({ subAccount, sessionKey, solverId, idPrefix = "instan
 
           {mutation.data?.tpsl || mutation.data?.tpslError || mutation.phase === "attaching-tpsl" ? (
             <TpSlAttachmentStatus
+              confirmation={confirmation.status}
               idPrefix={idPrefix}
               data={mutation.data}
               attaching={mutation.phase === "attaching-tpsl"}

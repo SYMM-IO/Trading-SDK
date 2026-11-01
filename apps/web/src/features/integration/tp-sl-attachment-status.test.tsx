@@ -1,14 +1,8 @@
 import type { UseInstantOpenWithTpSlData } from "@symmio/trading-react";
 import type { ComponentProps } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { expect, test, vi } from "vitest";
+import { expect, test } from "vitest";
 import { canRetryAttachment, TpSlAttachmentStatus } from "./tp-sl-attachment-status";
-
-const read = vi.hoisted(() => vi.fn(() => ({ data: undefined })));
-vi.mock("@symmio/trading-react", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@symmio/trading-react")>()),
-  useQuoteTpSl: read,
-}));
 
 type Props = ComponentProps<typeof TpSlAttachmentStatus>;
 const parameters: NonNullable<UseInstantOpenWithTpSlData["tpslParameters"]> = {
@@ -34,6 +28,7 @@ function render(data: Props["data"], retry: Partial<Props["retry"]> = {}, attach
   return renderToStaticMarkup(
     <TpSlAttachmentStatus
       idPrefix="test"
+      confirmation="pending"
       data={data}
       attaching={attaching}
       retry={{ isPending: false, isSuccess: false, error: null, ...retry }}
@@ -44,11 +39,10 @@ function render(data: Props["data"], retry: Partial<Props["retry"]> = {}, attach
   );
 }
 
-test("acceptance waits for the SDK snapshot for the exact submitted quote, account and chain", () => {
+test("acceptance waits for the submission's notification outcome", () => {
   const html = render({ ...open, tpsl: { success: true } });
   expect(html).toContain("Setting TP/SL");
   expect(html).not.toContain("TP/SL active");
-  expect(read).toHaveBeenLastCalledWith({ quoteId: -123n, account: parameters.subAccount, chainId: 42161 });
   expect(html).not.toContain("WebSocket will confirm");
   expect(html).not.toContain("Retry TP/SL only");
 });
