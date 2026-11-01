@@ -38,6 +38,10 @@ export { symmioAbi } from "./symmio-contracts/abi/v0.8.6/symmio";
  * and is passed to every action and query factory.
  */
 export {
+  getEnigmaPriceServicePreset,
+  type GetEnigmaPriceServicePresetParameters,
+} from "./core/chains/enigma-price-service-presets";
+export {
   createConfig,
   type Config,
   type ConfigParameter,

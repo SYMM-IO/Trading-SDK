@@ -7,7 +7,7 @@ The service exposes two access modes, both wrapped by `@symmio/trading-core`:
 - **REST reads** — one-shot batch fetches for prices, metadata, the symbol catalog, and health. Reach for these on review screens, one-off checks, and pre-trade preflight.
 - **WebSocket stream** — [`watchEnigmaPrices`](/core/price-service/watch-enigma-prices) pushes live tick batches. Use it when the UI needs continuously updating prices (order book, PnL, live trade panels). The endpoint is broadcast-only and one socket is pooled across every subscriber for the same chain.
 
-Endpoint URLs live in the chain config:
+Use [`getEnigmaPriceServicePreset`](./presets) to configure production or staging without copying URLs. Endpoint URLs live in the chain config:
 
 ```ts
 const chain = config.getChainConfig();

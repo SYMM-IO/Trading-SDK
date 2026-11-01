@@ -35,6 +35,7 @@ The SDK ships several packages. The two that matter are `@symmio/trading-react` 
 
 ## Reference
 
+- Enigma production/staging price configuration: https://doc.trading-sdk.symm.io/core/price-service/presets
 - Core catalog: https://doc.trading-sdk.symm.io/core
 - React hook catalog: https://doc.trading-sdk.symm.io/react
 - Core-only DEX guide (no React): https://doc.trading-sdk.symm.io/guides/build-a-dex/core
