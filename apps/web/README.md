@@ -4,7 +4,7 @@ This Next.js app consumes the workspace SDK through its React hooks. When an SDK
 
 ## Timelock integration
 
-Open `/integration?flow=timelock` to check and configure the root policy, request an approval, execute protected account actions and Core batches, or schedule, cancel and execute an exact call. Virtual-account policy and recovery resolve to the root while Core execution preserves the selected account. Setup, Instant Open, Withdraw and the protected inspector cards use the SDK's timelock APIs. An unlocked selector keeps its ordinary write path; a locked withdrawal uses an approval for each locked leg.
+Open `/contracts/timelock` to check and configure the root policy, request an approval, execute protected account actions and Core batches, or schedule, cancel and execute an exact call. Virtual-account policy and recovery resolve to the root while Core execution preserves the selected account. Setup, Instant Open, Withdraw and the protected inspector cards use the SDK's timelock APIs. An unlocked selector keeps its ordinary write path; a locked withdrawal uses an approval for each locked leg.
 
 - Deployment metadata, selector checks, approval validation and transaction execution come from SDK hooks. No contract or approval implementation is duplicated in the app.
 - A complete on-chain policy does not prove solver indexing. There is no indexing-status endpoint configured here. The console requires explicit acknowledgement of independent indexing verification; it never spends an approval to probe readiness.

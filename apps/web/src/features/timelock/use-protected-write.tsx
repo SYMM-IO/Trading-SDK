@@ -12,7 +12,6 @@ import {
 import { Button } from "@symmio/ui/components/button";
 import { useEffect, useRef, useState } from "react";
 import { isAddressEqual, sliceHex, zeroAddress, type Address, type Hash } from "viem";
-import { TimelockPolicyPanel } from "./timelock-policy-panel";
 import { readScheduledRecovery } from "./timelock-recovery";
 import { TimelockSchedulePanel } from "./timelock-schedule-panel";
 import { useTimelockAttempt } from "./use-timelock-attempt";
@@ -25,7 +24,8 @@ export function useProtectedWrite(
   functionName: string,
   fallbackCall?: ProtectedFunctionCall,
 ) {
-  const context = useTimelockContext(account, undefined, owner);
+  const safeAccount = account && !isAddressEqual(account, zeroAddress) ? account : undefined;
+  const context = useTimelockContext(safeAccount, undefined, owner);
   const journal = useTimelockAttempt(context, owner);
   const selector = useTimelockSelector(functionName);
   const encode = useProtectedFunctionEncoder();
@@ -37,13 +37,13 @@ export function useProtectedWrite(
     // Invalid form arguments must not crash the rest of the inspector.
     raw = undefined;
   }
-  const inner = raw && account ? (fallbackCall?.target === "core" ? wrap(account, raw) : raw) : undefined;
+  const inner = raw && safeAccount ? (fallbackCall?.target === "core" ? wrap(safeAccount, raw) : raw) : undefined;
   const automatic =
     !context.chainUnsupported &&
     context.config.getSolver({ chainId: context.chainId, solverId: context.solverId }).capabilities
       ?.timelockApproval === true;
   const routing = useTimelockRoute({
-    account,
+    account: safeAccount,
     owner,
     selector,
     chainId: context.chainId,
@@ -73,7 +73,7 @@ export function useProtectedWrite(
           !context.info.error &&
           !context.policy.error &&
           policy &&
-          (!locked || (policy.status === "ok" && context.indexingAcknowledged)),
+          (!locked || policy.status === "ok"),
         )));
   const available = automatic
     ? journal.loaded &&
@@ -82,12 +82,10 @@ export function useProtectedWrite(
       !routing.attempt &&
       (routing.route.kind === "normal" ||
         routing.route.kind === "delayed" ||
-        (routing.route.kind === "approval" &&
-          context.indexingAcknowledged &&
-          !context.info.error &&
-          !context.policy.error))
+        (routing.route.kind === "approval" && !context.info.error && !context.policy.error))
     : legacyAvailable;
   const [error, setError] = useState<string>();
+  const [errorCode, setErrorCode] = useState<string>();
   const [fallbackBusy, setFallbackBusy] = useState(false);
   const [confirmedUnavailableScope, setConfirmedUnavailableScope] = useState<string>();
   const delayedScope = `${context.scope}:${selector}`;
@@ -97,11 +95,12 @@ export function useProtectedWrite(
   ) {
     if (!available) return;
     setError(undefined);
+    setErrorCode(undefined);
     try {
       if (!journal.canProceed()) throw new Error("An earlier protected operation needs reconciliation.");
       if (automatic) {
         if (routing.route.kind === "delayed") {
-          setError("The approval service is unavailable. Use delayed recovery in the timelock integration flow.");
+          setError("The approval service is unavailable. Use delayed recovery in Contracts → Timelock.");
           return;
         }
         if (routing.route.kind === "normal") {
@@ -139,6 +138,8 @@ export function useProtectedWrite(
     } catch (failure) {
       await journal.failed(failure);
       setError(failure instanceof Error ? failure.message : String(failure));
+      if (failure && typeof failure === "object" && "code" in failure && typeof failure.code === "string")
+        setErrorCode(failure.code);
     }
   }
   return {
@@ -149,6 +150,7 @@ export function useProtectedWrite(
     automatic,
     available: available && !fallbackBusy,
     error,
+    errorCode,
     run,
     raw,
     inner,
@@ -168,6 +170,7 @@ export function ProtectedWriteNotice({ protection }: { protection: ReturnType<ty
     routing,
     automatic,
     error,
+    errorCode,
     raw,
     inner,
     setFallbackBusy,
@@ -190,10 +193,21 @@ export function ProtectedWriteNotice({ protection }: { protection: ReturnType<ty
     protection.selector &&
     sliceHex(saved.callData, 0, 4).toLowerCase() === protection.selector.toLowerCase() &&
     savedMatchesAccount;
+  const selectorPolicy = context.policy.data?.selectors.find((item) => item.selector === protection.selector);
+  const needsAttention =
+    context.account && selectorPolicy && selectorPolicy.status !== "missing" && selectorPolicy.status !== "ok";
   return (
     <>
-      {!context.unsupported ? <TimelockPolicyPanel context={context} /> : null}
-      {journal.error || error ? <ResultError message={journal.error ?? error ?? ""} /> : null}
+      {needsAttention && !journal.error && !error ? (
+        <ResultError
+          code="TIMELOCK_REQUIRED"
+          timelockAccount={context.account}
+          message="Review trading protection before this operation."
+        />
+      ) : null}
+      {journal.error || error ? (
+        <ResultError code={errorCode} timelockAccount={context.account} message={journal.error ?? error ?? ""} />
+      ) : null}
       {automatic && routing.route.kind === "error" ? <ResultError message={routing.route.message} /> : null}
       {automatic && offerDelayed && !raw ? (
         <ResultWarning>

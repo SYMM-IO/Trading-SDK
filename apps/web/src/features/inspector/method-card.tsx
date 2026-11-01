@@ -11,6 +11,8 @@ interface Props {
   testId: string;
   name: string;
   mutability: "view" | "nonpayable";
+  /** Override the status chip when the action communicates with an API. */
+  badgeLabel?: string;
   description: string;
   children: ReactNode;
   /** Span the whole row of the methods grid, whatever its column count (for wide table results). */
@@ -71,6 +73,7 @@ export function MethodCard({
   testId,
   name,
   mutability,
+  badgeLabel,
   description,
   children,
   wide = false,
@@ -109,7 +112,7 @@ export function MethodCard({
               </div>
             ) : null}
             <Badge variant={isWrite ? "warning" : "info"} className="tracking-wide uppercase">
-              {isWrite ? "write" : "read"}
+              {badgeLabel ?? (isWrite ? "write" : "read")}
             </Badge>
             {magicMethodId ? <MagicPinButton methodId={magicMethodId} input={magicMethodInput} /> : null}
           </div>

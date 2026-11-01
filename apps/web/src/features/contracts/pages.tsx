@@ -119,6 +119,15 @@ export const FLOW_PAGES: readonly ContractPage[] = [
     fullWidth: true,
   },
   {
+    slug: "timelock",
+    kind: "flow",
+    eyebrow: "Flow",
+    title: "Timelock",
+    description: "Inspect and configure trading protection, approvals, and delayed recovery.",
+    icon: <BoltIcon />,
+    fullWidth: true,
+  },
+  {
     slug: "delegation",
     kind: "flow",
     group: "delegation",

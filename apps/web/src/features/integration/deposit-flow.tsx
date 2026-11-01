@@ -176,7 +176,12 @@ export function DepositFlow({
                   : "Deposit"}
           </Button>
 
-          <StatusArea approve={approve} deposit={activeDeposit} approved={!needsApproval && parsed !== undefined} />
+          <StatusArea
+            approve={approve}
+            deposit={activeDeposit}
+            approved={!needsApproval && parsed !== undefined}
+            account={subAccount}
+          />
 
           {subAccount ? (
             <div className="border-border/60 bg-muted/20 flex items-center justify-between rounded-lg border px-4 py-2.5 text-sm">
@@ -204,10 +209,12 @@ function StatusArea({
   approve,
   deposit,
   approved,
+  account,
 }: {
   approve: ReturnType<typeof useApproveCollateral>;
   deposit: ReturnType<typeof useDeposit>;
   approved: boolean;
+  account?: Address;
 }) {
   if (approve.isPending) {
     return (
@@ -230,7 +237,13 @@ function StatusArea({
   }
   if (deposit.error) {
     return (
-      <ResultError testId="integration-deposit-status" kind={deposit.error.kind} message={deposit.error.message} />
+      <ResultError
+        testId="integration-deposit-status"
+        kind={deposit.error.kind}
+        code={deposit.error.code}
+        timelockAccount={account}
+        message={deposit.error.message}
+      />
     );
   }
   if (deposit.isSuccess) {

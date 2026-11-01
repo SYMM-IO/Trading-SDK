@@ -78,6 +78,7 @@ export function WithdrawFlow({
   ready,
 }: Props) {
   const [step, setStep] = useState(0);
+  const [skippedScope, setSkippedScope] = useState<string>();
   const [amount, setAmount] = useState<string>("");
   const [receiver, setReceiver] = useState<string>("");
   const timelock = useTimelockContext(subAccount, undefined, owner);
@@ -124,8 +125,7 @@ export function WithdrawFlow({
   const protectedReady =
     policiesKnown &&
     lockedPolicies.every((item) => item?.status === "ok") &&
-    (!lockedPolicies.length ||
-      (timelock.indexingAcknowledged && journal.loaded && !journal.recovery && !journal.error));
+    (!lockedPolicies.length || (journal.loaded && !journal.recovery && !journal.error));
 
   // Balance shown on the withdraw step, per isolation: CUSTOM reads the allocated
   // balance (funds live in margin); the VA modes read the available balance.
@@ -198,7 +198,9 @@ export function WithdrawFlow({
     chainId !== undefined,
   );
 
-  const maxStep = !ready ? 0 : !subAccount ? 1 : 2;
+  const hasTimelockStep = !timelock.unsupported;
+  const canContinue = timelock.ready || skippedScope === timelock.scope;
+  const maxStep = !ready ? 0 : !subAccount ? 1 : hasTimelockStep && !canContinue ? 2 : hasTimelockStep ? 3 : 2;
   const current = Math.min(step, maxStep);
 
   useEffect(() => {
@@ -255,6 +257,15 @@ export function WithdrawFlow({
       hint: subAccount ? (subAccountName ?? shortenAddress(subAccount)) : "Choose where to withdraw from",
       done: Boolean(subAccount),
     },
+    ...(hasTimelockStep
+      ? [
+          {
+            label: "Trading protection",
+            hint: timelock.ready ? "Configured" : "Review trading protection",
+            done: timelock.ready,
+          },
+        ]
+      : []),
     {
       label: "Withdraw",
       hint: canInitiate ? "Ready to initiate" : "Amount & receiver",
@@ -276,10 +287,22 @@ export function WithdrawFlow({
             setStep(2);
           }}
         />
+      ) : current === 2 && hasTimelockStep ? (
+        <div className="flex flex-col gap-4">
+          <TimelockPolicyPanel key={timelock.scope} context={timelock} compact />
+          <Button
+            variant="outline"
+            onClick={() => {
+              setSkippedScope(timelock.scope);
+              setStep(3);
+            }}
+          >
+            Continue to withdrawal
+          </Button>
+        </div>
       ) : (
         <>
           <WithdrawableReadout query={withdrawableTime} />
-          {!timelock.unsupported ? <TimelockPolicyPanel key={timelock.scope} context={timelock} /> : null}
           {journal.error || timelockError ? <ResultError message={journal.error ?? timelockError ?? ""} /> : null}
           {journal.recovery && !savedWithdrawal ? (
             <ResultWarning>
@@ -398,7 +421,7 @@ export function WithdrawFlow({
             Initiating also needs “Also allow withdrawals” ticked in the key’s grant on Session Keys.
           </SessionKeySignerNote>
 
-          <InitiateStatus withdraw={withdraw} bySessionKey={initiateWrite.from !== undefined} />
+          <InitiateStatus withdraw={withdraw} bySessionKey={initiateWrite.from !== undefined} account={subAccount} />
 
           {subAccount ? (
             <SubaccountBalance isCustom={isCustom} margin={marginBalance} available={availableBalance} />
@@ -429,10 +452,12 @@ function WithdrawableReadout({ query }: { query: ReturnType<typeof useWithdrawab
 function InitiateStatus({
   withdraw,
   bySessionKey,
+  account,
 }: {
   withdraw: ReturnType<typeof useWithdraw>;
   /** The session key signs, so there is no wallet prompt to wait on. */
   bySessionKey: boolean;
+  account?: Address;
 }) {
   if (withdraw.isPending) {
     return (
@@ -459,7 +484,13 @@ function InitiateStatus({
       );
     }
     return (
-      <ResultError testId="integration-withdraw-status" kind={withdraw.error.kind} message={withdraw.error.message} />
+      <ResultError
+        testId="integration-withdraw-status"
+        kind={withdraw.error.kind}
+        code={withdraw.error.code}
+        timelockAccount={account}
+        message={withdraw.error.message}
+      />
     );
   }
   if (withdraw.isSuccess) {

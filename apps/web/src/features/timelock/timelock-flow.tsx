@@ -1,19 +1,27 @@
 "use client";
 
 import { ResultError, ResultNote, ResultWarning } from "@/components/result";
+import { MethodCard } from "@/features/inspector/method-card";
+import { MethodGroup } from "@/features/inspector/method-group";
 import { SubAccountField } from "@/features/inspector/subaccount-field";
-import { WalletPanel } from "@/features/inspector/wallet-panel";
 import { useSymmioChainId, useSymmioConfig } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
-import { useEffect, useState } from "react";
-import { isAddress, type Address } from "viem";
+import { useEffect, useState, type ReactNode } from "react";
+import { isAddress, isAddressEqual, zeroAddress, type Address } from "viem";
 import { TimelockAccountActions } from "./timelock-account-actions";
 import { TimelockApprovalCard } from "./timelock-approval-card";
 import { TimelockBatchCard } from "./timelock-batch-card";
+import { TimelockManualSetup } from "./timelock-manual-setup";
 import { TimelockNamedFunction } from "./timelock-named-function";
 import { TimelockPolicyPanel } from "./timelock-policy-panel";
 import { TimelockProtectedCall } from "./timelock-protected-call";
-import { clearReviewedTimelockRecovery, notifyTimelockRecoveryChanged, readScheduledRecovery, readTimelockRecovery, subscribeTimelockRecoveryChanged } from "./timelock-recovery";
+import {
+  clearReviewedTimelockRecovery,
+  notifyTimelockRecoveryChanged,
+  readScheduledRecovery,
+  readTimelockRecovery,
+  subscribeTimelockRecoveryChanged,
+} from "./timelock-recovery";
 import { TimelockSchedulePanel } from "./timelock-schedule-panel";
 import { TimelockSelectorCard } from "./timelock-selector-card";
 import { TimelockWithdrawal } from "./timelock-withdrawal";
@@ -31,8 +39,11 @@ export function TimelockFlow({ owner, subAccount, onSelectSubAccount, ready }: P
   const config = useSymmioConfig();
   const chainId = useSymmioChainId();
   const [input, setInput] = useState(subAccount ?? "");
-  const selected = isAddress(input) ? input : undefined;
-  if (!ready) return <WalletPanel />;
+  useEffect(() => {
+    if (subAccount) setInput(subAccount);
+  }, [subAccount]);
+  const selected = isAddress(input) && !isAddressEqual(input, zeroAddress) ? input : undefined;
+  if (!ready) return null;
   return (
     <div className="flex flex-col gap-6">
       <SubAccountField
@@ -57,7 +68,7 @@ export function TimelockFlow({ owner, subAccount, onSelectSubAccount, ready }: P
 }
 
 function TimelockAccount({ account, owner }: { account: Address; owner: Address }) {
-  const context = useTimelockContext(account, undefined, owner);
+  const context = useTimelockContext(account, undefined, owner, true);
   const storageKey = context.journalScope
     ? `symm:timelock-attempt:${context.journalScope}:${owner.toLowerCase()}`
     : undefined;
@@ -101,7 +112,6 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
 
   return (
     <>
-      <TimelockPolicyPanel context={context} />
       {storageError ? (
         <ResultError message="Browser storage is unavailable. Enable it before requesting an approval so recovery survives refresh." />
       ) : null}
@@ -141,84 +151,203 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
           </Button>
         </ResultWarning>
       ) : null}
+      <MethodGroup
+        label="Policy"
+        count={
+          1 +
+          (loaded && storageKey && !storageError && !context.chainUnsupported && context.rootAccount ? 1 : 0) +
+          (loaded && storageKey && !storageError && !context.chainUnsupported && context.rootAccount ? 1 : 0)
+        }
+        fullWidth
+      >
+        <TimelockMethodCard
+          id="timelock-policy-card"
+          name="Timelock policy"
+          description="Inspect the root account’s protection and configure the solver policy."
+          mutability="nonpayable"
+        >
+          <TimelockPolicyPanel context={context} />
+        </TimelockMethodCard>
+        {loaded && storageKey && !storageError && !context.chainUnsupported && context.rootAccount ? (
+          <TimelockMethodCard
+            id="timelock-direct-setup-card"
+            name="setupTimelocks"
+            description="Configure the root policy directly with the owner wallet."
+            mutability="nonpayable"
+          >
+            <TimelockManualSetup
+              key={`${context.chainId}:${context.rootAccount}`}
+              context={context}
+              recovery={recovery}
+              storageKey={storageKey}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+            />
+          </TimelockMethodCard>
+        ) : null}
+        {loaded && storageKey && !storageError && !context.chainUnsupported && context.rootAccount ? (
+          <TimelockMethodCard
+            id="timelock-selector-policy-card"
+            name="Selector policy"
+            description="Inspect or clear the policy for a specific selector."
+            mutability="nonpayable"
+          >
+            <TimelockSelectorCard
+              context={context}
+              disabled={active || Boolean(recovery)}
+              storageKey={storageKey}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+            />
+          </TimelockMethodCard>
+        ) : null}
+      </MethodGroup>
       {loaded && storageKey && !storageError && context.capability && context.policy.data ? (
-        <>
-          <TimelockWithdrawal
-            account={account}
-            context={context}
-            recovery={recovery}
-            saveRecovery={saveRecovery}
-            onBusyChange={setActive}
-            storageKey={storageKey}
-          />
-          <TimelockAccountActions
-            account={account}
-            context={context}
-            recovery={recovery}
-            saveRecovery={saveRecovery}
-            onBusyChange={setActive}
-            storageKey={storageKey}
-          />
-          <TimelockProtectedCall
-            account={account}
-            context={context}
-            recovery={recovery}
-            saveRecovery={saveRecovery}
-            onBusyChange={setActive}
-            storageKey={storageKey}
-          />
-          <TimelockApprovalCard
-            account={account}
-            context={context}
-            recovery={recovery}
-            saveRecovery={saveRecovery}
-            onBusyChange={setActive}
-            storageKey={storageKey}
-          />
-          <TimelockBatchCard
-            context={context}
-            recovery={recovery}
-            storageKey={storageKey}
-            saveRecovery={saveRecovery}
-            onBusyChange={setActive}
-          />
-          <TimelockNamedFunction
-            account={account}
-            owner={owner}
-            context={context}
-            recovery={recovery}
-            storageKey={storageKey}
-            saveRecovery={saveRecovery}
-            onBusyChange={setActive}
-          />
-          <TimelockSelectorCard
-            context={context}
-            disabled={active || Boolean(recovery)}
-            storageKey={storageKey}
-            saveRecovery={saveRecovery}
-            onBusyChange={setActive}
-          />
-        </>
+        <MethodGroup label="Protected operations" count={6} fullWidth initiallyOpen={false}>
+          <TimelockMethodCard
+            id="timelock-withdrawal-card"
+            name="Early withdrawal"
+            description="Request solver approval and execute a withdrawal."
+            mutability="nonpayable"
+          >
+            <TimelockWithdrawal
+              account={account}
+              context={context}
+              recovery={recovery}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+              storageKey={storageKey}
+            />
+          </TimelockMethodCard>
+          <TimelockMethodCard
+            id="timelock-account-actions-card"
+            name="Account actions"
+            description="Execute an eligible account action with solver approval."
+            mutability="nonpayable"
+          >
+            <TimelockAccountActions
+              account={account}
+              context={context}
+              recovery={recovery}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+              storageKey={storageKey}
+            />
+          </TimelockMethodCard>
+          <TimelockMethodCard
+            id="timelock-protected-call-card"
+            name="Protected call"
+            description="Approve and execute exact calldata."
+            mutability="nonpayable"
+          >
+            <TimelockProtectedCall
+              account={account}
+              context={context}
+              recovery={recovery}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+              storageKey={storageKey}
+            />
+          </TimelockMethodCard>
+          <TimelockMethodCard
+            id="timelock-approval-card"
+            name="Request approval"
+            description="Request a solver approval without submitting a transaction."
+            mutability="nonpayable"
+            badgeLabel="api"
+          >
+            <TimelockApprovalCard
+              account={account}
+              context={context}
+              recovery={recovery}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+              storageKey={storageKey}
+            />
+          </TimelockMethodCard>
+          <TimelockMethodCard
+            id="timelock-batch-card"
+            name="Protected Core batch"
+            description="Execute approved Core calls as one batch."
+            mutability="nonpayable"
+          >
+            <TimelockBatchCard
+              context={context}
+              recovery={recovery}
+              storageKey={storageKey}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+            />
+          </TimelockMethodCard>
+          <TimelockMethodCard
+            id="timelock-function-card"
+            name="Protected function"
+            description="Choose a protected function and its arguments."
+            mutability="nonpayable"
+          >
+            <TimelockNamedFunction
+              account={account}
+              owner={owner}
+              context={context}
+              recovery={recovery}
+              storageKey={storageKey}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+            />
+          </TimelockMethodCard>
+        </MethodGroup>
       ) : (
-        <ResultNote>Select an account on a deployment advertising timelock approvals to use these actions.</ResultNote>
+        <ResultNote>
+          Select an account on a deployment advertising timelock approvals to use solver-approved actions.
+        </ResultNote>
       )}
-      {loaded &&
-      storageKey &&
-      !storageError &&
-      !context.chainUnsupported &&
-      context.rootAccount &&
-      context.account &&
-      (context.capability ||
-        context.config.getSolver({ chainId: context.chainId, solverId: context.solverId }).capabilities
-          ?.timelockApproval === true) ? (
-        <TimelockSchedulePanel
-          context={context}
-          recovery={recovery}
-          saveRecovery={saveRecovery}
-          onBusyChange={setActive}
-          storageKey={storageKey}
-        />
+      {loaded && storageKey && !storageError && !context.chainUnsupported && context.rootAccount && context.account ? (
+        <MethodGroup
+          label="Delayed recovery"
+          count={1}
+          fullWidth
+          initiallyOpen={Boolean(recovery)}
+          expandOn={Boolean(recovery)}
+        >
+          <TimelockMethodCard
+            id="timelock-delayed-recovery-card"
+            name="Schedule and execute"
+            description="Schedule, cancel, or execute an exact operation after its cooldown."
+            mutability="nonpayable"
+          >
+            <TimelockSchedulePanel
+              context={context}
+              recovery={recovery}
+              saveRecovery={saveRecovery}
+              onBusyChange={setActive}
+              storageKey={storageKey}
+            />
+          </TimelockMethodCard>
+        </MethodGroup>
       ) : null}
     </>
+  );
+}
+
+/** Reuse the Contracts method-card design while keeping each action's state and test hooks intact. */
+function TimelockMethodCard({
+  id,
+  name,
+  description,
+  mutability,
+  badgeLabel,
+  children,
+}: {
+  id: string;
+  name: string;
+  description: string;
+  mutability: "view" | "nonpayable";
+  badgeLabel?: string;
+  children: ReactNode;
+}) {
+  return (
+    <MethodCard testId={id} name={name} description={description} mutability={mutability} badgeLabel={badgeLabel}>
+      <div className="[&>section]:border-0 [&>section]:p-0 [&>section>h3:first-child]:hidden">{children}</div>
+    </MethodCard>
   );
 }

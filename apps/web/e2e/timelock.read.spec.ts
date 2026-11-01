@@ -39,6 +39,7 @@ async function mockDeployment(
     mockWriteSuccess?: boolean;
     rejectWrites?: boolean;
     rejectApproval?: boolean;
+    rejectApprovalCode?: number;
     approvalUnavailable?: boolean;
     locked?: readonly string[];
     isolationType?: number;
@@ -52,6 +53,7 @@ async function mockDeployment(
   const outerSelector = toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "_call" }));
   const reads: string[] = [];
   const writes: string[] = [];
+  const writeData: Hex[] = [];
   let infoReads = 0;
   const state = { minimum: 300, now: 1_800_000_000n, scheduledAt: 0n };
   function empty(parameter: AbiParameter): unknown {
@@ -80,6 +82,16 @@ async function mockDeployment(
           return { success: false, returnData: "0x" };
         }
       });
+    if (name === "getUserSubAccounts") {
+      const components = (item.outputs[0] as AbiParameter & { components: readonly AbiParameter[] }).components;
+      result = [ROOT, VA].map((address) => ({
+        ...Object.fromEntries(components.map((component) => [component.name, empty(component)])),
+        accountAddress: address,
+        owner: OWNER,
+        isExists: true,
+        isolationType: options.isolationType ?? 1,
+      }));
+    }
     if (name === "getVirtualAccount")
       result = { ...(result as object), accountAddress: VA, parentAccount: ROOT, isExists: decoded.args![0] === VA };
     if (name === "getSubAccount")
@@ -133,6 +145,17 @@ async function mockDeployment(
         await route.fulfill({ status: 503, json: {} });
         return;
       }
+      if (options.rejectApprovalCode) {
+        await route.fulfill({
+          status: 400,
+          json: {
+            code: options.rejectApprovalCode,
+            error_category: "account_state",
+            error_message: "Policy not ready",
+          },
+        });
+        return;
+      }
       if (options.rejectApproval) {
         await route.fulfill({
           status: 400,
@@ -183,6 +206,7 @@ async function mockDeployment(
         }
         if (entry.method.startsWith("eth_send") && options.mockWriteSuccess) {
           writes.push(entry.method);
+          if (entry.params?.[0]?.data) writeData.push(entry.params[0].data);
           return { jsonrpc: "2.0", id: entry.id, result: `0x${"ab".repeat(32)}` };
         }
         if (entry.method.startsWith("eth_send") || entry.method.startsWith("eth_sign")) {
@@ -226,6 +250,7 @@ async function mockDeployment(
   return {
     reads,
     writes,
+    writeData,
     state,
     get infoReads() {
       return infoReads;
@@ -233,17 +258,51 @@ async function mockDeployment(
   };
 }
 
-async function openTimelock(page: Page, account = ROOT) {
-  await page.goto("/integration?flow=timelock", { waitUntil: "domcontentloaded" });
-  await page.getByTestId("tab-timelock").click();
-  await expect(page.getByTestId("tab-timelock")).toHaveAttribute("aria-selected", "true");
+async function openTimelock(page: Page, account = ROOT, expandSections = true) {
+  await page.goto("/contracts/timelock", { waitUntil: "domcontentloaded" });
   await connectMockWallet(page);
   await page.getByTestId("timelock-account").fill(account);
+  if (!expandSections) return;
+  const policy = page.getByTestId("timelock-policy");
+  await expect(policy).toBeVisible();
+  await expect
+    .poll(async () => {
+      const text = await policy.innerText();
+      return (
+        text.includes("selectors configured") ||
+        text.includes("does not advertise") ||
+        (await policy.getByRole("alert").count()) > 0
+      );
+    })
+    .toBe(true);
+  const operations = page.getByRole("button", { name: /^Protected operations/ });
+  if (await operations.count()) {
+    if ((await operations.getAttribute("aria-expanded")) === "false") await operations.click();
+  }
+  const recovery = page.getByRole("button", { name: /^Delayed recovery/ });
+  await expect(recovery).toBeVisible();
+  if ((await recovery.getAttribute("aria-expanded")) === "false") await recovery.click();
+}
+
+async function openWithdrawal(page: Page) {
+  const account = await page.getByTestId("timelock-account").inputValue();
+  await page.goto("/integration?flow=withdraw", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  await page.getByTestId(`subaccount-${account}`).click();
+}
+
+async function continueToWithdrawal(page: Page) {
+  const button = page.getByRole("button", { name: "Continue to withdrawal" });
+  await expect(button.or(page.getByTestId("integration-withdraw-amount"))).toBeVisible();
+  if (await button.isVisible()) await button.click();
 }
 
 async function connectMockWallet(page: Page) {
   const connect = page.getByTestId("connect-wallet");
   if (await connect.isVisible()) {
+    // Let the client hydrate before clicking; otherwise the layout can move
+    // between hit-testing and the click during a fresh Next.js navigation.
+    await page.waitForLoadState("networkidle");
     await connect.click();
     await page.getByTestId("connect-mock").click();
   }
@@ -263,6 +322,166 @@ async function enableTimelockSolver(page: Page) {
     );
   });
 }
+
+test("setup includes a protection step in each track without a separate integration tab", async ({ page }) => {
+  await mockDeployment(page);
+  await enableTimelockSolver(page);
+  await page.goto("/integration", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  await expect(page.getByTestId("tab-timelock")).toHaveCount(0);
+  await page.getByTestId("setup-track-wallet").click();
+  await expect(page.getByTestId("step-3")).toContainText("Trading protection");
+  await page.getByTestId("setup-track-gasless").click();
+  await expect(page.getByTestId("step-4")).toContainText("Trading protection");
+  await page.getByTestId("setup-track-session-key").click();
+  await expect(page.getByTestId("step-5")).toContainText("Delegation");
+  await expect(page.getByTestId("step-6")).toContainText("Trading protection");
+});
+
+test("setup keeps the optional protection step when the solver has no timelock capability", async ({ page }) => {
+  await mockDeployment(page, { unsupported: true });
+  await enableTimelockSolver(page);
+  await page.goto("/integration", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  await page.getByTestId("setup-track-wallet").click();
+  await expect(page.getByTestId("step-3")).toContainText("Trading protection");
+  await page.getByTestId("setup-track-session-key").click();
+  await expect(page.getByTestId("step-6")).toContainText("Trading protection");
+});
+
+test("timelock contract groups preserve entered recovery data when collapsed", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page, ROOT, false);
+  await expect(page.getByTestId("wallet-address")).toBeVisible();
+  const policy = page.getByRole("button", { name: /^Policy/ });
+  const operations = page.getByRole("button", { name: /^Protected operations/ });
+  const recovery = page.getByRole("button", { name: /^Delayed recovery/ });
+  await expect(policy).toHaveAttribute("aria-expanded", "true");
+  await expect(operations).toHaveAttribute("aria-expanded", "false");
+  await expect(recovery).toHaveAttribute("aria-expanded", "false");
+  await operations.click();
+  await expect(operations).toHaveAttribute("aria-expanded", "true");
+  await recovery.click();
+  const raw = page.locator("#timelock-raw");
+  await raw.fill("0x12345678");
+  await recovery.click();
+  await expect(recovery).toHaveAttribute("aria-expanded", "false");
+  await recovery.click();
+  await expect(raw).toHaveValue("0x12345678");
+  expect(mock.writes).toEqual([]);
+});
+
+test("saved scheduled recovery opens its section automatically", async ({ page }) => {
+  const { getChainConfig } = await import("@symmio/trading-core");
+  const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
+  mock.state.scheduledAt = mock.state.now;
+  const key = `symm:timelock-attempt:v2:42161:${getChainConfig(42161).addresses.accountLayerAddress.toLowerCase()}:${ROOT.toLowerCase()}:${OWNER.toLowerCase()}`;
+  const recovery = JSON.stringify({
+    kind: "scheduled-operation",
+    confirmed: true,
+    callData: "0x12345678",
+    innerCallData: "0x12345678",
+    originalAccount: ROOT,
+  });
+  await page.addInitScript(({ key, recovery }) => localStorage.setItem(key, recovery), { key, recovery });
+  await openTimelock(page, ROOT, false);
+  const section = page.getByRole("button", { name: /^Delayed recovery/ });
+  await expect(section).toHaveAttribute("aria-expanded", "true");
+  await expect(page.getByTestId("timelock-schedule")).toBeVisible();
+  expect(mock.writes).toEqual([]);
+});
+
+test("direct policy configuration is available without solver metadata", async ({ page }) => {
+  const mock = await mockDeployment(page, { unsupported: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const card = page.getByTestId("timelock-manual-setup");
+  await expect(page.getByTestId("timelock-policy")).toContainText("22 selectors");
+  await expect(page.getByTestId("timelock-policy")).toContainText("does not advertise timelock approvals");
+  await expect(
+    page.getByTestId("timelock-policy").getByRole("link", { name: "configure protection directly in Contracts" }),
+  ).toHaveAttribute("href", `/contracts/timelock?account=${ROOT}`);
+  await expect(card).toContainText("22 protected selectors");
+  await expect(card.getByRole("button", { name: "Configure protection" })).toBeDisabled();
+  await card.locator("#timelock-manual-unlocker").fill(UNLOCKER);
+  await card.locator("#timelock-manual-delay").fill("300");
+  await expect(card.getByRole("button", { name: "Configure protection" })).toBeEnabled();
+  expect(mock.writes).toEqual([]);
+});
+
+test("direct setup sends one owner transaction without solver metadata", async ({ page }) => {
+  const mock = await mockDeployment(page, { unsupported: true, mockWriteSuccess: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const card = page.getByTestId("timelock-manual-setup");
+  await card.locator("#timelock-manual-unlocker").fill(UNLOCKER);
+  await card.locator("#timelock-manual-delay").fill("300");
+  const submit = card.getByRole("button", { name: "Configure protection" });
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  await expect.poll(() => mock.writes.filter((method) => method.startsWith("eth_send")).length).toBe(1);
+  await expect(card.getByRole("link", { name: "View transaction on block explorer" })).toBeVisible();
+  await expect(submit).toBeDisabled();
+});
+
+test("scheduled execution is available without a solver after reconciling earlier requests", async ({ page }) => {
+  const mock = await mockDeployment(page, { unsupported: true, configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const panel = page.getByTestId("timelock-schedule");
+  await panel.locator("#timelock-raw").fill("0x12345678");
+  await panel.locator("#timelock-inner").fill("0x12345678");
+  const start = panel.getByRole("button", { name: "Start cooldown" });
+  await expect(start).toBeDisabled();
+  await panel.getByRole("checkbox", { name: /reconciled any earlier/ }).check();
+  await expect(start).toBeEnabled();
+  expect(mock.writes).toEqual([]);
+});
+
+test("direct setup blocks replacing an existing policy without solver metadata", async ({ page }) => {
+  const mock = await mockDeployment(page, { unsupported: true, configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const card = page.getByTestId("timelock-manual-setup");
+  await card.locator("#timelock-manual-unlocker").fill(UNLOCKER);
+  await card.locator("#timelock-manual-delay").fill("300");
+  await expect(card.getByText(/Existing policies are preserved/)).toBeVisible();
+  await expect(card.getByRole("button", { name: "Configure protection" })).toBeDisabled();
+  expect(mock.writes).toEqual([]);
+});
+
+test("direct setup adds missing policies without replacing existing ones", async ({ page }) => {
+  const { accountLayerAbi, INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS, INSTANT_OPEN_TIMELOCK_SELECTORS } =
+    await import("@symmio/trading-core");
+  const mock = await mockDeployment(page, { unsupported: true, locked: ["initiateWithdraw"], mockWriteSuccess: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const card = page.getByTestId("timelock-manual-setup");
+  await card.locator("#timelock-manual-unlocker").fill(UNLOCKER);
+  await card.locator("#timelock-manual-delay").fill("300");
+  const submit = card.getByRole("button", { name: "Configure protection" });
+  await expect(submit).toBeEnabled();
+  await submit.click();
+  await expect.poll(() => mock.writeData.length).toBe(1);
+  const transaction = decodeFunctionData({ abi: accountLayerAbi, data: mock.writeData[0]! });
+  expect(transaction.functionName).toBe("setupTimelocks");
+  if (transaction.functionName !== "setupTimelocks") throw new Error("Unexpected transaction");
+  const protectedSelector =
+    INSTANT_OPEN_TIMELOCK_SELECTORS[INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS.indexOf("initiateWithdraw")];
+  expect(transaction.args[3]).toHaveLength(21);
+  expect(transaction.args[3]).not.toContain(protectedSelector);
+});
+
+test("selector policy can be inspected without solver metadata", async ({ page }) => {
+  const mock = await mockDeployment(page, { unsupported: true, configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.locator("#timelock-selector-input").fill("0x12345678");
+  await expect(page.getByTestId("timelock-selector")).toContainText("delay: 300 seconds");
+  expect(mock.writes).toEqual([]);
+});
 
 test("virtual-account policy reads the root and reports all 22 missing selectors without signing", async ({ page }) => {
   const mock = await mockDeployment(page);
@@ -299,17 +518,14 @@ test("a selector policy can be inspected without signing", async ({ page }) => {
   expect(mock.writes).toEqual([]);
 });
 
-test("policy readiness does not assume indexing, and a raised minimum disables withdrawal again", async ({
-  page,
-}, testInfo) => {
+test("on-chain policy enables withdrawal, and a raised minimum disables it again", async ({ page }, testInfo) => {
   const mock = await mockDeployment(page, { configured: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
   await expect(page.getByTestId("timelock-policy")).toContainText("22 / 22 selectors configured");
   await page.locator("#timelock-amount").fill("1");
   await page.locator("#timelock-receiver").fill(OWNER);
-  await expect(page.getByTestId("timelock-early-withdraw")).toBeDisabled();
-  await page.getByTestId("timelock-indexing").click();
+  await expect(page.getByTestId("timelock-indexing")).toHaveCount(0);
   await expect(page.getByTestId("timelock-early-withdraw")).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath("timelock.png"), fullPage: true });
   mock.state.minimum = 600;
@@ -325,8 +541,8 @@ test("metadata errors do not become unsupported-deployment success", async ({ pa
   await openTimelock(page);
   await expect(page.getByTestId("timelock-policy").getByRole("alert")).toBeVisible();
   await expect(page.getByTestId("timelock-early-withdraw")).toHaveCount(0);
-  await expect(page.getByTestId("timelock-schedule")).toHaveCount(0);
-  await expect(page.getByText("This deployment does not advertise timelock approvals.")).toHaveCount(0);
+  await expect(page.getByTestId("timelock-schedule")).toBeVisible();
+  await expect(page.getByText("This solver does not advertise timelock approvals.")).toHaveCount(0);
   expect(mock.writes).toEqual([]);
 });
 
@@ -337,6 +553,19 @@ test("delayed recovery remains accessible when solver metadata is unavailable", 
   await expect(page.getByTestId("timelock-policy").getByRole("alert")).toBeVisible();
   await expect(page.getByTestId("timelock-schedule")).toBeVisible();
   expect(mock.writes).toEqual([]);
+});
+
+test("protected action does not show a policy card or read the zero account", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
+  await page.goto("/contracts/account-layer", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  const card = page.getByTestId("method-addMargin");
+  await card.locator("#add-margin-va-account").fill("0x0000000000000000000000000000000000000000");
+  await card.getByTestId("input-add-margin-amount").fill("1");
+  await expect(card.getByTestId("timelock-policy")).toHaveCount(0);
+  await expect(card.getByTestId("button-send-add-margin")).toBeDisabled();
+  expect(mock.reads).not.toContain("0x0000000000000000000000000000000000000000");
 });
 
 test("a timelock-enabled solver exposes delayed recovery from a protected margin action when offline", async ({
@@ -432,7 +661,6 @@ test("an unknown approval response is not retried, including after reload", asyn
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-amount").fill("1");
   await page.locator("#timelock-receiver").fill(OWNER);
   await page.getByTestId("timelock-early-withdraw").click();
@@ -450,7 +678,6 @@ test("root and virtual accounts share the same unresolved approval journal", asy
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
   await enableTimelockSolver(page);
   await openTimelock(page, ROOT);
-  await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-amount").fill("1");
   await page.locator("#timelock-receiver").fill(OWNER);
   await page.getByTestId("timelock-early-withdraw").click();
@@ -465,7 +692,6 @@ test("unresolved recovery survives unrelated deployment configuration changes", 
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
   await enableTimelockSolver(page);
   await openTimelock(page, ROOT);
-  await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-amount").fill("1");
   await page.locator("#timelock-receiver").fill(OWNER);
   await page.getByTestId("timelock-early-withdraw").click();
@@ -530,7 +756,6 @@ test("a protected withdrawal confirms one approval and clears its journal", asyn
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-amount").fill("1");
   await page.locator("#timelock-receiver").fill(OWNER);
   await page.getByTestId("timelock-early-withdraw").click();
@@ -546,7 +771,6 @@ test("a protected margin action executes through the SDK and confirms its receip
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
   await enableTimelockSolver(page);
   await openTimelock(page, VA);
-  await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-action-amount").fill("1");
   const card = page.getByTestId("timelock-account-actions");
   await card.getByRole("button", { name: "Request approval and execute" }).click();
@@ -567,7 +791,7 @@ test("clearing an ambiguous approval in another tab restores the inspector witho
   const card = page.getByTestId("method-addMargin");
   await card.locator("#add-margin-va-account").fill(VA);
   await card.getByTestId("input-add-margin-amount").fill("1");
-  await card.getByTestId("timelock-indexing").click();
+  await expect(card.getByTestId("timelock-policy")).toHaveCount(0);
   const button = card.getByTestId("button-send-add-margin");
   await expect(button).toBeEnabled();
   await button.click();
@@ -590,7 +814,6 @@ test("an approval can be requested without sending a transaction", async ({ page
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-request-data").fill("0x12345678");
   const card = page.getByTestId("timelock-request-approval");
   await card.getByRole("button", { name: "Request approval", exact: true }).click();
@@ -603,7 +826,6 @@ test("a protected named batch sends both calls in one transaction", async ({ pag
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("timelock-indexing").click();
   await page.locator("#timelock-batch-first").fill("1");
   await page.locator("#timelock-batch-second").fill("2");
   const card = page.getByTestId("timelock-batch");
@@ -617,7 +839,6 @@ test("the named protected-function inspector exposes all 22 functions and execut
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("timelock-indexing").click();
   const card = page.getByTestId("timelock-named-function");
   await card.getByRole("combobox", { name: "Protected function" }).click();
   await expect(page.getByRole("option")).toHaveCount(22);
@@ -633,7 +854,6 @@ test("invalid named-function arguments do not create an approval or recovery rec
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("timelock-indexing").click();
   const card = page.getByTestId("timelock-named-function");
   await card.getByRole("combobox", { name: "Protected function" }).click();
   await page.getByRole("option", { name: "core · allocate", exact: true }).click();
@@ -648,8 +868,10 @@ test("a deployment without metadata retains the legacy withdrawal form", async (
   const mock = await mockDeployment(page, { unsupported: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await expect(page.getByText("This deployment does not advertise timelock approvals.")).toBeVisible();
-  await page.getByTestId("tab-withdraw").click();
+  await expect(page.getByText("This solver does not advertise timelock approvals.")).toBeVisible();
+  await expect(page.getByTestId("timelock-schedule")).toBeVisible();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
@@ -671,7 +893,8 @@ test("an explicitly opted-out deployment keeps the legacy path without solver di
     ),
   );
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
@@ -700,7 +923,8 @@ test("disabling timelock does not bypass an unresolved root journal", async ({ p
     { key },
   );
   await openTimelock(page, VA);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(
@@ -750,7 +974,7 @@ test("the contract inspector also blocks an unresolved journal after timelock is
 test("legacy withdrawal remains available when browser storage is unavailable", async ({ page }) => {
   await mockDeployment(page, { unsupported: true });
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
   await page.evaluate(() => {
     Object.defineProperty(Storage.prototype, "length", {
       configurable: true,
@@ -765,6 +989,7 @@ test("legacy withdrawal remains available when browser storage is unavailable", 
       throw new Error("blocked");
     };
   });
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
@@ -785,7 +1010,8 @@ test("production opt-out with no history sends a normal withdrawal without reque
     ),
   );
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   const button = page.getByTestId("button-initiate-withdraw");
@@ -824,7 +1050,8 @@ test("staging opt-out still takes a shared owner lock for a normal withdrawal", 
     { layer },
   );
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   const button = page.getByTestId("button-initiate-withdraw");
@@ -858,8 +1085,8 @@ test("a temporary journal read failure recovers without refreshing", async ({ pa
   const mock = await mockDeployment(page, { configured: true });
   await enableTimelockSolver(page);
   await openTimelock(page, ROOT);
-  await page.getByTestId("tab-withdraw").click();
-  await page.getByTestId("timelock-indexing").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   const button = page.getByTestId("button-initiate-withdraw");
@@ -891,13 +1118,14 @@ test("a second tab cannot send a normal withdrawal while the owner timelock lock
   const mock = await mockDeployment(page, { unsupported: true });
   await page.addInitScript(({ historyKey }) => localStorage.setItem(historyKey, "1"), { historyKey });
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
   const second = await page.context().newPage();
   await mockDeployment(second, { unsupported: true });
-  await second.goto("/integration?flow=timelock", { waitUntil: "domcontentloaded" });
+  await second.goto("/contracts/timelock", { waitUntil: "domcontentloaded" });
   await second.evaluate(async (historyKey) => {
     let acquired!: () => void;
     const ready = new Promise<void>((resolve) => {
@@ -927,12 +1155,13 @@ test("a normal withdrawal is not blocked by another normal shared lock", async (
   const mock = await mockDeployment(page, { unsupported: true, mockSignature: true, mockWriteSuccess: true });
   await page.addInitScript(({ historyKey }) => localStorage.setItem(historyKey, "1"), { historyKey });
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   const second = await page.context().newPage();
   await mockDeployment(second, { unsupported: true });
-  await second.goto("/integration?flow=timelock", { waitUntil: "domcontentloaded" });
+  await second.goto("/contracts/timelock", { waitUntil: "domcontentloaded" });
   await second.evaluate(async (historyKey) => {
     let acquired!: () => void;
     const ready = new Promise<void>((resolve) => {
@@ -959,7 +1188,8 @@ test("a solver outage prepares the exact delayed withdrawal without sending an a
   const mock = await mockDeployment(page, { configured: true, unavailable: true, isolationType: 1 });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   const panel = page.getByTestId("timelock-schedule");
@@ -976,7 +1206,8 @@ test("a solver outage does not offer an expiring signed deallocation as a delaye
   await mockDeployment(page, { configured: true, unavailable: true, isolationType: 3 });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(page.getByText(/deallocation signature may expire during the waiting period/)).toBeVisible();
@@ -987,30 +1218,45 @@ test("an unlocked account can withdraw even when the solver advertises timelocks
   await mockDeployment(page, { configured: false });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
 });
 
-test("a partially locked withdrawal requires indexing acknowledgement only for its protected leg", async ({ page }) => {
+test("a partially locked withdrawal is available when its protected leg is configured", async ({ page }) => {
   await mockDeployment(page, { locked: ["initiateWithdraw"] });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
-  await expect(page.getByTestId("button-initiate-withdraw")).toBeDisabled();
-  await page.getByTestId("timelock-indexing").click();
   await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+});
+
+test("withdrawal policy errors link to timelock settings for the same account", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true, mockSignature: true, rejectApprovalCode: 3702 });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await page.getByTestId("button-initiate-withdraw").click();
+  const link = page.getByTestId("integration-withdraw-status").getByRole("link", { name: "Open timelock settings" });
+  await expect(link).toHaveAttribute("href", `/contracts/timelock?account=${ROOT}`);
+  expect(mock.writes.filter((item) => item === "approval")).toHaveLength(1);
+  expect(mock.writes.some((item) => item.startsWith("eth_send"))).toBe(false);
 });
 
 test("a definite solver rejection permits a later main-path withdrawal without scheduling", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, rejectApproval: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
-  await page.getByTestId("timelock-indexing").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   const button = page.getByTestId("button-initiate-withdraw");
@@ -1030,8 +1276,8 @@ test("approval outage offers delayed withdrawal only after reconciliation", asyn
   });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.getByTestId("tab-withdraw").click();
-  await page.getByTestId("timelock-indexing").click();
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
   await page.getByTestId("integration-withdraw-amount").fill("1");
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await page.getByTestId("button-initiate-withdraw").click();

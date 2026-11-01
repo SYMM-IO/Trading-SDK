@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@symmio/ui/lib/utils";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 /** How many card columns the group lays out once it is wide enough for them. */
 type Columns = 1 | 2 | 4;
@@ -19,6 +19,10 @@ interface Props {
    * `fullWidth` is shorthand for `1`.
    */
   columns?: Columns;
+  /** Initial visibility; defaults to open for existing Contracts pages. */
+  initiallyOpen?: boolean;
+  /** Open the group when a newly active recovery needs attention. */
+  expandOn?: boolean;
   /** Optional content rendered above the grid, inside the collapsible region — e.g. a shared input bar. */
   lead?: ReactNode;
   children: ReactNode;
@@ -43,8 +47,20 @@ const GRID_COLUMNS: Record<Columns, string> = {
  * viewport — and a card that needs the whole row spans every column it has,
  * so a `wide` card stays correct at any column count.
  */
-export function MethodGroup({ label, count, fullWidth = false, columns, lead, children }: Props) {
-  const [open, setOpen] = useState(true);
+export function MethodGroup({
+  label,
+  count,
+  fullWidth = false,
+  columns,
+  lead,
+  initiallyOpen = true,
+  expandOn = false,
+  children,
+}: Props) {
+  const [open, setOpen] = useState(initiallyOpen);
+  useEffect(() => {
+    if (expandOn) setOpen(true);
+  }, [expandOn]);
   const contentId = `methods-${label.toLowerCase().replace(/\s+/g, "-")}`;
   const layout: Columns = columns ?? (fullWidth ? 1 : 2);
 

@@ -8,8 +8,8 @@ import {
   useTimelockPolicy,
   useVirtualAccount,
 } from "@symmio/trading-react";
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
-import { zeroAddress, type Address } from "viem";
+import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { isAddressEqual, zeroAddress, type Address } from "viem";
 import {
   mayHaveTimelockRecovery,
   rememberTimelockHistory,
@@ -17,8 +17,14 @@ import {
   timelockHistoryKey,
 } from "./timelock-recovery";
 
-/** App-only readiness and indexing acknowledgement; protocol validation stays in the SDK. */
-export function useTimelockContext(account?: Address, solverId?: SolverId, owner?: Address) {
+/** App-only readiness; protocol validation stays in the SDK. */
+export function useTimelockContext(
+  account?: Address,
+  solverId?: SolverId,
+  owner?: Address,
+  resolveRootWithoutSolver = false,
+) {
+  const targetAccount = account && !isAddressEqual(account, zeroAddress) ? account : undefined;
   const config = useSymmioConfig();
   const chainId = useSymmioChainId();
   const solver = config.getSolver({ chainId, solverId });
@@ -40,43 +46,39 @@ export function useTimelockContext(account?: Address, solverId?: SolverId, owner
   const possibleRecovery = useSyncExternalStore(subscribeTimelockRecoveryChanged, getRecoverySnapshot, () => false);
   const checkRecovery = supportsInfo || possibleRecovery;
   const virtualAccount = useVirtualAccount({
-    account,
+    account: targetAccount,
     chainId,
-    query: { enabled: Boolean(account && checkRecovery), retry: false },
+    query: {
+      enabled: Boolean(targetAccount && !chainUnsupported && (checkRecovery || resolveRootWithoutSolver)),
+      retry: false,
+    },
   });
   const info = useSolverInfo({ chainId, solverId, query: { enabled: supportsInfo, staleTime: 0, retry: false } });
   const capability = info.data?.timelockApproval;
   const policy = useTimelockPolicy({
-    account: account ?? zeroAddress,
+    account: targetAccount ?? zeroAddress,
     chainId,
     solverId,
-    query: { enabled: Boolean(supportsInfo && account && capability), staleTime: 0, retry: false },
+    query: { enabled: Boolean(supportsInfo && targetAccount && capability), staleTime: 0, retry: false },
   });
-  const scope = `${config.getChainConfigKey(chainId)}:${solver.url}:${account?.toLowerCase()}`;
+  const scope = `${config.getChainConfigKey(chainId)}:${solver.url}:${targetAccount?.toLowerCase()}`;
   const rootAccount =
     policy.data?.rootAccount ??
     (virtualAccount.isSuccess
       ? virtualAccount.data?.isExists
         ? virtualAccount.data.parentAccount
-        : account
+        : targetAccount
       : undefined);
   const journalScope = rootAccount
     ? `v2:${chainId}:${config.getChainConfig(chainId).addresses.accountLayerAddress.toLowerCase()}:${rootAccount.toLowerCase()}`
     : undefined;
-  // An acknowledgement never carries to a different deployment, account or policy.
-  const fingerprint = JSON.stringify([scope, capability, policy.data], (_, value: unknown) =>
-    typeof value === "bigint" ? value.toString() : value,
-  );
-  const [indexedPolicy, setIndexedPolicy] = useState<string>();
-  const indexingAcknowledged = indexedPolicy === fingerprint;
   const unsupported = !supportsInfo || (info.isSuccess && !info.error && !capability);
-  const ready =
-    unsupported || Boolean(capability && policy.data?.ready && !policy.error && !info.error && indexingAcknowledged);
+  const ready = unsupported || Boolean(capability && policy.data?.ready && !policy.error && !info.error);
 
   return {
     config,
     chainId,
-    account,
+    account: targetAccount,
     rootAccount,
     solverId,
     scope,
@@ -90,8 +92,6 @@ export function useTimelockContext(account?: Address, solverId?: SolverId, owner
     chainUnsupported,
     unsupported,
     ready,
-    indexingAcknowledged,
-    acknowledgeIndexing: (checked: boolean) => setIndexedPolicy(checked ? fingerprint : undefined),
   };
 }
 

@@ -10,7 +10,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
-import { isAddress, parseUnits, type Address } from "viem";
+import { isAddress, isAddressEqual, parseUnits, zeroAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
@@ -24,7 +24,7 @@ export function WriteAllocate() {
   const [account, setAccount] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
 
-  const validAccount = isAddress(account) ? (account as Address) : undefined;
+  const validAccount = isAddress(account) && !isAddressEqual(account, zeroAddress) ? (account as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
   const protection = useProtectedWrite(
     validAccount,
@@ -133,12 +133,12 @@ export function WriteAllocate() {
       />
 
       <ProtectedWriteNotice protection={protection} />
-      <WritePanel mutation={mutation} />
+      <WritePanel mutation={mutation} account={validAccount} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useAllocate> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useAllocate>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-allocate-pending" loading>
@@ -147,7 +147,15 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useAllocate> }) 
     );
   }
   if (mutation.error) {
-    return <ResultError testId="result-allocate-error" kind={mutation.error.kind} message={mutation.error.message} />;
+    return (
+      <ResultError
+        testId="result-allocate-error"
+        kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
+        message={mutation.error.message}
+      />
+    );
   }
   if (mutation.isSuccess) {
     return (

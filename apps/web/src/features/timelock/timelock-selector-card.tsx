@@ -28,7 +28,7 @@ export function TimelockSelectorCard({
   const [selector, setSelector] = useState("");
   const [localError, setLocalError] = useState<string>();
   const valid = /^0x[\da-fA-F]{8}$/.test(selector);
-  const account = context.policy.data!.rootAccount;
+  const account = context.rootAccount!;
   const wallet = useWalletAccount();
   const root = useSubAccount({ account, chainId: context.chainId });
   const policy = useSelectorTimelock({
@@ -83,7 +83,6 @@ export function TimelockSelectorCard({
             await withTimelockAttemptLock(storageKey, async () => {
               saveRecovery(JSON.stringify({ kind: "clear-selector-policy", account, selector }));
               ownsRecord = true;
-              context.acknowledgeIndexing(false);
               const result = await clear.mutateAsync({
                 account,
                 chainId: context.chainId,

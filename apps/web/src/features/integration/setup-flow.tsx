@@ -14,6 +14,7 @@ import {
   useUserSubAccounts,
   type UseCollateralBalanceReturnType,
 } from "@symmio/trading-react";
+import { Button } from "@symmio/ui/components/button";
 import { shortenAddress } from "@symmio/utils";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { zeroAddress, type Address } from "viem";
@@ -70,6 +71,7 @@ export function SetupFlow({
   const [chosenTrack, setChosenTrack] = useState<SetupTrack>();
   const [step, setStep] = useState(0);
   const [withdraw, setWithdraw] = useState(false);
+  const [skippedTimelockScope, setSkippedTimelockScope] = useState<string>();
 
   /**
    * The relayer tracks are unreachable without a relayer, so a chain switch can
@@ -111,6 +113,9 @@ export function SetupFlow({
 
   const fundedBalance = (available.data ?? 0n) + (balanceInfo.data?.allocatedBalance ?? 0n);
 
+  const timelockConfigured = !timelock.unsupported && timelock.ready;
+  const timelockSkipped = skippedTimelockScope === timelock.scope;
+
   const done: Readonly<Record<SetupStepId, boolean>> = {
     connect: ready,
     account: Boolean(subAccount),
@@ -118,6 +123,7 @@ export function SetupFlow({
     "fee-allowance": (allowance.data?.allowance ?? 0n) > 0n,
     "session-key": sessionKeyReady,
     delegation: delegation.isReady,
+    timelock: timelockConfigured || timelockSkipped,
     /** The terminus is reached, never "done" — nothing follows it to unlock. */
     ready: false,
   };
@@ -133,10 +139,11 @@ export function SetupFlow({
     delegation: delegation.isReady
       ? "Granted"
       : `${delegation.missingSelectors.length} of ${delegation.requiredSelectors.length} missing`,
+    timelock: timelockConfigured ? "Configured" : timelockSkipped ? "Skipped" : "Optional trading protection",
     ready: "Start trading",
   };
 
-  const stepIds = getSetupStepIds(track);
+  const stepIds = getSetupStepIds(track, true);
 
   /**
    * A step is reachable once every step before it is done. The order is not
@@ -157,7 +164,7 @@ export function SetupFlow({
   const completedByTrack = Object.fromEntries(
     SETUP_TRACKS.map((info) => [
       info.value,
-      getSetupStepIds(info.value).filter((id) => id !== "ready" && done[id]).length,
+      getSetupStepIds(info.value, true).filter((id) => id !== "ready" && done[id]).length,
     ]),
   ) as Record<SetupTrack, number>;
 
@@ -183,6 +190,7 @@ export function SetupFlow({
         }}
         relayerAvailable={relayerAvailable}
         completedByTrack={completedByTrack}
+        includeTimelock
       />
 
       <FlowLayout steps={steps} current={current} maxReachable={maxReachable} onStepClick={setStep}>
@@ -217,12 +225,18 @@ export function SetupFlow({
             onWithdrawChange={setWithdraw}
             hasSessionKey={sessionKeyReady}
           />
+        ) : activeStep === "timelock" ? (
+          <div className="flex flex-col gap-4">
+            <TimelockPolicyPanel key={timelock.scope} context={timelock} compact />
+            <Button variant="outline" onClick={() => setSkippedTimelockScope(timelock.scope)}>
+              Skip for now
+            </Button>
+          </div>
         ) : activeStep === "ready" ? (
           <>
-            {!timelock.unsupported ? <TimelockPolicyPanel key={timelock.scope} context={timelock} /> : null}
             <SetupReadyStep
               track={track}
-              complete={timelock.ready && stepIds.every((id) => id === "ready" || done[id])}
+              complete={stepIds.every((id) => id === "ready" || done[id])}
               onStartTrading={onStartTrading}
             />
           </>

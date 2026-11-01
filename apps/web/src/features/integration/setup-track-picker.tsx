@@ -11,6 +11,7 @@ interface Props {
   relayerAvailable: boolean;
   /** How many of the chosen track's prerequisites are already met, keyed by track. */
   completedByTrack: Readonly<Record<SetupTrack, number>>;
+  includeTimelock: boolean;
 }
 
 /**
@@ -24,7 +25,7 @@ interface Props {
  * adds, with progress carried across so switching tracks never looks like
  * starting over.
  */
-export function SetupTrackPicker({ value, onChange, relayerAvailable, completedByTrack }: Props) {
+export function SetupTrackPicker({ value, onChange, relayerAvailable, completedByTrack, includeTimelock }: Props) {
   return (
     <div
       role="radiogroup"
@@ -35,7 +36,7 @@ export function SetupTrackPicker({ value, onChange, relayerAvailable, completedB
         const blocked = track.needsRelayer && !relayerAvailable;
         const active = track.value === value;
         /** The terminus is not a prerequisite, so it never counts toward the total. */
-        const total = getSetupStepIds(track.value).length - 1;
+        const total = getSetupStepIds(track.value, includeTimelock).length - 1;
         const done = completedByTrack[track.value];
 
         return (

@@ -187,7 +187,7 @@ export function TimelockSchedulePanel({
       </Field>
       <Label className="items-start">
         <Checkbox checked={unavailable} onCheckedChange={(checked) => setUnavailable(checked === true)} />
-        <span>The approval service is unavailable, and I have reconciled any earlier attempt.</span>
+        <span>I have reconciled any earlier approval or transaction for this operation.</span>
       </Label>
       {validRaw && validInner && !matches ? (
         <ResultError message="Execution calldata does not match the selected account and scheduled raw call." />

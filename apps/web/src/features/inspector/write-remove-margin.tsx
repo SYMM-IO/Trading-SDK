@@ -17,7 +17,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
-import { isAddress, parseUnits, type Address } from "viem";
+import { isAddress, isAddressEqual, parseUnits, zeroAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
@@ -31,7 +31,8 @@ export function WriteRemoveMargin() {
   const [virtualAccount, setVirtualAccount] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
 
-  const validVa = isAddress(virtualAccount) ? (virtualAccount as Address) : undefined;
+  const validVa =
+    isAddress(virtualAccount) && !isAddressEqual(virtualAccount, zeroAddress) ? (virtualAccount as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
   const protection = useProtectedWrite(validVa, owner, "removeMargin");
   const canSubmit = isConnected && isOnExpectedChain && validVa && validAmount !== undefined;
@@ -154,12 +155,12 @@ export function WriteRemoveMargin() {
       />
 
       <ProtectedWriteNotice protection={protection} />
-      <WritePanel mutation={mutation} />
+      <WritePanel mutation={mutation} account={validVa} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useRemoveMargin> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useRemoveMargin>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-removeMargin-pending" loading>
@@ -169,7 +170,13 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useRemoveMargin>
   }
   if (mutation.error) {
     return (
-      <ResultError testId="result-removeMargin-error" kind={mutation.error.kind} message={mutation.error.message} />
+      <ResultError
+        testId="result-removeMargin-error"
+        kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
+        message={mutation.error.message}
+      />
     );
   }
   if (mutation.isSuccess) {

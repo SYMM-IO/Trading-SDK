@@ -10,7 +10,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
-import { isAddress, parseUnits, type Address } from "viem";
+import { isAddress, isAddressEqual, parseUnits, zeroAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
@@ -24,7 +24,8 @@ export function WriteAddMargin() {
   const [virtualAccount, setVirtualAccount] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
 
-  const validVa = isAddress(virtualAccount) ? (virtualAccount as Address) : undefined;
+  const validVa =
+    isAddress(virtualAccount) && !isAddressEqual(virtualAccount, zeroAddress) ? (virtualAccount as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
   const protection = useProtectedWrite(
     validVa,
@@ -136,12 +137,12 @@ export function WriteAddMargin() {
       />
 
       <ProtectedWriteNotice protection={protection} />
-      <WritePanel mutation={mutation} />
+      <WritePanel mutation={mutation} account={validVa} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useAddMargin> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useAddMargin>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-addMargin-pending" loading>
@@ -150,7 +151,15 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useAddMargin> })
     );
   }
   if (mutation.error) {
-    return <ResultError testId="result-addMargin-error" kind={mutation.error.kind} message={mutation.error.message} />;
+    return (
+      <ResultError
+        testId="result-addMargin-error"
+        kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
+        message={mutation.error.message}
+      />
+    );
   }
   if (mutation.isSuccess) {
     return (
