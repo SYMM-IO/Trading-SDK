@@ -612,9 +612,14 @@ test("clearing a picked selector sends the selected selector", async ({ page }) 
   if ((await relay.getAttribute("aria-checked")) === "true") await relay.click();
   await card.getByRole("button", { name: "Browse timelock selectors" }).click();
   await page.getByTestId("timelock-selector-list-select").filter({ hasText: "withdrawTo" }).click();
-  page.once("dialog", (dialog) => void dialog.accept());
+  let dialogOpened = false;
+  page.once("dialog", (dialog) => {
+    dialogOpened = true;
+    void dialog.dismiss();
+  });
   await card.getByRole("button", { name: "Clear selector policy" }).click();
   await expect.poll(() => mock.writeData.length).toBe(1);
+  expect(dialogOpened).toBe(false);
   const transaction = decodeFunctionData({ abi: accountLayerAbi, data: mock.writeData[0]! });
   expect(transaction.functionName).toBe("clearTimelocks");
   if (transaction.functionName !== "clearTimelocks") throw new Error("Unexpected transaction");

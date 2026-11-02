@@ -103,7 +103,7 @@ export function TimelockSelectorCard({
           clear.isPending
         }
         onClick={async () => {
-          if (!valid || !window.confirm("Clear this selector's policy? This can invalidate pending schedules.")) return;
+          if (!valid) return;
           setLocalError(undefined);
           onBusyChange(true);
           let ownsRecord = false;
