@@ -18,7 +18,11 @@ import { Button } from "@symmio/ui/components/button";
 import { Textarea } from "@symmio/ui/components/textarea";
 import { useEffect, useState } from "react";
 import { isAddressEqual, type Hex } from "viem";
-import { readScheduledRecovery, recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
+import {
+  isDefiniteGaslessSimulationRejection,
+  readScheduledRecovery,
+  withTimelockAttemptLock,
+} from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
 function formatCooldown(seconds: bigint): string {
@@ -152,18 +156,8 @@ export function TimelockSchedulePanel({
         recovery,
       );
     } catch (error) {
-      let definiteSimulationRejection = false;
-      if (guidedPolicyClear && !recoveryTransactionHash(error)) {
-        let current: unknown = error;
-        for (let depth = 0; depth < 8 && current && typeof current === "object"; depth++) {
-          const item = current as { status?: unknown; cause?: unknown };
-          if (item.status === 400 && parseGaslessErrorDetail(current)?.code === "SIMULATION_REVERTED") {
-            definiteSimulationRejection = true;
-            break;
-          }
-          current = item.cause;
-        }
-      }
+      const definiteSimulationRejection =
+        guidedPolicyClear && isDefiniteGaslessSimulationRejection(error, parseGaslessErrorDetail);
       if (
         ownsRecord &&
         ((error && typeof error === "object" && "kind" in error && error.kind === "user-rejected") ||

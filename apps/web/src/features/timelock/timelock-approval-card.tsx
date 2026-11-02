@@ -7,7 +7,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { useEffect, useRef, useState } from "react";
 import { isHex, type Address, type Hex } from "viem";
-import { withTimelockAttemptLock } from "./timelock-recovery";
+import { isDefiniteApprovalRejection, readTimelockRecovery, withTimelockAttemptLock } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
 interface Props {
@@ -45,22 +45,36 @@ export function TimelockApprovalCard({ account, context, recovery, storageKey, s
     onBusyChange(true);
     try {
       await withTimelockAttemptLock(storageKey, async () => {
-        saveRecovery("An approval request is being prepared. Reconcile its outcome before trying again.");
-        const block = await context.config.getClient({ chainId: context.chainId }).getBlock();
-        if (!alive.current) throw new Error("Account changed before the approval request.");
-        const approval = await request.mutateAsync({
-          account,
-          rootAccount: root,
-          chainId: context.chainId,
-          capability,
-          provider,
-          callData: raw as Hex,
-          deadline: block.timestamp + 300n,
-        });
-        saveRecovery(
-          JSON.stringify(approval, (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value), 2),
-        );
-        if (alive.current) setSaved(true);
+        const preparing = "An approval request is being prepared. Reconcile its outcome before trying again.";
+        saveRecovery(preparing);
+        let requestStarted = false;
+        try {
+          const block = await context.config.getClient({ chainId: context.chainId }).getBlock();
+          if (!alive.current) throw new Error("Account changed before the approval request.");
+          requestStarted = true;
+          const approval = await request.mutateAsync({
+            account,
+            rootAccount: root,
+            chainId: context.chainId,
+            capability,
+            provider,
+            callData: raw as Hex,
+            deadline: block.timestamp + 300n,
+          });
+          saveRecovery(
+            JSON.stringify(approval, (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value), 2),
+          );
+          if (alive.current) setSaved(true);
+        } catch (failure) {
+          if (
+            (!requestStarted ||
+              isDefiniteApprovalRejection(failure) ||
+              (failure && typeof failure === "object" && "kind" in failure && failure.kind === "user-rejected")) &&
+            readTimelockRecovery(storageKey) === preparing
+          )
+            saveRecovery(null);
+          throw failure;
+        }
       });
     } catch (failure) {
       if (alive.current) setError(failure instanceof Error ? failure.message : String(failure));

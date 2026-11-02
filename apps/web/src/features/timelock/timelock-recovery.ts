@@ -165,6 +165,36 @@ export function recoveryTransactionHash(error: unknown): string | undefined {
   return undefined;
 }
 
+/** Only documented responses that explicitly reject approval before issuance are definitive. */
+export function isDefiniteApprovalRejection(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "api") return false;
+  if (!("status" in error) || !("timelock" in error) || !error.timelock || typeof error.timelock !== "object")
+    return false;
+  if (!("knownCode" in error.timelock)) return false;
+  const code = error.timelock.knownCode;
+  return (
+    (error.status === 400 &&
+      (code === 3700 || code === 3701 || code === 3702 || code === 3703 || code === 3704 || code === 3710)) ||
+    (error.status === 429 && code === 3705) ||
+    (error.status === 403 && code === 3709)
+  );
+}
+
+/** A rejected relay simulation with no transaction hash did not submit a transaction. */
+export function isDefiniteGaslessSimulationRejection(
+  error: unknown,
+  parseDetail: (value: unknown) => { code: string | null } | null,
+): boolean {
+  if (recoveryTransactionHash(error)) return false;
+  let current: unknown = error;
+  for (let depth = 0; depth < 8 && current && typeof current === "object"; depth++) {
+    const item = current as { status?: unknown; cause?: unknown };
+    if (item.status === 400 && parseDetail(current)?.code === "SIMULATION_REVERTED") return true;
+    current = item.cause;
+  }
+  return false;
+}
+
 /** Serialize fresh approval attempts across browser tabs for one account scope. */
 export async function withTimelockAttemptLock<T>(
   key: string,

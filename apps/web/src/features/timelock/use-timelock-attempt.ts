@@ -8,6 +8,7 @@ import type { Address } from "viem";
 import {
   clearReviewedTimelockRecovery,
   hasTimelockHistory,
+  isDefiniteApprovalRejection,
   mayHaveTimelockRecovery,
   notifyTimelockRecoveryChanged,
   readTimelockRecovery,
@@ -204,15 +205,7 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
           if (
             saved.current.get(key) === marker &&
             readTimelockRecovery(key) === marker &&
-            failure &&
-            typeof failure === "object" &&
-            "kind" in failure &&
-            failure.kind === "api" &&
-            "timelock" in failure &&
-            failure.timelock &&
-            typeof failure.timelock === "object" &&
-            "knownCode" in failure.timelock &&
-            (failure.timelock.knownCode === 3703 || failure.timelock.knownCode === 3704)
+            isDefiniteApprovalRejection(failure)
           )
             save(null);
           else if (isUnavailableApproval(failure)) {

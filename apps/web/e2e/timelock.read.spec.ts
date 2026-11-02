@@ -12,7 +12,10 @@ import {
   type Hex,
 } from "viem";
 import { getSessionKeyBlockedReason } from "../src/features/gasless/session-key-write-policy";
-import { readScheduledRecovery } from "../src/features/timelock/timelock-recovery";
+import {
+  isDefiniteGaslessSimulationRejection,
+  readScheduledRecovery,
+} from "../src/features/timelock/timelock-recovery";
 
 const OWNER = "0x0AF32c77e9431c8a618E821a719A5cdA9D703F67";
 const ROOT = "0x1111111111111111111111111111111111111111";
@@ -46,6 +49,30 @@ test("schedule recovery preserves the original account and accepts legacy record
   expect(readScheduledRecovery(JSON.stringify({ ...legacy, originalAccount: "not-an-account" }))).toBeUndefined();
 });
 
+test("only a definite unsubmitted simulation rejection clears the recovery guard", async () => {
+  const { SymmApiError, parseGaslessErrorDetail } = await import("@symmio/trading-react");
+  const rejection = new SymmApiError({
+    code: "GASLESS_RELAY_SUBMIT_FAILED",
+    message: "Simulation rejected",
+    status: 400,
+    statusText: "Bad Request",
+    url: "https://gasless.test",
+    method: "POST",
+    responseData: { detail: { code: "SIMULATION_REVERTED", message: "reverted" } },
+  });
+  expect(isDefiniteGaslessSimulationRejection({ cause: rejection }, parseGaslessErrorDetail)).toBe(true);
+  expect(
+    isDefiniteGaslessSimulationRejection({ hash: `0x${"12".repeat(32)}`, cause: rejection }, parseGaslessErrorDetail),
+  ).toBe(false);
+  expect(isDefiniteGaslessSimulationRejection({ status: 0 }, parseGaslessErrorDetail)).toBe(false);
+  expect(
+    isDefiniteGaslessSimulationRejection(
+      { status: 400, responseData: { detail: { code: "OTHER" } } },
+      parseGaslessErrorDetail,
+    ),
+  ).toBe(false);
+});
+
 /** Deterministic read fixtures: every external HTTP request is intercepted; no real writes are possible. */
 async function mockDeployment(
   page: Page,
@@ -54,6 +81,7 @@ async function mockDeployment(
     unavailable?: boolean;
     unsupported?: boolean;
     mockSignature?: boolean;
+    rejectSignature?: boolean;
     mockWriteSuccess?: boolean;
     rejectWrites?: boolean;
     rejectApproval?: boolean;
@@ -214,6 +242,10 @@ async function mockDeployment(
     function rpc(entry: { id: number; method: string; params?: [{ data?: Hex }] }) {
       try {
         let result: unknown = "0x0";
+        if (entry.method.startsWith("eth_sign") && options.rejectSignature) {
+          writes.push(entry.method);
+          return { jsonrpc: "2.0", id: entry.id, error: { code: 4001, message: "User rejected the request" } };
+        }
         if (entry.method.startsWith("eth_sign") && options.mockSignature) {
           writes.push(entry.method);
           return { jsonrpc: "2.0", id: entry.id, result: `0x${"11".repeat(64)}1b` };
@@ -1036,6 +1068,50 @@ test("an approval can be requested without sending a transaction", async ({ page
   await expect(card.getByText("Approval issued and saved for reconciliation.")).toBeVisible();
   expect(mock.writes.filter((entry) => entry === "approval")).toHaveLength(1);
   expect(mock.writes.some((entry) => entry.startsWith("eth_send"))).toBe(false);
+});
+
+test("a definite approval rejection clears only its pending record", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true, mockSignature: true, rejectApprovalCode: 3700 });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.locator("#timelock-request-data").fill("0x12345678");
+  const card = page.getByTestId("timelock-request-approval");
+  const button = card.getByRole("button", { name: "Request approval", exact: true });
+  await button.click();
+  await expect(card.getByRole("alert")).toBeVisible();
+  await expect(page.getByText("An earlier attempt needs reconciliation.", { exact: false })).toHaveCount(0);
+  await expect(button).toBeEnabled();
+  expect(mock.writes.filter((item) => item === "approval")).toHaveLength(1);
+});
+
+test("an unknown standalone approval outcome remains blocked after reload", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true, mockSignature: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.locator("#timelock-request-data").fill("0x12345678");
+  await page
+    .getByTestId("timelock-request-approval")
+    .getByRole("button", { name: "Request approval", exact: true })
+    .click();
+  await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(1);
+  await expect(page.getByText("An earlier attempt needs reconciliation.", { exact: false })).toBeVisible();
+  await openTimelock(page);
+  await expect(page.getByText("An earlier attempt needs reconciliation.", { exact: false })).toBeVisible();
+  expect(mock.writes.filter((item) => item === "approval")).toHaveLength(1);
+});
+
+test("rejecting the approval signature clears the pending request", async ({ page }) => {
+  const mock = await mockDeployment(page, { configured: true, rejectSignature: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await page.locator("#timelock-request-data").fill("0x12345678");
+  const card = page.getByTestId("timelock-request-approval");
+  const button = card.getByRole("button", { name: "Request approval", exact: true });
+  await button.click();
+  await expect(card.getByRole("alert")).toBeVisible();
+  await expect(page.getByText("An earlier attempt needs reconciliation.", { exact: false })).toHaveCount(0);
+  await expect(button).toBeEnabled();
+  expect(mock.writes.filter((item) => item === "approval")).toHaveLength(0);
 });
 
 test("a protected named batch sends both calls in one transaction", async ({ page }) => {
