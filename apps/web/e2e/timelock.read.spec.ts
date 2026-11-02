@@ -496,7 +496,7 @@ test("selector policy can be inspected without solver metadata", async ({ page }
   const mock = await mockDeployment(page, { unsupported: true, configured: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.locator("#timelock-selector-input").fill("0x12345678");
+  await page.locator("#timelock-selector-field").fill("0x12345678");
   await expect(page.getByTestId("timelock-selector")).toContainText("delay: 300 seconds");
   expect(mock.writes).toEqual([]);
 });
@@ -579,9 +579,46 @@ test("a selector policy can be inspected without signing", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
-  await page.locator("#timelock-selector-input").fill("0x12345678");
+  await page.locator("#timelock-selector-field").fill("0x12345678");
   await expect(page.getByTestId("timelock-selector")).toContainText("delay: 300 seconds");
   expect(mock.writes).toEqual([]);
+});
+
+test("timelock selector picker preserves manual selector inspection", async ({ page }) => {
+  const { INSTANT_OPEN_TIMELOCK_SELECTORS } = await import("@symmio/trading-core");
+  const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const selector = page.getByTestId("timelock-selector");
+  await selector.getByRole("button", { name: "Browse timelock selectors" }).click();
+  const choices = page.getByTestId("timelock-selector-list-select");
+  await expect(choices).toHaveCount(22);
+  await choices.filter({ hasText: "withdrawTo" }).click();
+  await expect(selector.getByTestId("timelock-selector-field")).toHaveValue(INSTANT_OPEN_TIMELOCK_SELECTORS[1]!);
+  await expect(selector).toContainText("delay: 300 seconds");
+  await selector.getByTestId("timelock-selector-field").fill("0x12345678");
+  await expect(selector.getByTestId("timelock-selector-field")).toHaveValue("0x12345678");
+  await expect(selector).toContainText("delay: 300 seconds");
+  expect(mock.writes).toEqual([]);
+});
+
+test("clearing a picked selector sends the selected selector", async ({ page }) => {
+  const { accountLayerAbi, INSTANT_OPEN_TIMELOCK_SELECTORS } = await import("@symmio/trading-core");
+  const mock = await mockDeployment(page, { configured: true, mockWriteSuccess: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const card = page.getByTestId("timelock-selector-policy-card");
+  const relay = card.getByTestId("gasless-toggle-clearTimelocks");
+  if ((await relay.getAttribute("aria-checked")) === "true") await relay.click();
+  await card.getByRole("button", { name: "Browse timelock selectors" }).click();
+  await page.getByTestId("timelock-selector-list-select").filter({ hasText: "withdrawTo" }).click();
+  page.once("dialog", (dialog) => void dialog.accept());
+  await card.getByRole("button", { name: "Clear selector policy" }).click();
+  await expect.poll(() => mock.writeData.length).toBe(1);
+  const transaction = decodeFunctionData({ abi: accountLayerAbi, data: mock.writeData[0]! });
+  expect(transaction.functionName).toBe("clearTimelocks");
+  if (transaction.functionName !== "clearTimelocks") throw new Error("Unexpected transaction");
+  expect(transaction.args[1]).toEqual([INSTANT_OPEN_TIMELOCK_SELECTORS[1]]);
 });
 
 test("on-chain policy enables withdrawal, and a raised minimum disables it again", async ({ page }, testInfo) => {

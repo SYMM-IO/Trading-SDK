@@ -4,11 +4,18 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
-import { useClearTimelocks, useSelectorTimelock, useSubAccount, useWalletAccount } from "@symmio/trading-react";
+import { SelectorIcon } from "@/features/inspector/instant-layer-icons";
+import {
+  useClearTimelocks,
+  useProtectedFunctionCatalog,
+  useSelectorTimelock,
+  useSubAccount,
+  useWalletAccount,
+} from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
-import { Input } from "@symmio/ui/components/input";
+import { Combobox } from "@symmio/ui/components/combobox";
 import { useState } from "react";
-import { isAddressEqual, type Hex } from "viem";
+import { isAddressEqual, toFunctionSelector, type Hex } from "viem";
 import { recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
@@ -27,6 +34,18 @@ export function TimelockSelectorCard({
   onBusyChange: (busy: boolean) => void;
 }) {
   const [selector, setSelector] = useState("");
+  const catalog = useProtectedFunctionCatalog();
+  const selectorItems = catalog.map((item) => ({
+    id: toFunctionSelector({
+      type: "function",
+      name: item.name,
+      inputs: item.inputs,
+      outputs: [],
+      stateMutability: "nonpayable",
+    }),
+    title: item.name,
+    meta: item.target,
+  }));
   const [localError, setLocalError] = useState<string>();
   const valid = /^0x[\da-fA-F]{8}$/.test(selector);
   const account = context.rootAccount!;
@@ -47,13 +66,20 @@ export function TimelockSelectorCard({
       <h3 className="text-sm font-medium">Inspect or clear a selector policy</h3>
       <Field
         label="Function selector"
-        htmlFor="timelock-selector-input"
+        htmlFor="timelock-selector-field"
         hint="Four-byte selector, for example 0x12345678."
       >
-        <Input
-          id="timelock-selector-input"
+        <Combobox
+          idPrefix="timelock-selector"
           value={selector}
-          onChange={(event) => setSelector(event.target.value.trim())}
+          onValueChange={(value) => setSelector(value.trim())}
+          onSelect={(item) => setSelector(item.id)}
+          items={selectorItems}
+          placeholder="0x12345678"
+          mono
+          invalid={selector.length > 0 && !valid}
+          triggerIcon={<SelectorIcon />}
+          triggerLabel="Browse timelock selectors"
         />
       </Field>
       {policy.data && valid ? (
