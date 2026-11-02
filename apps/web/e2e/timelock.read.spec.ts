@@ -11,12 +11,30 @@ import {
   type AbiParameter,
   type Hex,
 } from "viem";
+import { getSessionKeyBlockedReason } from "../src/features/gasless/session-key-write-policy";
 import { readScheduledRecovery } from "../src/features/timelock/timelock-recovery";
 
 const OWNER = "0x0AF32c77e9431c8a618E821a719A5cdA9D703F67";
 const ROOT = "0x1111111111111111111111111111111111111111";
 const VA = "0x2222222222222222222222222222222222222222";
 const UNLOCKER = "0x3333333333333333333333333333333333333333";
+
+test("standard session-key grants do not expose unsupported timelock writes", () => {
+  for (const method of [
+    "setupTimelocks",
+    "clearTimelocks",
+    "earlyWithdraw",
+    "timelockScheduleRecovery",
+    "timelockProtectedCall",
+    "timelockProtectedBatch",
+    "timelockAccount:allocate",
+    "timelockAccount:deleteSubAccount",
+    "timelockNamed:withdraw",
+  ])
+    expect(getSessionKeyBlockedReason(method), method).toBeTruthy();
+  expect(getSessionKeyBlockedReason("timelockAccount:addMargin")).toBeUndefined();
+  expect(getSessionKeyBlockedReason("timelockNamed:removeMargin")).toBeUndefined();
+});
 
 test("schedule recovery preserves the original account and accepts legacy records", async () => {
   const legacy = { kind: "scheduled-operation", confirmed: true, callData: "0x12345678", innerCallData: "0x12345678" };
@@ -507,6 +525,54 @@ test("a rejected setup can be retried without a refresh", async ({ page }) => {
   expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toHaveLength(1);
   await button.click();
   await expect.poll(() => mock.writes.filter((method) => method.startsWith("eth_send")).length).toBe(2);
+});
+
+test("policy card uses its gasless control for the setup transaction", async ({ page }) => {
+  const { accountLayerAbi } = await import("@symmio/trading-core");
+  const mock = await mockDeployment(page, { mockWriteSuccess: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const card = page.getByTestId("timelock-policy-card");
+  const relay = card.getByTestId("gasless-toggle-setupTimelocks");
+  await expect(relay).toBeVisible();
+  if ((await relay.getAttribute("aria-checked")) === "true") await relay.click();
+  await expect(relay).toHaveAttribute("aria-checked", "false");
+  await card.getByTestId("timelock-setup").click();
+  await expect.poll(() => mock.writeData.length).toBe(1);
+  expect(decodeFunctionData({ abi: accountLayerAbi, data: mock.writeData[0]! }).functionName).toBe("setupTimelocks");
+});
+
+test("timelock write controls follow the selected operation", async ({ page }) => {
+  await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await expect(
+    page.getByTestId("timelock-direct-setup-card").getByTestId("gasless-toggle-setupTimelocks"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("timelock-selector-policy-card").getByTestId("gasless-toggle-clearTimelocks"),
+  ).toBeVisible();
+  await expect(page.getByTestId("timelock-withdrawal-card").getByTestId("gasless-toggle-earlyWithdraw")).toBeVisible();
+  await expect(
+    page.getByTestId("timelock-protected-call-card").getByTestId("gasless-toggle-timelockProtectedCall"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("timelock-batch-card").getByTestId("gasless-toggle-timelockProtectedBatch"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("timelock-delayed-recovery-card").getByTestId("gasless-toggle-timelockScheduleRecovery"),
+  ).toBeVisible();
+  await expect(page.getByTestId("timelock-approval-card").getByTestId(/gasless-toggle-/)).toHaveCount(0);
+  const actions = page.getByTestId("timelock-account-actions-card");
+  await expect(actions.getByTestId("gasless-toggle-timelockAccount:addMargin")).toBeVisible();
+  await actions.getByRole("combobox", { name: "Protected action" }).click();
+  await page.getByRole("option", { name: "removeMargin" }).click();
+  await expect(actions.getByTestId("gasless-toggle-timelockAccount:removeMargin")).toBeVisible();
+  const named = page.getByTestId("timelock-function-card");
+  await expect(named.getByTestId("gasless-toggle-timelockNamed:withdraw")).toBeVisible();
+  await named.getByRole("combobox", { name: "Protected function" }).click();
+  await page.getByRole("option", { name: "core · allocate" }).click();
+  await expect(named.getByTestId("gasless-toggle-timelockNamed:allocate")).toBeVisible();
 });
 
 test("a selector policy can be inspected without signing", async ({ page }) => {

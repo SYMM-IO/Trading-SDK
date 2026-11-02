@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import {
   useProtectedFunctionCatalog,
   useSelectorTimelock,
@@ -36,6 +37,7 @@ export function TimelockManualSetup({
   const account = context.rootAccount!;
   const root = useSubAccount({ account, chainId: context.chainId });
   const setup = useSetupTimelocks();
+  const write = useGaslessWriteOption("setupTimelocks");
   const [unlocker, setUnlocker] = useState("");
   const [delay, setDelay] = useState("");
   const [error, setError] = useState<string>();
@@ -95,7 +97,7 @@ export function TimelockManualSetup({
           account,
           chainId: context.chainId,
           from: wallet.address,
-          gasless: false,
+          ...write,
           unlocker,
           delay: BigInt(delay),
           selectors: missingSelectors,
@@ -176,7 +178,7 @@ export function TimelockManualSetup({
       </Field>
       <ResultNote>
         The contract minimum is checked before submission. Changing an existing policy may require authorization or a
-        mature schedule. This action uses the owner wallet and native gas.
+        mature schedule. Select a supported signing and gasless mode in the card header.
       </ResultNote>
       {!checked ? <ResultNote loading>Checking existing selector policies…</ResultNote> : null}
       {existingPolicy ? (

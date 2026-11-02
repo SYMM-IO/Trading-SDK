@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import {
   useCancelTimelockOp,
   useExecuteTimelockOp,
@@ -30,6 +31,7 @@ export function TimelockSchedulePanel({
   storageKey,
   initialCallData,
   initialInnerCallData,
+  cardWriteMode = false,
 }: {
   context: TimelockContext;
   recovery: string | null;
@@ -38,6 +40,7 @@ export function TimelockSchedulePanel({
   storageKey: string;
   initialCallData?: Hex;
   initialInnerCallData?: Hex;
+  cardWriteMode?: boolean;
 }) {
   const saved = readScheduledRecovery(recovery);
   const [rawInput, setRaw] = useState(initialCallData ?? "");
@@ -61,6 +64,7 @@ export function TimelockSchedulePanel({
   const schedule = useScheduleTimelockOp();
   const cancel = useCancelTimelockOp();
   const execute = useExecuteTimelockOp();
+  const cardWrite = useGaslessWriteOption("timelockScheduleRecovery");
   const state = useTimelockScheduleState({
     account,
     chainId: context.chainId,
@@ -78,7 +82,12 @@ export function TimelockSchedulePanel({
     (hasSchedule && readyAt != null && expiresAt != null && now !== undefined && now >= readyAt && now <= expiresAt);
   const expired = expiresAt != null && now !== undefined && now > expiresAt;
   const error = state.error ?? schedule.error ?? cancel.error ?? execute.error;
-  const write = { account, chainId: context.chainId, from: wallet.address, gasless: false as const };
+  const write = {
+    account,
+    chainId: context.chainId,
+    from: wallet.address,
+    ...(cardWriteMode ? cardWrite : { gasless: false as const }),
+  };
 
   async function submit(action: "schedule" | "cancel" | "execute") {
     if (!canWrite || !validRaw || (action !== "cancel" && (!validInner || !matches))) return;

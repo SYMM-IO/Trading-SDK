@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess, ResultWarning } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { AmountField } from "@/features/integration/amount-field";
 import { parseAmount } from "@/features/integration/parse-amount";
 import type { EarlyWithdrawalCall } from "@symmio/trading-core";
@@ -34,6 +35,7 @@ export function TimelockWithdrawal({ account, context, recovery, saveRecovery, o
   const [localError, setLocalError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const withdrawal = useEarlyWithdraw();
+  const write = useGaslessWriteOption("earlyWithdraw");
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -102,6 +104,7 @@ export function TimelockWithdrawal({ account, context, recovery, saveRecovery, o
           chainId: context.chainId,
           solverId: context.solverId,
           from: wallet.address,
+          ...write,
           withdrawal: call,
           deadline: block.timestamp + 300n,
           onApproval: (approval) => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { AmountField } from "@/features/integration/amount-field";
 import { parseAmount } from "@/features/integration/parse-amount";
 import type { ValidatedTimelockApproval } from "@symmio/trading-core";
@@ -33,6 +34,7 @@ export function TimelockBatchCard({ context, recovery, storageKey, saveRecovery,
     };
   }, []);
   const action = useExecuteAccountCalls({ automaticTimelock: false });
+  const write = useGaslessWriteOption("timelockProtectedBatch");
   const provider = useTimelockApprovalProvider({ chainId: context.chainId, solverId: context.solverId });
   const amount1 = parseAmount(first, 18);
   const amount2 = parseAmount(second, 18);
@@ -73,6 +75,7 @@ export function TimelockBatchCard({ context, recovery, storageKey, saveRecovery,
         const result = await action.mutateAsync({
           account,
           chainId: context.chainId,
+          ...write,
           calls: [
             { functionName: "allocate", args: [amount1] },
             { functionName: "allocate", args: [amount2] },

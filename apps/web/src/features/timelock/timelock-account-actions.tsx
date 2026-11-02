@@ -26,11 +26,21 @@ interface Props {
   saveRecovery: (value: string | null) => void;
   onBusyChange: (busy: boolean) => void;
   storageKey: string;
+  method: string;
+  onMethodChange: (method: string) => void;
 }
 
 /** Exercise existing SDK writes against a protected account. */
-export function TimelockAccountActions({ account, context, recovery, saveRecovery, onBusyChange, storageKey }: Props) {
-  const [method, setMethod] = useState("addMargin");
+export function TimelockAccountActions({
+  account,
+  context,
+  recovery,
+  saveRecovery,
+  onBusyChange,
+  storageKey,
+  method,
+  onMethodChange,
+}: Props) {
   const [amount, setAmount] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -48,7 +58,7 @@ export function TimelockAccountActions({ account, context, recovery, saveRecover
   const allocate = useAllocate({ automaticTimelock: false });
   const deallocate = useDeallocate({ automaticTimelock: false });
   const deletion = useDeleteSubAccount({ automaticTimelock: false });
-  const write = useGaslessWriteOption(method);
+  const write = useGaslessWriteOption(`timelockAccount:${method}`);
   const parsed = parseAmount(amount, 18);
   const canSubmit = context.ready && !recovery && !busy && (method === "deleteSubAccount" || parsed !== undefined);
 
@@ -114,7 +124,7 @@ export function TimelockAccountActions({ account, context, recovery, saveRecover
         Select a virtual account for margin actions or a subaccount for allocation and deletion. Amounts use 18-decimal
         Core units.
       </ResultNote>
-      <Select value={method} onValueChange={setMethod} disabled={busy || Boolean(recovery)}>
+      <Select value={method} onValueChange={onMethodChange} disabled={busy || Boolean(recovery)}>
         <SelectTrigger aria-label="Protected action">
           <SelectValue />
         </SelectTrigger>

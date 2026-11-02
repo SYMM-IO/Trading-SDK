@@ -77,6 +77,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
   const [storageError, setStorageError] = useState(false);
   const [reconciliationError, setReconciliationError] = useState<string>();
   const [active, setActive] = useState(false);
+  const [actionMethod, setActionMethod] = useState("addMargin");
+  const [protectedName, setProtectedName] = useState("withdraw");
   useEffect(() => {
     if (!storageKey) return;
     const activeKey = storageKey;
@@ -165,6 +167,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
           name="Timelock policy"
           description="Inspect the root account’s protection and configure the solver policy."
           mutability="nonpayable"
+          gaslessRelayable
+          gaslessMethod="setupTimelocks"
         >
           <TimelockPolicyPanel context={context} />
         </TimelockMethodCard>
@@ -172,8 +176,9 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
           <TimelockMethodCard
             id="timelock-direct-setup-card"
             name="setupTimelocks"
-            description="Configure the root policy directly with the owner wallet."
+            description="Configure the root policy directly."
             mutability="nonpayable"
+            gaslessRelayable
           >
             <TimelockManualSetup
               key={`${context.chainId}:${context.rootAccount}`}
@@ -191,6 +196,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             name="Selector policy"
             description="Inspect or clear the policy for a specific selector."
             mutability="nonpayable"
+            gaslessRelayable
+            gaslessMethod="clearTimelocks"
           >
             <TimelockSelectorCard
               context={context}
@@ -209,6 +216,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             name="Early withdrawal"
             description="Request solver approval and execute a withdrawal."
             mutability="nonpayable"
+            gaslessRelayable
+            gaslessMethod="earlyWithdraw"
           >
             <TimelockWithdrawal
               account={account}
@@ -224,6 +233,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             name="Account actions"
             description="Execute an eligible account action with solver approval."
             mutability="nonpayable"
+            gaslessRelayable
+            gaslessMethod={`timelockAccount:${actionMethod}`}
           >
             <TimelockAccountActions
               account={account}
@@ -232,6 +243,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               saveRecovery={saveRecovery}
               onBusyChange={setActive}
               storageKey={storageKey}
+              method={actionMethod}
+              onMethodChange={setActionMethod}
             />
           </TimelockMethodCard>
           <TimelockMethodCard
@@ -239,6 +252,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             name="Protected call"
             description="Approve and execute exact calldata."
             mutability="nonpayable"
+            gaslessRelayable
+            gaslessMethod="timelockProtectedCall"
           >
             <TimelockProtectedCall
               account={account}
@@ -270,6 +285,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             name="Protected Core batch"
             description="Execute approved Core calls as one batch."
             mutability="nonpayable"
+            gaslessRelayable
+            gaslessMethod="timelockProtectedBatch"
           >
             <TimelockBatchCard
               context={context}
@@ -284,6 +301,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             name="Protected function"
             description="Choose a protected function and its arguments."
             mutability="nonpayable"
+            gaslessRelayable
+            gaslessMethod={`timelockNamed:${protectedName}`}
           >
             <TimelockNamedFunction
               account={account}
@@ -293,6 +312,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               storageKey={storageKey}
               saveRecovery={saveRecovery}
               onBusyChange={setActive}
+              name={protectedName}
+              onNameChange={setProtectedName}
             />
           </TimelockMethodCard>
         </MethodGroup>
@@ -314,6 +335,8 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             name="Schedule and execute"
             description="Schedule, cancel, or execute an exact operation after its cooldown."
             mutability="nonpayable"
+            gaslessRelayable
+            gaslessMethod="timelockScheduleRecovery"
           >
             <TimelockSchedulePanel
               context={context}
@@ -321,6 +344,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               saveRecovery={saveRecovery}
               onBusyChange={setActive}
               storageKey={storageKey}
+              cardWriteMode
             />
           </TimelockMethodCard>
         </MethodGroup>
@@ -336,6 +360,8 @@ function TimelockMethodCard({
   description,
   mutability,
   badgeLabel,
+  gaslessRelayable,
+  gaslessMethod,
   children,
 }: {
   id: string;
@@ -343,10 +369,20 @@ function TimelockMethodCard({
   description: string;
   mutability: "view" | "nonpayable";
   badgeLabel?: string;
+  gaslessRelayable?: boolean;
+  gaslessMethod?: string;
   children: ReactNode;
 }) {
   return (
-    <MethodCard testId={id} name={name} description={description} mutability={mutability} badgeLabel={badgeLabel}>
+    <MethodCard
+      testId={id}
+      name={name}
+      description={description}
+      mutability={mutability}
+      badgeLabel={badgeLabel}
+      gaslessRelayable={gaslessRelayable}
+      gaslessMethod={gaslessMethod}
+    >
       <div className="[&>section]:border-0 [&>section]:p-0 [&>section>h3:first-child]:hidden">{children}</div>
     </MethodCard>
   );

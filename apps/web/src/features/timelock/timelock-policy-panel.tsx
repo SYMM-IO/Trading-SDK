@@ -3,6 +3,7 @@
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useFlowWriteOption, useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import {
   useProtectedFunctionCatalog,
   useSetupTimelockPolicy,
@@ -21,6 +22,8 @@ export function TimelockPolicyPanel({ context, compact = false }: { context: Tim
   const wallet = useWalletAccount();
   const root = useSubAccount({ account: policy.data?.rootAccount, chainId });
   const setup = useSetupTimelockPolicy();
+  const write = useGaslessWriteOption("setupTimelocks");
+  const flowWrite = useFlowWriteOption("setupTimelocks");
   const owner = root.data?.owner;
   const canWrite = Boolean(
     wallet.isOnExpectedChain &&
@@ -114,7 +117,13 @@ export function TimelockPolicyPanel({ context, compact = false }: { context: Tim
               disabled={!canWrite || setup.isPending || Boolean(setup.error && setup.error.kind !== "user-rejected")}
               onClick={() => {
                 if (!policy.data || !canWrite) return;
-                setup.mutate({ account: policy.data.rootAccount, chainId, solverId, from: wallet.address });
+                setup.mutate({
+                  account: policy.data.rootAccount,
+                  chainId,
+                  solverId,
+                  from: wallet.address,
+                  ...(compact ? flowWrite : write),
+                });
               }}
               data-testid="timelock-setup"
             >

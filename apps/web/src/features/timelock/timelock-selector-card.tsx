@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { useClearTimelocks, useSelectorTimelock, useSubAccount, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -38,6 +39,7 @@ export function TimelockSelectorCard({
     query: { enabled: valid, retry: false },
   });
   const clear = useClearTimelocks();
+  const write = useGaslessWriteOption("clearTimelocks");
   const isOwner = Boolean(wallet.address && root.data?.owner && isAddressEqual(wallet.address, root.data.owner));
 
   return (
@@ -87,6 +89,7 @@ export function TimelockSelectorCard({
                 account,
                 chainId: context.chainId,
                 from: wallet.address,
+                ...write,
                 selectors: [selector as Hex],
               });
               if (result.receipt?.status === "success") saveRecovery(null);

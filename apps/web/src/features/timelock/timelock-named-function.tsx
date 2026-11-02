@@ -2,6 +2,7 @@
 
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import type { ExecuteProtectedFunctionParameters, ProtectedFunctionCall } from "@symmio/trading-core";
 import {
   useProtectedFunction,
@@ -55,6 +56,8 @@ export function TimelockNamedFunction({
   storageKey,
   saveRecovery,
   onBusyChange,
+  name,
+  onNameChange,
 }: {
   account: Address;
   owner: Address;
@@ -63,9 +66,11 @@ export function TimelockNamedFunction({
   storageKey: string;
   saveRecovery: (value: string | null) => void;
   onBusyChange: (busy: boolean) => void;
+  name: string;
+  onNameChange: (name: string) => void;
 }) {
   const catalog = useProtectedFunctionCatalog();
-  const [name, setName] = useState(catalog[0]!.name);
+  const write = useGaslessWriteOption(`timelockNamed:${name}`);
   const [input, setInput] = useState("[]");
   const [error, setError] = useState<string>();
   const [hash, setHash] = useState<string>();
@@ -113,6 +118,7 @@ export function TimelockNamedFunction({
           account,
           chainId: context.chainId,
           from: owner,
+          ...write,
           target: selected.target,
           functionName: selected.name,
           args,
@@ -169,7 +175,7 @@ export function TimelockNamedFunction({
       <Select
         value={name}
         onValueChange={(value) => {
-          setName(value);
+          onNameChange(value);
           setInput("[]");
         }}
         disabled={busy || Boolean(recovery)}

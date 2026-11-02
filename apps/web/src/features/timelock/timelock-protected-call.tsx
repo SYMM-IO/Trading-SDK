@@ -2,6 +2,7 @@
 
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { useProtectedCall, useTimelockApprovalProvider } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
@@ -35,6 +36,7 @@ export function TimelockProtectedCall({ account, context, recovery, saveRecovery
     };
   }, []);
   const action = useProtectedCall();
+  const write = useGaslessWriteOption("timelockProtectedCall");
   const provider = useTimelockApprovalProvider({ chainId: context.chainId, solverId: context.solverId });
   const valid = isHex(raw) && raw.length >= 10 && raw.length % 2 === 0;
   async function submit() {
@@ -53,6 +55,7 @@ export function TimelockProtectedCall({ account, context, recovery, saveRecovery
         const result = await action.mutateAsync({
           account,
           chainId: context.chainId,
+          ...write,
           target,
           callData: raw as Hex,
           timelock: {

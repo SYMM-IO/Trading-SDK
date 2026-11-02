@@ -28,6 +28,8 @@ interface Props {
    * `gaslessBlockedReason` on its own.
    */
   gaslessRelayable?: boolean;
+  /** Underlying write name when the visible card title is a higher-level action. */
+  gaslessMethod?: string;
   /**
    * Why the relayer cannot carry this call. Renders both controls disabled with
    * this text as their explanation, so a write never leaves the reader guessing
@@ -79,6 +81,7 @@ export function MethodCard({
   wide = false,
   size = "default",
   gaslessRelayable = false,
+  gaslessMethod,
   gaslessBlockedReason,
   gaslessFee,
   magicMethodId,
@@ -107,8 +110,8 @@ export function MethodCard({
             {showDispatchControls ? (
               /** `empty:hidden` drops the group, and its gap, on a chain with no relayer. */
               <div className="flex items-center gap-1 empty:hidden">
-                <GaslessWriteToggle method={name} blockedReason={gaslessBlockedReason} />
-                <SessionKeyWriteToggle method={name} gaslessBlockedReason={gaslessBlockedReason} />
+                <GaslessWriteToggle method={gaslessMethod ?? name} blockedReason={gaslessBlockedReason} />
+                <SessionKeyWriteToggle method={gaslessMethod ?? name} gaslessBlockedReason={gaslessBlockedReason} />
               </div>
             ) : null}
             <Badge variant={isWrite ? "warning" : "info"} className="tracking-wide uppercase">
