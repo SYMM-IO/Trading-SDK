@@ -79,6 +79,6 @@ export const SETUP_STEP_LABELS: Readonly<Record<SetupStepId, string>> = {
   "fee-allowance": "Fee allowance",
   "session-key": "Session key",
   delegation: "Delegation",
-  timelock: "Trading protection",
+  timelock: "Setup timelock",
   ready: "Ready to trade",
 };

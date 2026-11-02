@@ -348,12 +348,12 @@ test("setup includes a protection step in each track without a separate integrat
   await connectMockWallet(page);
   await expect(page.getByTestId("tab-timelock")).toHaveCount(0);
   await page.getByTestId("setup-track-wallet").click();
-  await expect(page.getByTestId("step-3")).toContainText("Trading protection");
+  await expect(page.getByTestId("step-3")).toContainText("Setup timelock");
   await page.getByTestId("setup-track-gasless").click();
-  await expect(page.getByTestId("step-4")).toContainText("Trading protection");
+  await expect(page.getByTestId("step-4")).toContainText("Setup timelock");
   await page.getByTestId("setup-track-session-key").click();
   await expect(page.getByTestId("step-5")).toContainText("Delegation");
-  await expect(page.getByTestId("step-6")).toContainText("Trading protection");
+  await expect(page.getByTestId("step-6")).toContainText("Setup timelock");
 });
 
 test("setup keeps the optional protection step when the solver has no timelock capability", async ({ page }) => {
@@ -362,9 +362,9 @@ test("setup keeps the optional protection step when the solver has no timelock c
   await page.goto("/integration", { waitUntil: "domcontentloaded" });
   await connectMockWallet(page);
   await page.getByTestId("setup-track-wallet").click();
-  await expect(page.getByTestId("step-3")).toContainText("Trading protection");
+  await expect(page.getByTestId("step-3")).toContainText("Setup timelock");
   await page.getByTestId("setup-track-session-key").click();
-  await expect(page.getByTestId("step-6")).toContainText("Trading protection");
+  await expect(page.getByTestId("step-6")).toContainText("Setup timelock");
 });
 
 test("timelock contract groups preserve entered recovery data when collapsed", async ({ page }) => {

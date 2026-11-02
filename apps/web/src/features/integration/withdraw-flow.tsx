@@ -260,7 +260,7 @@ export function WithdrawFlow({
     ...(hasTimelockStep
       ? [
           {
-            label: "Trading protection",
+            label: "Setup timelock",
             hint: timelock.ready ? "Configured" : "Review trading protection",
             done: timelock.ready,
           },

@@ -208,7 +208,7 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
     ...(hasTimelockStep
       ? [
           {
-            label: "Trading protection",
+            label: "Setup timelock",
             hint: timelock.ready ? "Configured" : "Configure trading protection",
             done: timelock.ready,
           },
