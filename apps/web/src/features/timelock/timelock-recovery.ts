@@ -180,6 +180,87 @@ export function isDefiniteApprovalRejection(error: unknown): boolean {
   );
 }
 
+/** Wallet rejection is definite only when no submitted transaction hash was retained. */
+export function isUnsubmittedWalletRejection(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "user-rejected") return false;
+  if (recoveryTransactionHash(error)) return false;
+  let current: unknown = error;
+  for (let depth = 0; depth < 12 && current && typeof current === "object"; depth++) {
+    const value = current as {
+      code?: unknown;
+      requestId?: unknown;
+      request_id?: unknown;
+      transactionHash?: unknown;
+      txHash?: unknown;
+      broadcastHash?: unknown;
+      idempotencyKey?: unknown;
+      idempotency_key?: unknown;
+      responseData?: unknown;
+      cause?: unknown;
+    };
+    if (
+      value.code === "GASLESS_SUBMIT_UNCONFIRMED" ||
+      value.requestId ||
+      value.request_id ||
+      value.transactionHash ||
+      value.txHash ||
+      value.broadcastHash ||
+      value.idempotencyKey ||
+      value.idempotency_key
+    )
+      return false;
+    if (value.responseData && typeof value.responseData === "object") {
+      const response = value.responseData as {
+        requestId?: unknown;
+        request_id?: unknown;
+        idempotencyKey?: unknown;
+        idempotency_key?: unknown;
+        transactionHash?: unknown;
+        txHash?: unknown;
+        broadcastHash?: unknown;
+      };
+      if (
+        response.requestId ||
+        response.request_id ||
+        response.idempotencyKey ||
+        response.idempotency_key ||
+        response.transactionHash ||
+        response.txHash ||
+        response.broadcastHash
+      )
+        return false;
+    }
+    current = value.cause;
+  }
+  return true;
+}
+
+/** Clear only this attempt's unchanged record after a definite non-submission. */
+export async function clearRejectedApprovalAttempt(
+  key: string,
+  marker: string,
+  failure: unknown,
+  approvalIssued: boolean,
+  saveRecovery: (value: string | null) => void,
+): Promise<void> {
+  if (
+    recoveryTransactionHash(failure) ||
+    (!isUnsubmittedWalletRejection(failure) && (approvalIssued || !isDefiniteApprovalRejection(failure)))
+  )
+    return;
+  try {
+    await withTimelockAttemptLock(
+      key,
+      async () => {
+        if (readTimelockRecovery(key) === marker) saveRecovery(null);
+      },
+      marker,
+    );
+  } catch {
+    // Keep the record if another tab changed it or the lock is unavailable.
+  }
+}
+
 /** A rejected relay simulation with no transaction hash did not submit a transaction. */
 export function isDefiniteGaslessSimulationRejection(
   error: unknown,

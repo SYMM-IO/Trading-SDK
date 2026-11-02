@@ -1,6 +1,6 @@
 "use client";
 
-import { ResultError, ResultWarning } from "@/components/result";
+import { ResultError, ResultNote, ResultWarning } from "@/components/result";
 import type { ProtectedFunctionCall, TimelockAuthorization } from "@symmio/trading-core";
 import {
   useProtectedFunctionEncoder,
@@ -10,9 +10,10 @@ import {
   useTimelockedCoreCallEncoder,
 } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { isAddressEqual, sliceHex, zeroAddress, type Address, type Hash } from "viem";
 import { readScheduledRecovery } from "./timelock-recovery";
+import { useRecoveryNoticeRegistry } from "./timelock-recovery-notices";
 import { TimelockSchedulePanel } from "./timelock-schedule-panel";
 import { useTimelockAttempt } from "./use-timelock-attempt";
 import { useTimelockContext } from "./use-timelock-context";
@@ -87,6 +88,8 @@ export function useProtectedWrite(
   const [error, setError] = useState<string>();
   const [errorCode, setErrorCode] = useState<string>();
   const [fallbackBusy, setFallbackBusy] = useState(false);
+  const [running, setRunning] = useState(false);
+  const registry = useRecoveryNoticeRegistry();
   const [confirmedUnavailableScope, setConfirmedUnavailableScope] = useState<string>();
   const delayedScope = `${context.scope}:${selector}`;
 
@@ -96,6 +99,9 @@ export function useProtectedWrite(
     if (!available) return;
     setError(undefined);
     setErrorCode(undefined);
+    const activeKey = journal.storageKey;
+    setRunning(true);
+    if (activeKey) registry?.begin(activeKey);
     try {
       if (!journal.canProceed()) throw new Error("An earlier protected operation needs reconciliation.");
       if (automatic) {
@@ -140,6 +146,9 @@ export function useProtectedWrite(
       setError(failure instanceof Error ? failure.message : String(failure));
       if (failure && typeof failure === "object" && "code" in failure && typeof failure.code === "string")
         setErrorCode(failure.code);
+    } finally {
+      if (activeKey) registry?.end(activeKey);
+      setRunning(false);
     }
   }
   return {
@@ -156,6 +165,7 @@ export function useProtectedWrite(
     inner,
     fallbackBusy,
     setFallbackBusy,
+    running,
     confirmedUnavailableScope,
     delayedScope,
     setConfirmedUnavailableScope,
@@ -164,6 +174,8 @@ export function useProtectedWrite(
 
 /** Shared policy and recovery controls for an inspector write. */
 export function ProtectedWriteNotice({ protection }: { protection: ReturnType<typeof useProtectedWrite> }) {
+  const registry = useRecoveryNoticeRegistry();
+  const noticeId = useId();
   const {
     context,
     journal,
@@ -193,6 +205,25 @@ export function ProtectedWriteNotice({ protection }: { protection: ReturnType<ty
     protection.selector &&
     sliceHex(saved.callData, 0, 4).toLowerCase() === protection.selector.toLowerCase() &&
     savedMatchesAccount;
+  const showRecovery = Boolean(journal.recovery && (!automatic || !savedForOperation));
+  const clearRef = useRef(journal.clearReviewed);
+  clearRef.current = journal.clearReviewed;
+  const register = registry?.register;
+  const unregister = registry?.unregister;
+  useEffect(() => {
+    if (!register || !unregister || !showRecovery || !journal.storageKey || !journal.recovery || !context.rootAccount)
+      return;
+    register(noticeId, {
+      key: journal.storageKey,
+      account: context.rootAccount,
+      recovery: journal.recovery,
+      clear: async () => {
+        await clearRef.current();
+      },
+    });
+    return () => unregister(noticeId);
+  }, [register, unregister, showRecovery, journal.storageKey, journal.recovery, context.rootAccount, noticeId]);
+  const inProgress = protection.running || Boolean(journal.storageKey && registry?.active.has(journal.storageKey));
   const selectorPolicy = context.policy.data?.selectors.find((item) => item.selector === protection.selector);
   const needsAttention =
     context.account && selectorPolicy && selectorPolicy.status !== "missing" && selectorPolicy.status !== "ok";
@@ -232,7 +263,11 @@ export function ProtectedWriteNotice({ protection }: { protection: ReturnType<ty
           initialInnerCallData={saved?.innerCallData ?? inner}
         />
       ) : null}
-      {journal.recovery && (!automatic || !savedForOperation) ? (
+      {showRecovery && inProgress ? <ResultNote loading>Operation in progress for this account.</ResultNote> : null}
+      {showRecovery && !inProgress && registry ? (
+        <ResultNote>Review the earlier operation for this account in the notice above.</ResultNote>
+      ) : null}
+      {showRecovery && !inProgress && !registry ? (
         <ResultWarning>
           An earlier protected operation needs reconciliation before another attempt.
           <details>
@@ -272,6 +307,26 @@ export function ProtectedWriteNotice({ protection }: { protection: ReturnType<ty
             </Button>
           ) : null}
         </ResultWarning>
+      ) : null}
+      {showRecovery && !inProgress && registry && automatic && journal.approvalServiceUnavailable && raw && inner ? (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (
+              window.confirm(
+                "Have you reconciled the previous request and confirmed that the approval service is unavailable?",
+              )
+            )
+              void journal.clearReviewed().then((cleared) => {
+                if (!cleared) return;
+                routing.clearReconciledAttempt();
+                setConfirmedUnavailableScope(delayedScope);
+              });
+          }}
+        >
+          Use delayed recovery
+        </Button>
       ) : null}
     </>
   );

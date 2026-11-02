@@ -9,6 +9,7 @@ import {
   clearReviewedTimelockRecovery,
   hasTimelockHistory,
   isDefiniteApprovalRejection,
+  isUnsubmittedWalletRejection,
   mayHaveTimelockRecovery,
   notifyTimelockRecoveryChanged,
   readTimelockRecovery,
@@ -202,10 +203,21 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
           return await action();
         } catch (failure) {
           const marker = PREPARING;
+          const current = saved.current.get(key);
+          let issuedOnly = false;
+          if (current && current !== marker) {
+            try {
+              const parsed: unknown = JSON.parse(current);
+              issuedOnly = Array.isArray(parsed) && parsed.length > 0;
+            } catch {
+              // An unrecognized recovery record must remain blocked.
+            }
+          }
           if (
-            saved.current.get(key) === marker &&
-            readTimelockRecovery(key) === marker &&
-            isDefiniteApprovalRejection(failure)
+            current &&
+            readTimelockRecovery(key) === current &&
+            ((current === marker && isDefiniteApprovalRejection(failure)) ||
+              ((current === marker || issuedOnly) && isUnsubmittedWalletRejection(failure)))
           )
             save(null);
           else if (isUnavailableApproval(failure)) {

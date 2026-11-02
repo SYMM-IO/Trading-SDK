@@ -8,7 +8,7 @@ import type { ValidatedTimelockApproval } from "@symmio/trading-core";
 import { useExecuteAccountCalls, useTimelockApprovalProvider } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { useEffect, useRef, useState } from "react";
-import { recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
+import { clearRejectedApprovalAttempt, recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
 interface Props {
@@ -50,9 +50,10 @@ export function TimelockBatchCard({ context, recovery, storageKey, saveRecovery,
     onBusyChange(true);
     const issued: ValidatedTimelockApproval[] = [];
     let saved: string | undefined;
+    const marker = "A protected batch is being prepared. Reconcile its outcome before trying again.";
     try {
       await withTimelockAttemptLock(storageKey, async () => {
-        saveRecovery("A protected batch is being prepared. Reconcile its outcome before trying again.");
+        saveRecovery(marker);
         const block = await context.config.getClient({ chainId: context.chainId }).getBlock();
         if (!alive.current) throw new Error("Account changed before the approval request.");
         function authorization() {
@@ -88,6 +89,7 @@ export function TimelockBatchCard({ context, recovery, storageKey, saveRecovery,
           saveRecovery(JSON.stringify({ approvals: JSON.parse(saved), transactionHash: result.hash }, null, 2));
       });
     } catch (failure) {
+      await clearRejectedApprovalAttempt(storageKey, saved ?? marker, failure, Boolean(saved), saveRecovery);
       const transactionHash = recoveryTransactionHash(failure);
       if (transactionHash && saved)
         saveRecovery(JSON.stringify({ approvals: JSON.parse(saved), transactionHash }, null, 2));

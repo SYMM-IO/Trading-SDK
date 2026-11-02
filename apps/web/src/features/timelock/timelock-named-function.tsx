@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@symmio/ui/components/textarea";
 import { useEffect, useRef, useState } from "react";
 import { isAddress, isAddressEqual, type AbiParameter, type Address } from "viem";
-import { recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
+import { clearRejectedApprovalAttempt, recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
 /** Parse JSON arguments according to the SDK ABI; integer strings retain full precision. */
@@ -110,6 +110,7 @@ export function TimelockNamedFunction({
     setError(undefined);
     setHash(undefined);
     let saved: string | undefined;
+    const marker = "An approval request was sent. Reconcile its outcome before trying again.";
     try {
       await withTimelockAttemptLock(storageKey, async () => {
         const block = await context.config.getClient({ chainId: context.chainId }).getBlock();
@@ -130,7 +131,7 @@ export function TimelockNamedFunction({
                 options?: Parameters<typeof provider.requestApproval>[1],
               ) => {
                 if (!alive.current) throw new Error("Account changed before the approval request.");
-                saveRecovery("An approval request was sent. Reconcile its outcome before trying again.");
+                saveRecovery(marker);
                 return provider.requestApproval(request, options);
               },
             },
@@ -153,6 +154,7 @@ export function TimelockNamedFunction({
           saveRecovery(JSON.stringify({ approval: JSON.parse(saved), transactionHash: result.hash }, null, 2));
       });
     } catch (failure) {
+      await clearRejectedApprovalAttempt(storageKey, saved ?? marker, failure, Boolean(saved), saveRecovery);
       const transactionHash = recoveryTransactionHash(failure);
       if (transactionHash && saved)
         saveRecovery(JSON.stringify({ approval: JSON.parse(saved), transactionHash }, null, 2));

@@ -1,5 +1,6 @@
 import { SiteFooter } from "@/features/layout/site-footer";
 import { SiteHeader } from "@/features/layout/site-header";
+import { TimelockRecoveryNotices } from "@/features/timelock/timelock-recovery-notices";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Manrope } from "next/font/google";
 import "./globals.css";
@@ -51,7 +52,10 @@ export default function RootLayout({
           {/* Offsets the now-fixed SiteHeader (h-16). Fixed (not sticky) so a
               scroll-locking popup — Radix Select/Dialog sets `body { overflow: hidden }`
               — can't knock the header out of its scroll context and hide it. */}
-          <main className="flex-1 pt-16">{children}</main>
+          <main className="flex-1 pt-16">
+            <TimelockRecoveryNotices />
+            {children}
+          </main>
           <SiteFooter />
         </Providers>
       </body>

@@ -14,6 +14,7 @@ import {
 import { getSessionKeyBlockedReason } from "../src/features/gasless/session-key-write-policy";
 import {
   isDefiniteGaslessSimulationRejection,
+  isUnsubmittedWalletRejection,
   readScheduledRecovery,
 } from "../src/features/timelock/timelock-recovery";
 
@@ -71,6 +72,19 @@ test("only a definite unsubmitted simulation rejection clears the recovery guard
       parseGaslessErrorDetail,
     ),
   ).toBe(false);
+});
+
+test("wallet rejection is not considered unsubmitted when a transaction hash is present", () => {
+  expect(isUnsubmittedWalletRejection({ kind: "user-rejected" })).toBe(true);
+  expect(isUnsubmittedWalletRejection({ kind: "user-rejected", cause: { hash: `0x${"12".repeat(32)}` } })).toBe(false);
+  expect(isUnsubmittedWalletRejection({ kind: "user-rejected", cause: { code: "GASLESS_SUBMIT_UNCONFIRMED" } })).toBe(
+    false,
+  );
+  expect(isUnsubmittedWalletRejection({ kind: "user-rejected", responseData: { request_id: "pending" } })).toBe(false);
+  expect(
+    isUnsubmittedWalletRejection({ kind: "user-rejected", cause: { transactionHash: `0x${"12".repeat(32)}` } }),
+  ).toBe(false);
+  expect(isUnsubmittedWalletRejection({ kind: "unknown" })).toBe(false);
 });
 
 /** Deterministic read fixtures: every external HTTP request is intercepted; no real writes are possible. */
@@ -1027,6 +1041,28 @@ test("a protected margin action executes through the SDK and confirms its receip
   expect(mock.writes.filter((entry) => entry.startsWith("eth_send"))).toHaveLength(1);
 });
 
+test("a protected margin action can be retried after the wallet rejects its transaction", async ({ page }) => {
+  const mock = await mockDeployment(page, {
+    configured: true,
+    mockSignature: true,
+    mockWriteSuccess: true,
+    rejectWrites: true,
+  });
+  await enableTimelockSolver(page);
+  await openTimelock(page, VA);
+  const outer = page.getByTestId("timelock-account-actions-card");
+  const relay = outer.getByTestId("gasless-toggle-timelockAccount:addMargin");
+  if ((await relay.getAttribute("aria-checked")) === "true") await relay.click();
+  await page.locator("#timelock-action-amount").fill("1");
+  const button = page
+    .getByTestId("timelock-account-actions")
+    .getByRole("button", { name: "Request approval and execute" });
+  await button.click();
+  await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(1);
+  await expect(button).toBeEnabled({ timeout: 20_000 });
+  await expect(page.getByText("An earlier attempt needs reconciliation.", { exact: false })).toHaveCount(0);
+});
+
 test("clearing an ambiguous approval in another tab restores the inspector without refreshing", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true });
   await enableTimelockSolver(page);
@@ -1058,6 +1094,77 @@ test("clearing an ambiguous approval in another tab restores the inspector witho
   await second.close();
 });
 
+test("rejecting the wallet transaction after approval permits a new manual attempt", async ({ page }) => {
+  const mock = await mockDeployment(page, {
+    configured: true,
+    mockSignature: true,
+    mockWriteSuccess: true,
+    rejectWrites: true,
+  });
+  await enableTimelockSolver(page);
+  await page.goto("/contracts/account-layer", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  const card = page.getByTestId("method-addMargin");
+  const relay = card.getByTestId("gasless-toggle-addMargin");
+  if ((await relay.getAttribute("aria-checked")) === "true") await relay.click();
+  await card.locator("#add-margin-va-account").fill(VA);
+  await card.getByTestId("input-add-margin-amount").fill("1");
+  const button = card.getByTestId("button-send-add-margin");
+  await expect(button).toBeEnabled();
+  await button.click();
+  await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(1);
+  await expect(button).toBeEnabled({ timeout: 20_000 });
+  await expect(page.getByTestId("timelock-recovery-notices")).toHaveCount(0);
+  await button.click();
+  await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(2);
+});
+
+test("inspector shows one account recovery notice only after an in-flight request becomes unknown", async ({
+  page,
+}) => {
+  await mockDeployment(page, { configured: true, mockSignature: true });
+  await enableTimelockSolver(page);
+  let received = false;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/timelock-approval", async (route) => {
+    received = true;
+    await gate;
+    await route.abort();
+  });
+  try {
+    await page.goto("/contracts/account-layer", { waitUntil: "domcontentloaded" });
+    await connectMockWallet(page);
+    const add = page.getByTestId("method-addMargin");
+    const remove = page.getByTestId("method-removeMargin");
+    await add.locator("#add-margin-va-account").fill(VA);
+    await add.getByTestId("input-add-margin-amount").fill("1");
+    await remove.locator("#remove-margin-va-account").fill(VA);
+    await remove.getByTestId("input-remove-margin-amount").fill("1");
+    const send = add.getByTestId("button-send-add-margin");
+    await expect(send).toBeEnabled();
+    await send.click();
+    await expect.poll(() => received).toBe(true);
+    await expect(page.getByTestId("timelock-recovery-notices")).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Clear after reconciliation" })).toHaveCount(0);
+    release();
+    const banner = page.getByTestId("timelock-recovery-notices");
+    await expect(banner).toBeVisible();
+    await expect(banner.getByRole("button", { name: "Clear after reconciliation" })).toHaveCount(1);
+    await expect(add.getByText("Review the earlier operation for this account in the notice above.")).toBeVisible();
+    await expect(remove.getByText("Review the earlier operation for this account in the notice above.")).toBeVisible();
+    await expect(send).toBeDisabled();
+    page.once("dialog", (dialog) => void dialog.accept());
+    await banner.getByRole("button", { name: "Clear after reconciliation" }).click();
+    await expect(banner).toHaveCount(0);
+    await expect(send).toBeEnabled();
+  } finally {
+    release();
+  }
+});
+
 test("an approval can be requested without sending a transaction", async ({ page }) => {
   const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
   await enableTimelockSolver(page);
@@ -1068,6 +1175,35 @@ test("an approval can be requested without sending a transaction", async ({ page
   await expect(card.getByText("Approval issued and saved for reconciliation.")).toBeVisible();
   expect(mock.writes.filter((entry) => entry === "approval")).toHaveLength(1);
   expect(mock.writes.some((entry) => entry.startsWith("eth_send"))).toBe(false);
+});
+
+test("the timelock page does not show reconciliation while its approval is in flight", async ({ page }) => {
+  await mockDeployment(page, { configured: true, mockSignature: true });
+  await enableTimelockSolver(page);
+  let received = false;
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route("**/timelock-approval", async (route) => {
+    received = true;
+    await gate;
+    await route.abort();
+  });
+  try {
+    await openTimelock(page);
+    await page.locator("#timelock-request-data").fill("0x12345678");
+    await page
+      .getByTestId("timelock-request-approval")
+      .getByRole("button", { name: "Request approval", exact: true })
+      .click();
+    await expect.poll(() => received).toBe(true);
+    await expect(page.getByText("An earlier attempt needs reconciliation.", { exact: false })).toHaveCount(0);
+    release();
+    await expect(page.getByText("An earlier attempt needs reconciliation.", { exact: false })).toBeVisible();
+  } finally {
+    release();
+  }
 });
 
 test("a definite approval rejection clears only its pending record", async ({ page }) => {
@@ -1256,9 +1392,8 @@ test("the contract inspector also blocks an unresolved journal after timelock is
   await card.locator("#withdraw-account-account").fill(VA);
   await card.getByTestId("input-withdraw-amount").fill("1");
   await card.getByTestId("input-withdraw-receiver").fill(OWNER);
-  await expect(
-    card.getByText("An earlier protected operation needs reconciliation before another attempt."),
-  ).toBeVisible();
+  await expect(card.getByText("Review the earlier operation for this account in the notice above.")).toBeVisible();
+  await expect(page.getByTestId("timelock-recovery-notices")).toBeVisible();
   await expect(card.getByTestId("button-send-initiate-withdraw")).toBeDisabled();
   expect(mock.writes).toEqual([]);
 });

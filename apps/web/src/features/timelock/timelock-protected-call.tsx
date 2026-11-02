@@ -9,7 +9,7 @@ import { Input } from "@symmio/ui/components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
 import { useEffect, useRef, useState } from "react";
 import { isHex, type Address, type Hex } from "viem";
-import { recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
+import { clearRejectedApprovalAttempt, recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
 interface Props {
@@ -47,9 +47,10 @@ export function TimelockProtectedCall({ account, context, recovery, saveRecovery
     setError(undefined);
     setHash(undefined);
     let savedApproval: string | undefined;
+    const marker = "A protected operation is being prepared. Reconcile its outcome before trying again.";
     try {
       await withTimelockAttemptLock(storageKey, async () => {
-        saveRecovery("A protected operation is being prepared. Reconcile its outcome before trying again.");
+        saveRecovery(marker);
         const block = await context.config.getClient({ chainId: context.chainId }).getBlock();
         if (!alive.current) throw new Error("Account changed before the approval request.");
         const result = await action.mutateAsync({
@@ -79,6 +80,13 @@ export function TimelockProtectedCall({ account, context, recovery, saveRecovery
           saveRecovery(JSON.stringify({ approval: JSON.parse(savedApproval), transactionHash: result.hash }, null, 2));
       });
     } catch (failure) {
+      await clearRejectedApprovalAttempt(
+        storageKey,
+        savedApproval ?? marker,
+        failure,
+        Boolean(savedApproval),
+        saveRecovery,
+      );
       const transactionHash = recoveryTransactionHash(failure);
       if (transactionHash && savedApproval)
         saveRecovery(JSON.stringify({ approval: JSON.parse(savedApproval), transactionHash }, null, 2));

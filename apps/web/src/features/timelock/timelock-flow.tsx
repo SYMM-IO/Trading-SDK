@@ -6,7 +6,7 @@ import { MethodGroup } from "@/features/inspector/method-group";
 import { SubAccountField } from "@/features/inspector/subaccount-field";
 import { useSymmioChainId, useSymmioConfig } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { isAddress, isAddressEqual, zeroAddress, type Address } from "viem";
 import { TimelockAccountActions } from "./timelock-account-actions";
 import { TimelockApprovalCard } from "./timelock-approval-card";
@@ -22,6 +22,7 @@ import {
   readTimelockRecovery,
   subscribeTimelockRecoveryChanged,
 } from "./timelock-recovery";
+import { useRecoveryNoticeRegistry } from "./timelock-recovery-notices";
 import { TimelockSchedulePanel } from "./timelock-schedule-panel";
 import { TimelockSelectorCard } from "./timelock-selector-card";
 import { TimelockWithdrawal } from "./timelock-withdrawal";
@@ -77,8 +78,23 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
   const [storageError, setStorageError] = useState(false);
   const [reconciliationError, setReconciliationError] = useState<string>();
   const [active, setActive] = useState(false);
+  const registry = useRecoveryNoticeRegistry();
+  const activeCount = useRef(0);
+  const activeKey = useRef<string | undefined>(undefined);
   const [actionMethod, setActionMethod] = useState("addMargin");
   const [protectedName, setProtectedName] = useState("withdraw");
+  function onBusyChange(busy: boolean) {
+    if (busy) {
+      if (activeCount.current++ === 0 && storageKey) {
+        activeKey.current = storageKey;
+        registry?.begin(storageKey);
+      }
+    } else if (activeCount.current > 0 && --activeCount.current === 0) {
+      if (activeKey.current) registry?.end(activeKey.current);
+      activeKey.current = undefined;
+    }
+    setActive(activeCount.current > 0);
+  }
   useEffect(() => {
     if (!storageKey) return;
     const activeKey = storageKey;
@@ -118,7 +134,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
         <ResultError message="Browser storage is unavailable. Enable it before requesting an approval so recovery survives refresh." />
       ) : null}
       {reconciliationError ? <ResultError message={reconciliationError} /> : null}
-      {recovery ? (
+      {recovery && !active ? (
         <ResultWarning>
           {readScheduledRecovery(recovery)?.confirmed
             ? "A confirmed schedule is saved. Continue or cancel it below; do not start a second withdrawal."
@@ -186,7 +202,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               recovery={recovery}
               storageKey={storageKey}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
             />
           </TimelockMethodCard>
         ) : null}
@@ -205,7 +221,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               recovery={recovery}
               storageKey={storageKey}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
             />
           </TimelockMethodCard>
         ) : null}
@@ -225,7 +241,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               context={context}
               recovery={recovery}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
               storageKey={storageKey}
             />
           </TimelockMethodCard>
@@ -242,7 +258,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               context={context}
               recovery={recovery}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
               storageKey={storageKey}
               method={actionMethod}
               onMethodChange={setActionMethod}
@@ -261,7 +277,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               context={context}
               recovery={recovery}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
               storageKey={storageKey}
             />
           </TimelockMethodCard>
@@ -277,7 +293,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               context={context}
               recovery={recovery}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
               storageKey={storageKey}
             />
           </TimelockMethodCard>
@@ -294,7 +310,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               recovery={recovery}
               storageKey={storageKey}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
             />
           </TimelockMethodCard>
           <TimelockMethodCard
@@ -312,7 +328,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               recovery={recovery}
               storageKey={storageKey}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
               name={protectedName}
               onNameChange={setProtectedName}
             />
@@ -343,7 +359,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
               context={context}
               recovery={recovery}
               saveRecovery={saveRecovery}
-              onBusyChange={setActive}
+              onBusyChange={onBusyChange}
               storageKey={storageKey}
               cardWriteMode
             />

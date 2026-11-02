@@ -13,7 +13,7 @@ import { Input } from "@symmio/ui/components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
 import { useEffect, useRef, useState } from "react";
 import { isAddress, isAddressEqual, zeroAddress, type Address } from "viem";
-import { withTimelockAttemptLock } from "./timelock-recovery";
+import { clearRejectedApprovalAttempt, withTimelockAttemptLock } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
 interface Props {
@@ -68,12 +68,12 @@ export function TimelockWithdrawal({ account, context, recovery, saveRecovery, o
     let started = false;
     let savedApproval: string | undefined;
     let ownsJournal = false;
+    const pendingAttempt =
+      "An approval attempt is in progress or has an unknown outcome. Reconcile it before another attempt.";
     try {
       await withTimelockAttemptLock(storageKey, async () => {
         // Save before any signature/HTTP request. Reload never quietly enables a second issuance.
-        saveRecovery(
-          "An approval attempt is in progress or has an unknown outcome. Reconcile it before another attempt.",
-        );
+        saveRecovery(pendingAttempt);
         ownsJournal = true;
         const block = await context.config.getClient({ chainId: context.chainId }).getBlock();
         if (!alive.current) {
@@ -130,12 +130,11 @@ export function TimelockWithdrawal({ account, context, recovery, saveRecovery, o
           /* The approval journal remains; storage error is shown by the parent. */
         }
       }
-      // Even wallet rejection can happen AFTER approval issuance. Keep issued approvals.
-      if (
-        ownsJournal &&
-        (!started ||
-          (!issued && error && typeof error === "object" && "kind" in error && error.kind === "user-rejected"))
-      ) {
+      if (ownsJournal && started) {
+        await clearRejectedApprovalAttempt(storageKey, savedApproval ?? pendingAttempt, error, issued, saveRecovery);
+      }
+      // Unknown outcomes and issued approvals remain recorded unless non-submission is certain.
+      if (ownsJournal && !started) {
         try {
           saveRecovery(null);
         } catch {
