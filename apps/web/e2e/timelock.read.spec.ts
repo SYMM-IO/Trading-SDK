@@ -601,6 +601,35 @@ test("on-chain policy enables withdrawal, and a raised minimum disables it again
   expect(mock.writes).toEqual([]);
 });
 
+test("expanded policy shows selector cards with SDK functions and targets", async ({ page }) => {
+  const { INSTANT_OPEN_TIMELOCK_SELECTORS } = await import("@symmio/trading-core");
+  const mock = await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const policy = page.getByTestId("timelock-policy");
+  await policy.getByText("22 / 22 selectors configured").click();
+  const cards = policy.getByTestId("policy-selector-card");
+  await expect(cards).toHaveCount(22);
+  await expect(cards.filter({ hasText: "withdrawTo" })).toContainText(INSTANT_OPEN_TIMELOCK_SELECTORS[1]!);
+  await expect(cards.filter({ hasText: "withdrawTo" })).toContainText("core");
+  await expect(cards.filter({ hasText: "addMarginToNextVA" })).toContainText("account-layer");
+  expect(mock.writes).toEqual([]);
+});
+
+test("refresh policy retries a failed solver info read without sending a transaction", async ({ page }) => {
+  const deployment = { unavailable: true, configured: true };
+  const mock = await mockDeployment(page, deployment);
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  const policy = page.getByTestId("timelock-policy");
+  await expect(policy.getByRole("alert")).toBeVisible();
+  deployment.unavailable = false;
+  await policy.getByRole("button", { name: "Refresh policy" }).click();
+  await expect(policy).toContainText("22 / 22 selectors configured");
+  expect(mock.infoReads).toBeGreaterThanOrEqual(2);
+  expect(mock.writes).toEqual([]);
+});
+
 test("metadata errors do not become unsupported-deployment success", async ({ page }) => {
   const mock = await mockDeployment(page, { unavailable: true });
   await enableTimelockSolver(page);

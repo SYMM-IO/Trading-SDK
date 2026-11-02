@@ -11,8 +11,9 @@ import {
   useWalletAccount,
 } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
+import { Card, CardContent } from "@symmio/ui/components/card";
 import Link from "next/link";
-import { isAddressEqual } from "viem";
+import { isAddressEqual, toFunctionSelector } from "viem";
 import type { TimelockContext } from "./use-timelock-context";
 
 /** Owner-confirmed setup via SDK defaults; on-chain readiness never pretends to prove solver indexing. */
@@ -24,6 +25,18 @@ export function TimelockPolicyPanel({ context, compact = false }: { context: Tim
   const setup = useSetupTimelockPolicy();
   const write = useGaslessWriteOption("setupTimelocks");
   const flowWrite = useFlowWriteOption("setupTimelocks");
+  const selectorFunctions = new Map(
+    catalog.map((item) => [
+      toFunctionSelector({
+        type: "function",
+        name: item.name,
+        inputs: item.inputs,
+        outputs: [],
+        stateMutability: "nonpayable",
+      }).toLowerCase(),
+      item,
+    ]),
+  );
   const owner = root.data?.owner;
   const canWrite = Boolean(
     wallet.isOnExpectedChain &&
@@ -102,12 +115,26 @@ export function TimelockPolicyPanel({ context, compact = false }: { context: Tim
                   {policy.data.selectors.filter((item) => item.status === "ok").length} / {policy.data.selectors.length}{" "}
                   selectors configured
                 </summary>
-                <ul className="mt-2 space-y-1 font-mono text-xs">
-                  {policy.data.selectors.map((item) => (
-                    <li key={item.selector}>
-                      {item.selector} · {item.status} · {item.delay.toString()}s
-                    </li>
-                  ))}
+                <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {policy.data.selectors.map((item) => {
+                    const fn = selectorFunctions.get(item.selector.toLowerCase());
+                    return (
+                      <li key={item.selector}>
+                        <Card size="sm" className="h-full py-3 shadow-none" data-testid="policy-selector-card">
+                          <CardContent className="space-y-1">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <span className="font-mono text-xs font-medium">{fn?.name ?? "Unknown function"}</span>
+                              <span className="text-muted-foreground text-xs">{fn?.target ?? "Unknown target"}</span>
+                            </div>
+                            <div className="text-muted-foreground font-mono text-xs">{item.selector}</div>
+                            <div className="text-muted-foreground text-xs">
+                              {item.status} · {item.delay.toString()}s
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </li>
+                    );
+                  })}
                 </ul>
               </details>
             </>
