@@ -2,38 +2,51 @@
 
 import { Field } from "@/components/field";
 import { ResultError, ResultNote } from "@/components/result";
-import { TxReceipt } from "@/components/tx-result";
-import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { SelectorIcon } from "@/features/inspector/instant-layer-icons";
-import {
-  useClearTimelocks,
-  useProtectedFunctionCatalog,
-  useSelectorTimelock,
-  useSubAccount,
-  useWalletAccount,
-} from "@symmio/trading-react";
+import { accountLayerAbi, useProtectedFunctionCatalog, useSelectorTimelock } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Combobox } from "@symmio/ui/components/combobox";
 import { useState } from "react";
-import { isAddressEqual, toFunctionSelector, type Hex } from "viem";
-import { recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
+import { decodeFunctionData, encodeFunctionData, isAddressEqual, toFunctionSelector, type Hex } from "viem";
+import { readScheduledRecovery } from "./timelock-recovery";
+import { TimelockSchedulePanel } from "./timelock-schedule-panel";
 import type { TimelockContext } from "./use-timelock-context";
 
-/** Low-level selector inspection and owner-controlled policy removal. */
+/** Inspect a selector and schedule its policy removal without requesting solver approval. */
 export function TimelockSelectorCard({
   context,
   disabled,
+  recovery,
   storageKey,
   saveRecovery,
   onBusyChange,
 }: {
   context: TimelockContext;
   disabled: boolean;
+  recovery: string | null;
   storageKey: string;
   saveRecovery: (value: string | null) => void;
   onBusyChange: (busy: boolean) => void;
 }) {
-  const [selector, setSelector] = useState("");
+  const [input, setInput] = useState("");
+  const account = context.rootAccount!;
+  const saved = readScheduledRecovery(recovery);
+  let savedSelector: Hex | undefined;
+  if (saved && saved.callData === saved.innerCallData) {
+    try {
+      const decoded = decodeFunctionData({ abi: accountLayerAbi, data: saved.callData });
+      if (
+        decoded.functionName === "clearTimelocks" &&
+        isAddressEqual(decoded.args[0], account) &&
+        decoded.args[1].length === 1
+      )
+        savedSelector = decoded.args[1][0];
+    } catch {
+      /* A different scheduled operation belongs to its original flow. */
+    }
+  }
+  const selector = savedSelector ?? input;
+  const valid = /^0x[\da-fA-F]{8}$/.test(selector);
   const catalog = useProtectedFunctionCatalog();
   const selectorItems = catalog.map((item) => ({
     id: toFunctionSelector({
@@ -46,21 +59,15 @@ export function TimelockSelectorCard({
     title: item.name,
     meta: item.target,
   }));
-  const [localError, setLocalError] = useState<string>();
-  const valid = /^0x[\da-fA-F]{8}$/.test(selector);
-  const account = context.rootAccount!;
-  const wallet = useWalletAccount();
-  const root = useSubAccount({ account, chainId: context.chainId });
   const policy = useSelectorTimelock({
     account,
     selector: valid ? (selector as Hex) : "0x00000000",
     chainId: context.chainId,
     query: { enabled: valid, retry: false },
   });
-  const clear = useClearTimelocks();
-  const write = useGaslessWriteOption("clearTimelocks");
-  const isOwner = Boolean(wallet.address && root.data?.owner && isAddressEqual(wallet.address, root.data.owner));
-
+  const callData = valid
+    ? encodeFunctionData({ abi: accountLayerAbi, functionName: "clearTimelocks", args: [account, [selector as Hex]] })
+    : undefined;
   return (
     <section className="border-border/70 flex flex-col gap-4 rounded-xl border p-4" data-testid="timelock-selector">
       <h3 className="text-sm font-medium">Inspect or clear a selector policy</h3>
@@ -72,10 +79,11 @@ export function TimelockSelectorCard({
         <Combobox
           idPrefix="timelock-selector"
           value={selector}
-          onValueChange={(value) => setSelector(value.trim())}
-          onSelect={(item) => setSelector(item.id)}
+          onValueChange={(value) => setInput(value.trim())}
+          onSelect={(item) => setInput(item.id)}
           items={selectorItems}
           placeholder="0x12345678"
+          disabled={disabled || Boolean(savedSelector)}
           mono
           invalid={selector.length > 0 && !valid}
           triggerIcon={<SelectorIcon />}
@@ -88,70 +96,25 @@ export function TimelockSelectorCard({
         </ResultNote>
       ) : null}
       {policy.error ? <ResultError message={policy.error.message} /> : null}
-      <ResultNote>
-        Changing a policy can invalidate schedules for the account. Clearing a protected policy may require its unlocker
-        authorization or a matured schedule.
-      </ResultNote>
-      <Button
-        variant="outline"
-        disabled={
-          disabled ||
-          !valid ||
-          !isOwner ||
-          !wallet.isOnExpectedChain ||
-          wallet.chainId !== context.chainId ||
-          clear.isPending
-        }
-        onClick={async () => {
-          if (!valid) return;
-          setLocalError(undefined);
-          onBusyChange(true);
-          let ownsRecord = false;
-          try {
-            await withTimelockAttemptLock(storageKey, async () => {
-              saveRecovery(JSON.stringify({ kind: "clear-selector-policy", account, selector }));
-              ownsRecord = true;
-              const result = await clear.mutateAsync({
-                account,
-                chainId: context.chainId,
-                from: wallet.address,
-                ...write,
-                selectors: [selector as Hex],
-              });
-              if (result.receipt?.status === "success") saveRecovery(null);
-              else
-                saveRecovery(
-                  JSON.stringify({ kind: "clear-selector-policy", account, selector, transactionHash: result.hash }),
-                );
-            });
-          } catch (failure) {
-            const hash = recoveryTransactionHash(failure);
-            if (hash)
-              saveRecovery(JSON.stringify({ kind: "clear-selector-policy", account, selector, transactionHash: hash }));
-            else if (
-              ownsRecord &&
-              failure &&
-              typeof failure === "object" &&
-              "kind" in failure &&
-              failure.kind === "user-rejected"
-            )
-              saveRecovery(null);
-            setLocalError(failure instanceof Error ? failure.message : String(failure));
-          } finally {
-            onBusyChange(false);
-          }
-        }}
-      >
-        Clear selector policy
-      </Button>
-      {clear.error ? <ResultError message={clear.error.message} /> : null}
-      {localError && !clear.error ? <ResultError message={localError} /> : null}
-      {clear.data?.receipt ? (
-        <TxReceipt
-          hash={clear.data.hash}
-          receipt={{ blockNumber: clear.data.receipt.blockNumber, status: clear.data.receipt.status }}
+      <ResultNote>Changing a policy can invalidate schedules for the account.</ResultNote>
+      {callData && (!recovery || savedSelector) ? (
+        <TimelockSchedulePanel
+          key={callData}
+          context={{ ...context, account }}
+          recovery={recovery}
+          saveRecovery={saveRecovery}
+          onBusyChange={onBusyChange}
+          storageKey={storageKey}
+          initialCallData={callData}
+          initialInnerCallData={callData}
+          cardWriteMode
+          writeMethod="clearTimelocks"
+          guidedPolicyClear
+          externalBusy={disabled && !recovery}
+          onExecuteSuccess={() => setInput("")}
         />
       ) : null}
+      {!callData && !recovery ? <Button disabled>Start cooldown</Button> : null}
     </section>
   );
 }

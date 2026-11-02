@@ -418,6 +418,21 @@ See [core policy](../../core/account-layer/timelocks/policy) for indexing semant
 
 ### Low-level hooks
 
+`accountLayerAbi` is also available from `@symmio/trading-react` when a React
+consumer needs to encode or decode an AccountLayer operation. It is the same
+version-pinned ABI exported by core; it does not query or verify a deployment.
+
+```tsx
+import { accountLayerAbi } from "@symmio/trading-react";
+import { encodeFunctionData } from "viem";
+
+const clearCallData = encodeFunctionData({
+  abi: accountLayerAbi,
+  functionName: "clearTimelocks",
+  args: [rootAccount, [selector]],
+});
+```
+
 `useSelectorTimelock(UseSelectorTimelockParameters)` returns
 `UseQueryResult<SelectorTimelock, SymmioRequestError>`; inputs are core selector query
 options plus optional `config`. `useTimelockScheduleState(UseTimelockScheduleStateParameters)`

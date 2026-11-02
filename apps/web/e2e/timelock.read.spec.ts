@@ -444,7 +444,7 @@ test("direct setup sends one owner transaction without solver metadata", async (
   await expect(submit).toBeDisabled();
 });
 
-test("scheduled execution is available without a solver after reconciling earlier requests", async ({ page }) => {
+test("scheduled execution is available without a solver when no earlier request is pending", async ({ page }) => {
   const mock = await mockDeployment(page, { unsupported: true, configured: true });
   await enableTimelockSolver(page);
   await openTimelock(page);
@@ -452,8 +452,6 @@ test("scheduled execution is available without a solver after reconciling earlie
   await panel.locator("#timelock-raw").fill("0x12345678");
   await panel.locator("#timelock-inner").fill("0x12345678");
   const start = panel.getByRole("button", { name: "Start cooldown" });
-  await expect(start).toBeDisabled();
-  await panel.getByRole("checkbox", { name: /reconciled any earlier/ }).check();
   await expect(start).toBeEnabled();
   expect(mock.writes).toEqual([]);
 });
@@ -602,7 +600,7 @@ test("timelock selector picker preserves manual selector inspection", async ({ p
   expect(mock.writes).toEqual([]);
 });
 
-test("clearing a picked selector sends the selected selector", async ({ page }) => {
+test("clearing a protected selector schedules its exact calldata", async ({ page }) => {
   const { accountLayerAbi, INSTANT_OPEN_TIMELOCK_SELECTORS } = await import("@symmio/trading-core");
   const mock = await mockDeployment(page, { configured: true, mockWriteSuccess: true });
   await enableTimelockSolver(page);
@@ -612,18 +610,99 @@ test("clearing a picked selector sends the selected selector", async ({ page }) 
   if ((await relay.getAttribute("aria-checked")) === "true") await relay.click();
   await card.getByRole("button", { name: "Browse timelock selectors" }).click();
   await page.getByTestId("timelock-selector-list-select").filter({ hasText: "withdrawTo" }).click();
-  let dialogOpened = false;
-  page.once("dialog", (dialog) => {
-    dialogOpened = true;
-    void dialog.dismiss();
-  });
-  await card.getByRole("button", { name: "Clear selector policy" }).click();
+  const panel = card.getByTestId("timelock-schedule");
+  await expect(panel.getByRole("button", { name: "Execute", exact: true })).toHaveCount(0);
+  await panel.getByRole("button", { name: "Start cooldown" }).click();
   await expect.poll(() => mock.writeData.length).toBe(1);
-  expect(dialogOpened).toBe(false);
   const transaction = decodeFunctionData({ abi: accountLayerAbi, data: mock.writeData[0]! });
-  expect(transaction.functionName).toBe("clearTimelocks");
-  if (transaction.functionName !== "clearTimelocks") throw new Error("Unexpected transaction");
-  expect(transaction.args[1]).toEqual([INSTANT_OPEN_TIMELOCK_SELECTORS[1]]);
+  expect(transaction.functionName).toBe("scheduleTimelockOp");
+  if (transaction.functionName !== "scheduleTimelockOp") throw new Error("Unexpected transaction");
+  const { encodeFunctionData, keccak256 } = await import("viem");
+  const raw = encodeFunctionData({
+    abi: accountLayerAbi,
+    functionName: "clearTimelocks",
+    args: [ROOT, [INSTANT_OPEN_TIMELOCK_SELECTORS[1]!]],
+  });
+  expect(transaction.args[1]).toBe(keccak256(raw));
+  await expect(panel.getByText("Schedule confirmed.")).toBeVisible();
+  mock.state.scheduledAt = mock.state.now;
+  await openTimelock(page);
+  const restored = page.getByTestId("timelock-selector-policy-card").getByTestId("timelock-schedule");
+  await expect(restored).toBeVisible();
+  await expect(restored.getByRole("button", { name: /^Cooldown ·/ })).toBeDisabled();
+  mock.state.now += 301n;
+  await expect(restored.getByRole("button", { name: "Execute", exact: true })).toBeEnabled({ timeout: 15_000 });
+  await restored.getByRole("button", { name: "Execute", exact: true }).click();
+  await expect.poll(() => mock.writeData.length).toBe(2);
+  const execution = decodeFunctionData({ abi: accountLayerAbi, data: mock.writeData[1]! });
+  expect(execution.functionName).toBe("executeTimelockOp");
+  if (execution.functionName !== "executeTimelockOp") throw new Error("Unexpected execution");
+  expect(execution.args[1]).toBe(raw);
+  const resetCard = page.getByTestId("timelock-selector-policy-card");
+  await expect(resetCard.getByTestId("timelock-selector-field")).toHaveValue("");
+  await expect(resetCard.getByRole("button", { name: "Start cooldown" })).toBeDisabled();
+});
+
+test("a saved selector removal schedule can be cancelled", async ({ page }) => {
+  const { accountLayerAbi, getChainConfig, INSTANT_OPEN_TIMELOCK_SELECTORS } = await import("@symmio/trading-core");
+  const { encodeFunctionData, keccak256 } = await import("viem");
+  const mock = await mockDeployment(page, { configured: true, mockWriteSuccess: true });
+  await enableTimelockSolver(page);
+  mock.state.scheduledAt = mock.state.now;
+  const raw = encodeFunctionData({
+    abi: accountLayerAbi,
+    functionName: "clearTimelocks",
+    args: [ROOT, [INSTANT_OPEN_TIMELOCK_SELECTORS[1]!]],
+  });
+  const key = `symm:timelock-attempt:v2:42161:${getChainConfig(42161).addresses.accountLayerAddress.toLowerCase()}:${ROOT.toLowerCase()}:${OWNER.toLowerCase()}`;
+  const saved = JSON.stringify({
+    kind: "scheduled-operation",
+    confirmed: true,
+    callData: raw,
+    innerCallData: raw,
+    originalAccount: ROOT,
+  });
+  await page.addInitScript(({ key, saved }) => localStorage.setItem(key, saved), { key, saved });
+  await openTimelock(page);
+  const card = page.getByTestId("timelock-selector-policy-card");
+  const relay = card.getByTestId("gasless-toggle-clearTimelocks");
+  if ((await relay.getAttribute("aria-checked")) === "true") await relay.click();
+  const panel = card.getByTestId("timelock-schedule");
+  await panel.getByRole("button", { name: "Cancel cooldown" }).click();
+  await expect.poll(() => mock.writeData.length).toBe(1);
+  const tx = decodeFunctionData({ abi: accountLayerAbi, data: mock.writeData[0]! });
+  expect(tx.functionName).toBe("cancelTimelockOp");
+  if (tx.functionName !== "cancelTimelockOp") throw new Error("Unexpected transaction");
+  expect(tx.args[1]).toBe(keccak256(raw));
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), key)).toBeNull();
+});
+
+test("a saved selector removal missing on chain cannot be executed", async ({ page }) => {
+  const { accountLayerAbi, getChainConfig, INSTANT_OPEN_TIMELOCK_SELECTORS } = await import("@symmio/trading-core");
+  const { encodeFunctionData } = await import("viem");
+  const mock = await mockDeployment(page, { configured: false });
+  await enableTimelockSolver(page);
+  const raw = encodeFunctionData({
+    abi: accountLayerAbi,
+    functionName: "clearTimelocks",
+    args: [ROOT, [INSTANT_OPEN_TIMELOCK_SELECTORS[1]!]],
+  });
+  const key = `symm:timelock-attempt:v2:42161:${getChainConfig(42161).addresses.accountLayerAddress.toLowerCase()}:${ROOT.toLowerCase()}:${OWNER.toLowerCase()}`;
+  const saved = JSON.stringify({
+    kind: "scheduled-operation",
+    confirmed: true,
+    callData: raw,
+    innerCallData: raw,
+    originalAccount: ROOT,
+  });
+  await page.addInitScript(({ key, saved }) => localStorage.setItem(key, saved), { key, saved });
+  await openTimelock(page);
+  const panel = page.getByTestId("timelock-selector-policy-card").getByTestId("timelock-schedule");
+  await expect(panel.getByText("The saved schedule was not found on chain.", { exact: false })).toBeVisible();
+  await expect(panel.getByText("This policy change does not require a schedule.")).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Execute", exact: true })).toHaveCount(0);
+  await expect(panel.getByRole("button", { name: "Start cooldown" })).toBeDisabled();
+  expect(mock.writes).toEqual([]);
 });
 
 test("on-chain policy enables withdrawal, and a raised minimum disables it again", async ({ page }, testInfo) => {
@@ -755,18 +834,18 @@ test("delayed execution uses chain time and cannot execute before cooldown or af
   await page.locator("#timelock-raw").fill("0x12345678");
   await page.locator("#timelock-inner").fill("0x12345678");
   await expect(page.getByTestId("timelock-schedule")).toContainText("Waiting for the on-chain cooldown.");
-  await expect(page.getByRole("button", { name: "Execute after cooldown" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Cooldown ·/ })).toBeDisabled();
   mock.state.now += 300n;
-  await expect(page.getByRole("button", { name: "Execute after cooldown" })).toBeEnabled({ timeout: 15_000 });
+  await expect(page.getByRole("button", { name: "Execute", exact: true })).toBeEnabled({ timeout: 15_000 });
   await expect(page.getByRole("button", { name: "Cancel cooldown" })).toBeEnabled();
   mock.state.now += 121n;
   await expect(page.getByTestId("timelock-schedule")).toContainText("Schedule expired.", { timeout: 15_000 });
-  await expect(page.getByRole("button", { name: "Execute after cooldown" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Execute", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Cancel cooldown" })).toBeEnabled();
   expect(mock.writes).toEqual([]);
 });
 
-for (const action of ["Execute after cooldown", "Cancel cooldown"]) {
+for (const action of ["Execute", "Cancel cooldown"]) {
   test(`a rejected ${action} preserves the confirmed schedule and allows manual retry`, async ({ page }) => {
     const { getChainConfig } = await import("@symmio/trading-core");
     const mock = await mockDeployment(page, { configured: true, rejectWrites: true });
@@ -781,7 +860,7 @@ for (const action of ["Execute after cooldown", "Cancel cooldown"]) {
     });
     await page.addInitScript(({ key, recovery }) => localStorage.setItem(key, recovery), { key, recovery });
     await openTimelock(page);
-    const button = page.getByRole("button", { name: action });
+    const button = page.getByRole("button", { name: action, exact: true });
     await expect(button).toBeEnabled();
     await button.click();
     await expect(page.getByTestId("timelock-schedule").getByRole("alert")).toBeVisible();

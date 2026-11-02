@@ -202,6 +202,7 @@ function TimelockAccount({ account, owner }: { account: Address; owner: Address 
             <TimelockSelectorCard
               context={context}
               disabled={active || Boolean(recovery)}
+              recovery={recovery}
               storageKey={storageKey}
               saveRecovery={saveRecovery}
               onBusyChange={setActive}

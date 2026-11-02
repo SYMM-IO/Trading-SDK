@@ -19,6 +19,12 @@
  * `useSymmioConfig` / `useSymmioChainId` are the wagmi-style primitives every
  * other hook builds on.
  */
+/**
+ * Pinned AccountLayer ABI, available for composing or decoding exact contract calldata.
+ * @example encodeFunctionData({ abi: accountLayerAbi, functionName: "clearTimelocks", args: [root, selectors] });
+ */
+export { accountLayerAbi } from "@symmio/trading-core";
+
 export {
   ADD_MARGIN_TO_NEXT_VA_SELECTOR,
   GASLESS_RELAYABLE_FUNCTIONS,
