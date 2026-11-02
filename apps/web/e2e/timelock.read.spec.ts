@@ -12,6 +12,7 @@ import {
   type Hex,
 } from "viem";
 import { getSessionKeyBlockedReason } from "../src/features/gasless/session-key-write-policy";
+import { withSelectedApprovalSigner } from "../src/features/timelock/approval-signer";
 import {
   isDefiniteGaslessSimulationRejection,
   isUnsubmittedWalletRejection,
@@ -22,6 +23,21 @@ const OWNER = "0x0AF32c77e9431c8a618E821a719A5cdA9D703F67";
 const ROOT = "0x1111111111111111111111111111111111111111";
 const VA = "0x2222222222222222222222222222222222222222";
 const UNLOCKER = "0x3333333333333333333333333333333333333333";
+
+test("protected approval uses the selected session key only for delegated gasless writes", () => {
+  const onApproval = () => undefined;
+  const authorization = Object.freeze({ capability: {} as never, provider: {} as never, deadline: 1n, onApproval });
+  const signed = { approval: {} as never };
+  expect(withSelectedApprovalSigner(authorization, { gasless: true, from: VA })).toEqual({
+    ...authorization,
+    approvalSigner: VA,
+  });
+  expect(withSelectedApprovalSigner(authorization, { gasless: true })).toBe(authorization);
+  expect(withSelectedApprovalSigner(authorization, { gasless: undefined, from: VA })).toBe(authorization);
+  expect(withSelectedApprovalSigner(authorization, { gasless: false, from: VA })).toBe(authorization);
+  expect(withSelectedApprovalSigner(signed, { gasless: true, from: VA })).toBe(signed);
+  expect(withSelectedApprovalSigner(undefined, { gasless: true, from: VA })).toBeUndefined();
+});
 
 test("standard session-key grants do not expose unsupported timelock writes", () => {
   for (const method of [

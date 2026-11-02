@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@symmio/ui/components/textarea";
 import { useEffect, useRef, useState } from "react";
 import { isAddress, isAddressEqual, type AbiParameter, type Address } from "viem";
+import { withSelectedApprovalSigner } from "./approval-signer";
 import { clearRejectedApprovalAttempt, recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
@@ -123,29 +124,32 @@ export function TimelockNamedFunction({
           target: selected.target,
           functionName: selected.name,
           args,
-          timelock: {
-            capability,
-            provider: {
-              requestApproval: async (
-                request: Parameters<typeof provider.requestApproval>[0],
-                options?: Parameters<typeof provider.requestApproval>[1],
-              ) => {
-                if (!alive.current) throw new Error("Account changed before the approval request.");
-                saveRecovery(marker);
-                return provider.requestApproval(request, options);
+          timelock: withSelectedApprovalSigner(
+            {
+              capability,
+              provider: {
+                requestApproval: async (
+                  request: Parameters<typeof provider.requestApproval>[0],
+                  options?: Parameters<typeof provider.requestApproval>[1],
+                ) => {
+                  if (!alive.current) throw new Error("Account changed before the approval request.");
+                  saveRecovery(marker);
+                  return provider.requestApproval(request, options);
+                },
+              },
+              deadline: block.timestamp + 300n,
+              onApproval: (approval: unknown) => {
+                saved = JSON.stringify(
+                  approval,
+                  (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value),
+                  2,
+                );
+                saveRecovery(saved);
+                if (!alive.current) throw new Error("Account changed after approval; reconcile it before execution.");
               },
             },
-            deadline: block.timestamp + 300n,
-            onApproval: (approval: unknown) => {
-              saved = JSON.stringify(
-                approval,
-                (_, value: unknown) => (typeof value === "bigint" ? value.toString() : value),
-                2,
-              );
-              saveRecovery(saved);
-              if (!alive.current) throw new Error("Account changed after approval; reconcile it before execution.");
-            },
-          },
+            write,
+          ),
         } as unknown as ExecuteProtectedFunctionParameters;
         const result = await action.mutateAsync(variables);
         setHash(result.hash);

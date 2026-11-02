@@ -5,6 +5,7 @@ import { ResultError, ResultNote, ResultSuccess, ResultWarning } from "@/compone
 import { TxReceipt } from "@/components/tx-result";
 import { useFlowWriteOption, type GaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { SessionKeySignerNote } from "@/features/gasless/session-key-signer-note";
+import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
 import { TimelockPolicyPanel } from "@/features/timelock/timelock-policy-panel";
 import { readScheduledRecovery } from "@/features/timelock/timelock-recovery";
 import { TimelockSchedulePanel } from "@/features/timelock/timelock-schedule-panel";
@@ -238,7 +239,9 @@ export function WithdrawFlow({
     try {
       setTimelockError(undefined);
       await journal.run(async () => {
-        const authorizations = await journal.begin(lockedPolicies.length);
+        const authorizations = (await journal.begin(lockedPolicies.length)).map((item) =>
+          withSelectedApprovalSigner(item, initiateWrite),
+        );
         let next = 0;
         const authorization = isCustom
           ? { calls: neededPolicies.map((item) => (item?.status === "missing" ? undefined : authorizations[next++])) }

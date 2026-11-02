@@ -16,6 +16,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@symmio/ui/components/select";
 import { useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
+import { withSelectedApprovalSigner } from "./approval-signer";
 import { clearRejectedApprovalAttempt, recoveryTransactionHash, withTimelockAttemptLock } from "./timelock-recovery";
 import type { TimelockContext } from "./use-timelock-context";
 
@@ -91,7 +92,7 @@ export function TimelockAccountActions({
             if (!alive.current) throw new Error("Account changed after approval; reconcile it before execution.");
           },
         };
-        const common = { chainId: context.chainId, ...write, timelock };
+        const common = { chainId: context.chainId, ...write, timelock: withSelectedApprovalSigner(timelock, write) };
         const result =
           method === "addMargin"
             ? await add.mutateAsync({ virtualAccount: account, amount: parsed!, ...common })

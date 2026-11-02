@@ -4,6 +4,7 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
 import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useAddMargin, useSimulateAddMargin, useVirtualAccount, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
@@ -113,7 +114,7 @@ export function WriteAddMargin() {
                 virtualAccount: validVa,
                 amount: validAmount,
                 ...write,
-                ...(timelock ? { timelock } : {}),
+                ...(timelock ? { timelock: withSelectedApprovalSigner(timelock, write) } : {}),
               }),
             );
           }}

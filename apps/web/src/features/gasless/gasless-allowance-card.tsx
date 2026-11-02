@@ -3,6 +3,7 @@
 import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess, ResultWarning } from "@/components/result";
+import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
 import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { formatUsd, isUnlimitedAllowance, WEI_DECIMALS } from "@/lib/format";
 import {
@@ -268,13 +269,13 @@ export function GaslessAllowanceCard() {
                   account: payer,
                   amounts: [approvalAmount],
                   ...keepWrite,
-                  ...(timelock ? { timelock } : {}),
+                  ...(timelock ? { timelock: withSelectedApprovalSigner(timelock, keepWrite) } : {}),
                 })
               : resetApprove.mutateAsync({
                   account: payer,
                   amounts: [approvalAmount],
                   ...resetWrite,
-                  ...(timelock ? { timelock } : {}),
+                  ...(timelock ? { timelock: withSelectedApprovalSigner(timelock, resetWrite) } : {}),
                 }),
           );
         }}

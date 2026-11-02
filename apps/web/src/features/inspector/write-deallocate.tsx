@@ -5,6 +5,7 @@ import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { FEE_PREVIEW_UPNL_SIG } from "@/features/gasless/fee-preview-placeholders";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
 import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useDeallocate, useDeallocateUpnlSig, useSimulateDeallocate, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
@@ -118,7 +119,7 @@ export function WriteDeallocate() {
                 account: validAccount,
                 amount: validAmount,
                 ...write,
-                ...(timelock ? { timelock } : {}),
+                ...(timelock ? { timelock: withSelectedApprovalSigner(timelock, write) } : {}),
               }),
             );
           }}
