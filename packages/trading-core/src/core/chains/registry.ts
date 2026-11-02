@@ -1,3 +1,4 @@
+import { getEnigmaPriceServicePreset } from "./enigma-price-service-presets";
 import { SymmioSupportedChainId } from "./supported-chains";
 import type { SymmioChainConfig } from "./types";
 
@@ -142,11 +143,7 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
       },
     },
     defaultSolverId: "enigma",
-    priceService: {
-      type: "enigma",
-      url: "https://lowcap-price.enigma.bz",
-      wsUrl: "wss://lowcap-price.enigma.bz/ws",
-    },
+    priceService: getEnigmaPriceServicePreset({ environment: "production" }),
     muon: {
       urls: [
         "https://muon-oracle1.rasa.capital/v1/",
