@@ -1113,10 +1113,30 @@ test("rejecting the wallet transaction after approval permits a new manual attem
   await expect(button).toBeEnabled();
   await button.click();
   await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(1);
+  await expect(card.getByTestId("result-addMargin-error")).toBeVisible();
+  await expect(card.getByRole("alert")).toHaveCount(1);
+  await card.getByTestId("input-add-margin-amount").fill("2");
+  await expect(card.getByRole("alert")).toHaveCount(0);
   await expect(button).toBeEnabled({ timeout: 20_000 });
   await expect(page.getByTestId("timelock-recovery-notices")).toHaveCount(0);
   await button.click();
   await expect.poll(() => mock.writes.filter((item) => item === "approval").length).toBe(2);
+});
+
+test("a rejected normal withdrawal shows one error and clears it when edited", async ({ page }) => {
+  await mockDeployment(page, { unsupported: true, mockSignature: true, mockWriteSuccess: true, rejectWrites: true });
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  const amount = page.getByTestId("integration-withdraw-amount");
+  await amount.fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await page.getByTestId("button-initiate-withdraw").click();
+  const status = page.getByTestId("integration-withdraw-status");
+  await expect(status).toBeVisible();
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(1);
+  await amount.fill("2");
+  await expect(page.locator("main").getByRole("alert")).toHaveCount(0);
 });
 
 test("inspector shows one account recovery notice only after an in-flight request becomes unknown", async ({

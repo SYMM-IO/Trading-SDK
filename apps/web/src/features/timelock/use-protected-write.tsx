@@ -92,6 +92,10 @@ export function useProtectedWrite(
   const registry = useRecoveryNoticeRegistry();
   const [confirmedUnavailableScope, setConfirmedUnavailableScope] = useState<string>();
   const delayedScope = `${context.scope}:${selector}`;
+  useEffect(() => {
+    setError(undefined);
+    setErrorCode(undefined);
+  }, [safeAccount, selector, raw]);
 
   async function run(
     action: (authorization?: TimelockAuthorization) => Promise<{ hash: Hash; receipt?: { status: string } }>,
@@ -100,6 +104,15 @@ export function useProtectedWrite(
     setError(undefined);
     setErrorCode(undefined);
     const activeKey = journal.storageKey;
+    let actionFailed = false;
+    const runAction = async (authorization?: TimelockAuthorization) => {
+      try {
+        return await action(authorization);
+      } catch (failure) {
+        actionFailed = true;
+        throw failure;
+      }
+    };
     setRunning(true);
     if (activeKey) registry?.begin(activeKey);
     try {
@@ -111,7 +124,7 @@ export function useProtectedWrite(
         }
         if (routing.route.kind === "normal") {
           await journal.runNormal(() =>
-            routing.run({ normal: () => action(), protected: (authorization) => action(authorization) }),
+            routing.run({ normal: () => runAction(), protected: (authorization) => runAction(authorization) }),
           );
           return;
         }
@@ -119,8 +132,8 @@ export function useProtectedWrite(
           const authorization = (await journal.begin(1))[0]!;
           if (!("capability" in authorization)) throw new Error("Approval request configuration is unavailable.");
           const routed = await routing.run({
-            normal: () => action(),
-            protected: (authorization) => action(authorization),
+            normal: () => runAction(),
+            protected: (authorization) => runAction(authorization),
             deadline: authorization.deadline,
             onApproval: authorization.onApproval,
           });
@@ -132,20 +145,23 @@ export function useProtectedWrite(
         return;
       }
       if (!locked) {
-        await journal.runNormal(() => action());
+        await journal.runNormal(() => runAction());
         return;
       }
       await journal.run(async () => {
         const [authorization] = await journal.begin(1);
-        const result = await action(authorization);
+        const result = await runAction(authorization);
         if (result.receipt?.status === "success") journal.clear();
         else journal.submitted(result.hash);
       });
     } catch (failure) {
       await journal.failed(failure);
-      setError(failure instanceof Error ? failure.message : String(failure));
-      if (failure && typeof failure === "object" && "code" in failure && typeof failure.code === "string")
-        setErrorCode(failure.code);
+      // The write's existing status panel already renders its errors and handles resets.
+      if (!actionFailed) {
+        setError(failure instanceof Error ? failure.message : String(failure));
+        if (failure && typeof failure === "object" && "code" in failure && typeof failure.code === "string")
+          setErrorCode(failure.code);
+      }
     } finally {
       if (activeKey) registry?.end(activeKey);
       setRunning(false);

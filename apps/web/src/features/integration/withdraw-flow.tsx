@@ -210,6 +210,7 @@ export function WithdrawFlow({
   async function onInitiate() {
     if (!canInitiate) return;
     if (!subAccount || parsed === undefined || !validReceiver || chainId === undefined) return;
+    setTimelockError(undefined);
     if (!journal.canProceed()) {
       setTimelockError("An earlier protected operation needs reconciliation.");
       return;
@@ -217,13 +218,20 @@ export function WithdrawFlow({
     // `account`/`chainId` are bound on the hook (which resolves the subaccount's
     // isolation via useSubAccount); `parsed` is in the collateral token's decimals
     // and the hook builds the part + scales the deallocate amount.
+    let writeFailed = false;
+    const submitWithdrawal = async (input: Parameters<typeof withdraw.mutateAsync>[0]) => {
+      try {
+        return await withdraw.mutateAsync(input);
+      } catch (error) {
+        writeFailed = true;
+        throw error;
+      }
+    };
     if (timelock.unsupported || lockedPolicies.length === 0) {
       try {
-        await journal.runNormal(() =>
-          withdraw.mutateAsync({ amount: parsed, receiver: validReceiver, ...initiateWrite }),
-        );
+        await journal.runNormal(() => submitWithdrawal({ amount: parsed, receiver: validReceiver, ...initiateWrite }));
       } catch (error) {
-        setTimelockError(error instanceof Error ? error.message : String(error));
+        if (!writeFailed) setTimelockError(error instanceof Error ? error.message : String(error));
       }
       return;
     }
@@ -235,7 +243,7 @@ export function WithdrawFlow({
         const authorization = isCustom
           ? { calls: neededPolicies.map((item) => (item?.status === "missing" ? undefined : authorizations[next++])) }
           : authorizations[0]!;
-        const result = await withdraw.mutateAsync({
+        const result = await submitWithdrawal({
           amount: parsed,
           receiver: validReceiver,
           ...initiateWrite,
@@ -246,7 +254,7 @@ export function WithdrawFlow({
       });
     } catch (error) {
       await journal.failed(error);
-      setTimelockError(error instanceof Error ? error.message : String(error));
+      if (!writeFailed) setTimelockError(error instanceof Error ? error.message : String(error));
     }
   }
 
@@ -349,6 +357,7 @@ export function WithdrawFlow({
             value={amount}
             onChange={(next) => {
               setAmount(next);
+              setTimelockError(undefined);
               withdraw.reset();
             }}
             decimals={decimals}
@@ -372,6 +381,7 @@ export function WithdrawFlow({
               value={receiver}
               onChange={(e) => {
                 setReceiver(e.target.value);
+                setTimelockError(undefined);
                 withdraw.reset();
               }}
               placeholder="0x…"
