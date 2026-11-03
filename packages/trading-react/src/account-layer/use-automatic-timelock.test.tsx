@@ -1,5 +1,6 @@
-import { TimelockApprovalHttpError } from "@symmio/trading-core";
+import { TimelockApprovalHttpError, TimelockBatchExecutionError, TimelockExecutionError } from "@symmio/trading-core";
 import { QueryClient } from "@tanstack/react-query";
+import { UserRejectedRequestError } from "viem";
 import { describe, expect, it, vi } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { automaticAttemptKey, reserveAutomaticAttempt } from "./automatic-timelock-attempt";
@@ -414,6 +415,70 @@ describe("useAutomaticTimelock", () => {
     await expect(two.provider.requestApproval({} as never, undefined)).rejects.toBe(rejection);
     result.current.fail(batchVariables, rejection);
     expect(client.getQueryData(key)).toMatchObject({ status: "reconciliation" });
+  });
+
+  it.each([
+    { label: "a single call", batch: false, hash: undefined, uncertain: false, releases: true },
+    { label: "a batch", batch: true, hash: undefined, uncertain: false, releases: true },
+    {
+      label: "a submitted transaction",
+      batch: false,
+      hash: `0x${"12".repeat(32)}` as const,
+      uncertain: false,
+      releases: false,
+    },
+    { label: "an uncertain relay submission", batch: false, hash: undefined, uncertain: true, releases: false },
+  ])("handles wallet rejection after approval for $label", async ({ batch, hash, uncertain, releases }) => {
+    const { config } = createMockSymmioConfig({ timelockApproval: true });
+    const client = new QueryClient();
+    const capability = {
+      unlocker: UNLOCKER,
+      minTimelockDelaySeconds: 300,
+      validitySeconds: 60,
+      requestDomain: {
+        name: "SymmioTimelockApprovalRequest",
+        version: "1",
+        chainId: "42161",
+        verifyingContract: config.getChainConfig(42161).addresses.accountLayerAddress,
+      },
+    } as const;
+    const provider = { requestApproval: vi.fn().mockResolvedValue({} as never) };
+    vi.spyOn(client, "fetchQuery").mockResolvedValue({
+      rootAccount: ACCOUNT,
+      ready: true,
+      selectors: [{ status: "ok" }],
+    } as never);
+    const original = config.getClient.bind(config);
+    vi.spyOn(config, "getClient").mockImplementation(
+      (parameters) => ({ ...original(parameters), getBlock: async () => ({ timestamp: 1000n }) }) as never,
+    );
+    const { result } = renderHookWithProviders(() => useAutomaticTimelock(config, { capability, provider }), {
+      queryClient: client,
+    });
+    const variables = {};
+    const authorization = await result.current(variables, {
+      account: ACCOUNT,
+      chainId: 42161,
+      functionName: "addMargin",
+    });
+    if (!authorization || "approval" in authorization) throw new Error("Expected provider authorization");
+    await authorization.provider.requestApproval({} as never, undefined);
+    const rejection = new UserRejectedRequestError(new Error("Rejected"));
+    const cause = uncertain
+      ? Object.assign(new Error("Relay outcome unknown", { cause: rejection }), { code: "GASLESS_SUBMIT_UNCONFIRMED" })
+      : rejection;
+    const failure = batch
+      ? new TimelockBatchExecutionError([{} as never], ["0x12345678"], cause, hash)
+      : new TimelockExecutionError({} as never, "0x12345678", cause, hash);
+    result.current.fail(variables, failure);
+    const key = automaticAttemptKey(42161, config.getChainConfig(42161).addresses.accountLayerAddress, ACCOUNT);
+    if (releases) {
+      expect(client.getQueryData(key)).toBeUndefined();
+      await expect(result.current.guard({}, { account: ACCOUNT, chainId: 42161 })).resolves.toBeUndefined();
+    } else {
+      expect(client.getQueryData(key)).toMatchObject({ status: "reconciliation" });
+    }
+    expect(provider.requestApproval).toHaveBeenCalledTimes(1);
   });
 
   it("shares a root guard with virtual accounts without blocking other roots", async () => {

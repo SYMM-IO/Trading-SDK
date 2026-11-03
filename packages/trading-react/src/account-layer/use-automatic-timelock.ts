@@ -11,6 +11,8 @@ import {
   INSTANT_OPEN_TIMELOCK_SELECTORS,
   SymmError,
   TimelockApprovalHttpError,
+  TimelockBatchExecutionError,
+  TimelockExecutionError,
   type Config,
   type GetSolverInfoData,
   type TimelockApprovalCapability,
@@ -19,7 +21,7 @@ import {
 } from "@symmio/trading-core";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { isAddressEqual, zeroAddress, type Address } from "viem";
+import { isAddressEqual, UserRejectedRequestError, zeroAddress, type Address } from "viem";
 import { useConnection } from "wagmi";
 import {
   refreshTimelockInfoAfterUnavailable,
@@ -33,6 +35,34 @@ import {
   finishAutomaticAttempt,
   reserveAutomaticAttempt,
 } from "./automatic-timelock-attempt";
+
+/** A wallet rejection is definitive only before any submission evidence exists. */
+function isUnsubmittedExecutionRejection(error: unknown): boolean {
+  if (!(error instanceof TimelockExecutionError || error instanceof TimelockBatchExecutionError)) return false;
+  let current: unknown = error;
+  let rejected = false;
+  const seen = new Set<object>();
+  while (current && typeof current === "object" && !seen.has(current)) {
+    seen.add(current);
+    const item = current as Record<string, unknown>;
+    if (
+      item.hash ||
+      item.transactionHash ||
+      item.txHash ||
+      item.broadcastHash ||
+      item.requestId ||
+      item.request_id ||
+      item.idempotencyKey ||
+      item.idempotency_key ||
+      item.code === "GASLESS_SUBMIT_UNCONFIRMED" ||
+      item.responseData
+    )
+      return false;
+    if (current instanceof UserRejectedRequestError) rejected = true;
+    current = item.cause;
+  }
+  return rejected && current == null;
+}
 
 /** Resolve an automatic authorization once per mutation variables object. */
 export function useAutomaticTimelock(
@@ -304,7 +334,12 @@ export function useAutomaticTimelock(
       "3710": 400,
     };
     const rejected = error instanceof TimelockApprovalHttpError && rejections[error.code] === error.status;
-    finishAutomaticAttempt(client, attempt.key, attempt.token, rejected && attempt.issued === 0);
+    finishAutomaticAttempt(
+      client,
+      attempt.key,
+      attempt.token,
+      (rejected && attempt.issued === 0) || isUnsubmittedExecutionRejection(error),
+    );
   }
   return Object.assign(resolve, { batch, finish, fail, guard });
 }
