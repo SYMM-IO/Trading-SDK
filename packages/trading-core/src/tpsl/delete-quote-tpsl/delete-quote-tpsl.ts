@@ -1,7 +1,7 @@
 import type { Address } from "viem";
 import type { Config } from "../../core/config";
-import { SymmError } from "../../shared/errors/symm-error";
 import type { Compute, WriteSolverParameter } from "../../shared/types/properties";
+import { assertTpSlAcceptance } from "../assert-tpsl-acceptance";
 import { rethrowTpSlError } from "../internal/axios";
 import { resolveTpSlConfig } from "../internal/resolve-tpsl-config";
 import { buildTpSlDeleteMessage } from "../set-quote-tpsl/build-conditional-order-message";
@@ -38,9 +38,10 @@ export interface DeleteQuoteTpSlReturnType {
  * 3. Sign with the session-key wallet.
  * 4. DELETE `/api/v5/` with `{ typedData, signature, signer }`.
  *
- * The handler returns 200 on accept — the cancel is only fully "confirmed"
- * once the WebSocket reports `state: "cancel"` (or `canceled` / `cancelled`).
- * Callers should subscribe via `watchTpSlNotifications` and reconcile.
+ * An explicit successful response acknowledges submission, not completion.
+ * Notifications are refresh signals; reconcile with a complete live-order read
+ * before treating the requested order as removed. Notifications do not identify
+ * a particular mutation or carry an order version.
  *
  * @throws {SymmError} when the chain has no `tpsl` config or signing fails.
  * @throws {SymmApiError} when the handler request fails.
@@ -67,10 +68,7 @@ export async function deleteQuoteTpSl(
       headers: { "App-Name": tpsl.appName, "Content-Type": "application/json", Accept: "application/json" },
     });
     const body = response.data ?? {};
-    const successful = typeof body.successful === "string" ? body.successful !== "false" : body.successful !== false;
-    if (!successful) {
-      throw new SymmError("api", "DELETE_TPSL_REJECTED", body.message ?? "Handler rejected TP/SL delete.");
-    }
+    assertTpSlAcceptance(body, "DELETE");
     return { success: true };
   } catch (err) {
     return rethrowTpSlError(err, { code: "DELETE_TPSL_FAILED", baseURL: tpsl.url });

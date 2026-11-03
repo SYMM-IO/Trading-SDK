@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildConditionalOrderLeg, TPSL_LEG_ORDER_TYPE_MARKET } from "./build-conditional-order-leg";
+import { buildConditionalOrderLeg } from "./build-conditional-order-leg";
 
 describe("buildConditionalOrderLeg", () => {
   it("maps `markPrice` -> wire `market`", () => {
@@ -13,7 +13,7 @@ describe("buildConditionalOrderLeg", () => {
     ).toEqual({
       quantity: "10",
       price: "1.0000",
-      orderType: TPSL_LEG_ORDER_TYPE_MARKET,
+      orderType: 2,
       conditionalPrice: "1.1",
       conditionalPriceType: "market",
     });
@@ -29,14 +29,14 @@ describe("buildConditionalOrderLeg", () => {
     expect(leg.conditionalPriceType).toBe("last_close");
   });
 
-  it("defaults orderType to the market sentinel (1)", () => {
+  it("defaults orderType to the market-best-effort close type (2)", () => {
     const leg = buildConditionalOrderLeg({
       quantity: "1",
       price: "1",
       conditionalPrice: "1",
       priceType: "markPrice",
     });
-    expect(leg.orderType).toBe(TPSL_LEG_ORDER_TYPE_MARKET);
+    expect(leg.orderType).toBe(2);
   });
 
   it("honors an explicit orderType override", () => {
@@ -45,8 +45,8 @@ describe("buildConditionalOrderLeg", () => {
       price: "1",
       conditionalPrice: "1",
       priceType: "markPrice",
-      orderType: 7,
+      orderType: 0,
     });
-    expect(leg.orderType).toBe(7);
+    expect(leg.orderType).toBe(0);
   });
 });

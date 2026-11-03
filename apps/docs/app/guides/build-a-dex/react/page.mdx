@@ -410,7 +410,7 @@ cap?.openInterest; // open interest
 Two orchestrators cover the open flow:
 
 - **[`useInstantOpenAuto`](/react/solvers/instant-open#useinstantopenauto)** — one-line open. Fetches market metadata, mark price, locked params, and fees inline, signs, and POSTs. Returns `{ tempQuoteId }` (a negative int) that pins the pending row until it anchors on-chain. Use when the form has no TP/SL row.
-- **[`useInstantOpenWithTpSl`](/react/solvers/instant-open#useinstantopenwithtpsl)** — same, plus atomically attaches TP/SL against the returned `tempQuoteId`. Pass `tpsl: undefined` when both legs are empty.
+- **[`useInstantOpenWithTpSl`](/react/solvers/instant-open#useinstantopenwithtpsl)** — same, then separately submits TP/SL against the returned `tempQuoteId`. Pass `tpsl: undefined` when both legs are empty.
 
 Both `mutate` with `{ from, subAccountAddress, market: { id }, positionType, initialMargin, leverage, slippage, tpsl? }`. `from` is the **session key**. `market.id` is `Number(row.symbol_id)`. `positionType` is `PositionType.LONG` / `PositionType.SHORT`.
 
@@ -439,13 +439,14 @@ const tpsl =
         subAccount,
         symbolId: BigInt(market.symbol_id),
         positionType,
-        quantity: tradeParams.quantity, // decimal string from calculateTradeParams
+        quantity: tradeParams.quantity, // overridden by prepared mode below
         pricePrecision: Number(market.price_precision),
         tp: hasTp ? { triggerPrice: tpPrice, priceType: tpType } : undefined, // "markPrice" | "lastPrice"
         sl: hasSl ? { triggerPrice: slPrice, priceType: slType } : undefined,
       }
     : undefined;
 
+const open = useInstantOpenWithTpSl();
 await open.mutateAsync({
   from: sessionKey,
   subAccountAddress: subAccount,
@@ -455,10 +456,13 @@ await open.mutateAsync({
   leverage,
   slippage,
   tpsl,
+  tpslQuantityMode: "prepared",
 });
 ```
 
-`tpsl: undefined` (both legs empty) makes the hook behave exactly like `useInstantOpenAuto` — no wasted call. The open and the TP/SL leg fail independently: if the open lands but the TP/SL POST is rejected, the mutation still resolves and surfaces `data.tpslError` (an amber "position opened, TP/SL failed" is friendlier than throwing away the trade). See [§8](#8-tpsl) for how the attached order then confirms over the WebSocket.
+`tpsl: undefined` (both legs empty) makes the hook behave exactly like `useInstantOpenAuto` — no wasted call. The open and the TP/SL leg fail independently: if the open lands but the TP/SL POST is rejected, the mutation still resolves and surfaces `data.tpslError`. Prepared mode uses the exact submitted quantity; `data.tpslParameters` retains the resolved attachment inputs for attachment-only recovery. Never rerun the open to recover an attachment.
+
+If the application already owns TP/SL optimism and REST reconciliation, use `useInstantOpenWithTpSl({ tpslState: "external" })` to skip SDK TP/SL-store writes. Otherwise the default store flow is described in [§8](#8-tpsl). HTTP acceptance and WS reports do not establish which concurrent mutation completed; observe current REST state and never automatically replay an ambiguous write.
 
 **Form details that matter:**
 

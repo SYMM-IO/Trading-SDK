@@ -2,7 +2,7 @@
 
 Cancel a live TP or SL order by its handler-issued `cohQuoteId`. Internally: resolves the handler URL + [DELETE signing spec](/core/tpsl/get-tpsl-delete-signing-spec), builds a [`TpSlDeleteMessage`](/core/tpsl/tpsl-delete-message) bound to the target `cohQuoteId` + side, signs it with the session-key wallet, and calls `DELETE /api/v5/` with `{ typedData, signature, signer }`.
 
-The handler returns `200` on accept; the cancel is only fully confirmed once the WebSocket reports `state: "cancel"` (or `canceled` / `cancelled`). Callers should subscribe via [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) and reconcile.
+A resolved call establishes submission acceptance, not confirmed deletion. Check a complete live-order search through [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders) before treating absence as removal. Notifications from [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) can prompt reconciliation, but cannot identify which mutation completed or order successive changes.
 
 ```ts
 import { deleteQuoteTpSl } from "@symmio/trading-core";
@@ -49,10 +49,13 @@ await deleteQuoteTpSl(config, {
 
 ## Throws
 
+- `DELETE_TPSL_INVALID_RESPONSE` for a missing/malformed `successful` field. Only boolean `true` or string `"true"` establishes acceptance; explicit `false` / `"false"` yields `DELETE_TPSL_REJECTED`.
 - `SymmError` when the chain has no `tpsl` config or signing fails.
 - `SymmApiError` when the handler request fails.
 
 ## Mutation options
+
+Acceptance does not confirm deletion. Check a complete live-order search before interpreting absence as removal. A malformed response or transport failure can leave the outcome unknown; the action does not retry automatically. Notifications are useful refresh signals but cannot distinguish successive mutations without backend correlation/version metadata.
 
 ```ts
 import { deleteQuoteTpSlMutationOptions } from "@symmio/trading-core";
@@ -61,10 +64,10 @@ import { useMutation } from "@tanstack/react-query";
 useMutation(deleteQuoteTpSlMutationOptions(config));
 ```
 
-`deleteQuoteTpSlMutationOptions` returns `{ mutationKey, mutationFn }`; the `mutationFn` takes the same parameters object as the action.
+`deleteQuoteTpSlMutationOptions` returns `{ mutationKey, mutationFn, retry: false }`; the `mutationFn` takes the same parameters object as the action. Automatic retries are explicitly disabled, including host-level mutation retry defaults. A lost acknowledgment, timeout or network error may follow an accepted write. Reconcile state before explicitly submitting again; do not override this policy without a proven replay guarantee.
 
 ## Related
 
 - [`TpSlDeleteMessage`](/core/tpsl/tpsl-delete-message) — the message body built and signed.
-- [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) — the confirmation stream.
+- [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) — notification signals for reconciliation.
 - [`useDeleteQuoteTpSl`](/react/tpsl) — React binding.

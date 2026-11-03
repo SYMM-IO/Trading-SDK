@@ -175,14 +175,13 @@ describe("searchTpSlOrders", () => {
     expect(result.count).toBe(1);
   });
 
-  it("falls back to an empty page when the body is undefined", async () => {
+  it("rejects a missing body rather than falsely confirming removal", async () => {
     const { config } = mockConfig();
     vi.spyOn(axios, "post").mockResolvedValue(okResponse(undefined));
 
-    const result = await searchTpSlOrders(config, { account: TEST_USER });
-
-    expect(result.orders).toEqual([]);
-    expect(result.count).toBe(0);
+    await expect(searchTpSlOrders(config, { account: TEST_USER })).rejects.toMatchObject({
+      code: "SEARCH_TPSL_INVALID_RESPONSE",
+    });
   });
 
   it("reports a short page as complete — absence may be trusted", async () => {
