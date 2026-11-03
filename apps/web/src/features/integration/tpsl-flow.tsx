@@ -504,7 +504,7 @@ function PositionPickerStep({
 // Set TP/SL
 // ---------------------------------------------------------------------------
 
-function SetTpSlStep({
+export function SetTpSlStep({
   subAccount,
   virtualAccount,
   sessionKey,
@@ -637,6 +637,16 @@ function SetTpSlStep({
     accepted(parameters);
   }
 
+  function deleteSide(side: "take_profit" | "stop_loss", cohQuoteId: string) {
+    // Deleting a side the last submit set ends that submit's result; the
+    // delete's own cancel report must not read as a failed submission.
+    if (side === "take_profit" ? mutation.variables?.tp : mutation.variables?.sl) mutation.reset();
+    deleteMutation.mutate(
+      { from: sessionKey, quoteId: position.id, virtualAccount, cohQuoteId, conditionalOrderType: side },
+      { onSuccess: () => setDeletingSides((prev) => ({ ...prev, [side === "take_profit" ? "tp" : "sl"]: true })) },
+    );
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <div className="border-border/70 bg-muted/10 grid gap-2 rounded-xl border p-4 text-sm">
@@ -698,22 +708,13 @@ function SetTpSlStep({
                 cohQuoteId={current.data.tpCohQuoteId}
                 side="take_profit"
                 disabled={
-                  !sessionKey || !current.data.tp || current.data.tpState === "confirming" || deleteMutation.isPending
+                  !sessionKey ||
+                  !current.data.tp ||
+                  current.data.tpState === "confirming" ||
+                  deleteMutation.isPending ||
+                  mutation.isPending
                 }
-                onDelete={(cohQuoteId) =>
-                  deleteMutation.mutate(
-                    {
-                      from: sessionKey,
-                      quoteId: position.id,
-                      virtualAccount,
-                      cohQuoteId,
-                      conditionalOrderType: "take_profit",
-                    },
-                    {
-                      onSuccess: () => setDeletingSides((prev) => ({ ...prev, tp: true })),
-                    },
-                  )
-                }
+                onDelete={(cohQuoteId) => deleteSide("take_profit", cohQuoteId)}
               />
             </dd>
             <dt className="text-muted-foreground">SL</dt>
@@ -731,22 +732,13 @@ function SetTpSlStep({
                 cohQuoteId={current.data.slCohQuoteId}
                 side="stop_loss"
                 disabled={
-                  !sessionKey || !current.data.sl || current.data.slState === "confirming" || deleteMutation.isPending
+                  !sessionKey ||
+                  !current.data.sl ||
+                  current.data.slState === "confirming" ||
+                  deleteMutation.isPending ||
+                  mutation.isPending
                 }
-                onDelete={(cohQuoteId) =>
-                  deleteMutation.mutate(
-                    {
-                      from: sessionKey,
-                      quoteId: position.id,
-                      virtualAccount,
-                      cohQuoteId,
-                      conditionalOrderType: "stop_loss",
-                    },
-                    {
-                      onSuccess: () => setDeletingSides((prev) => ({ ...prev, sl: true })),
-                    },
-                  )
-                }
+                onDelete={(cohQuoteId) => deleteSide("stop_loss", cohQuoteId)}
               />
             </dd>
           </dl>
