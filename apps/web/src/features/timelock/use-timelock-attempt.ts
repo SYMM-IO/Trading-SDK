@@ -107,7 +107,7 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
 
   async function begin(count: number): Promise<TimelockAuthorization[]> {
     const requestedScope = context.scope;
-    if (!key || loadedKey !== key || recovery || !context.capability || context.policy.error || context.info.error)
+    if (!key || loadedKey !== key || recovery || !context.capability || context.policy.error)
       throw new Error("Complete policy setup and reconcile earlier attempts before continuing.");
     if (readTimelockRecovery(key)) throw new Error("A previous operation needs reconciliation.");
     save(PREPARING);

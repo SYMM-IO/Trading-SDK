@@ -135,6 +135,7 @@ export function WriteAddMargin() {
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-addMargin"
+        timelockAccount={simulate.variables?.virtualAccount}
       />
 
       <ProtectedWriteNotice protection={protection} />

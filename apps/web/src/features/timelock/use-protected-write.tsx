@@ -69,13 +69,7 @@ export function useProtectedWrite(
       !journal.recovery &&
       !journal.error &&
       (context.unsupported ||
-        Boolean(
-          context.capability &&
-          !context.info.error &&
-          !context.policy.error &&
-          policy &&
-          (!locked || policy.status === "ok"),
-        )));
+        Boolean(context.capability && !context.policy.error && policy && (!locked || policy.status === "ok"))));
   const available = automatic
     ? journal.loaded &&
       !journal.recovery &&
@@ -83,7 +77,7 @@ export function useProtectedWrite(
       !routing.attempt &&
       (routing.route.kind === "normal" ||
         routing.route.kind === "delayed" ||
-        (routing.route.kind === "approval" && !context.info.error && !context.policy.error))
+        (routing.route.kind === "approval" && !context.policy.error))
     : legacyAvailable;
   const [error, setError] = useState<string>();
   const [errorCode, setErrorCode] = useState<string>();

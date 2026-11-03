@@ -12,6 +12,8 @@ import {
   SymmError,
   TimelockApprovalHttpError,
   type Config,
+  type GetSolverInfoData,
+  type TimelockApprovalCapability,
   type TimelockAuthorization,
   type TimelockBatchAuthorization,
 } from "@symmio/trading-core";
@@ -19,6 +21,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { isAddressEqual, zeroAddress, type Address } from "viem";
 import { useConnection } from "wagmi";
+import {
+  refreshTimelockInfoAfterUnavailable,
+  rememberTimelockCapability,
+  timelockCapabilityKey,
+} from "../solvers/timelock-capability-cache";
 import type { AutomaticTimelockWriteParameters } from "../transactions/write-types";
 import {
   automaticAttemptKey,
@@ -147,6 +154,7 @@ export function useAutomaticTimelock(
       const solver = config.getSolver({ chainId: parameters.chainId });
       if (chain.timelockSupported === false || solver.capabilities?.timelockApproval === false) return undefined;
       const infoOptions = getSolverInfoQueryOptions(config, { chainId: parameters.chainId, solverId: solver.id });
+      const capabilityKey = timelockCapabilityKey(config, parameters.chainId, solver.id);
       async function selectorIsUnlocked() {
         const virtual = await client.fetchQuery({
           ...getVirtualAccountQueryOptions(config, { chainId: parameters.chainId, account: parameters.account }),
@@ -174,10 +182,15 @@ export function useAutomaticTimelock(
           "Supply an explicit timelock authorization for this solver.",
         );
       }
-      let capability = supplied?.capability;
+      let capability = supplied?.capability ?? client.getQueryData<TimelockApprovalCapability>(capabilityKey);
+      if (!capability && !supplied) {
+        capability = client.getQueryData<GetSolverInfoData>(infoOptions.queryKey)?.timelockApproval;
+        rememberTimelockCapability(client, capabilityKey, capability);
+      }
       if (!capability) {
         try {
           capability = (await client.fetchQuery({ ...infoOptions, retry: false, staleTime: 0 })).timelockApproval;
+          rememberTimelockCapability(client, capabilityKey, capability);
         } catch (error) {
           // A confirmed unlocked selector does not depend on the approval service.
           // If either chain read fails, retain the original discovery failure.
@@ -231,9 +244,15 @@ export function useAutomaticTimelock(
             checkOperationScope(variables, parameters);
             reserveAutomaticAttempt(client, key, currentAttempt.token);
             currentAttempt.key = key;
-            const response = await provider.requestApproval(request, requestOptions);
-            currentAttempt.issued += 1;
-            return response;
+            try {
+              const response = await provider.requestApproval(request, requestOptions);
+              currentAttempt.issued += 1;
+              return response;
+            } catch (error) {
+              if (!supplied?.provider)
+                void refreshTimelockInfoAfterUnavailable(client, config, parameters.chainId, solver.id, error);
+              throw error;
+            }
           },
         },
         deadline: supplied?.deadline ?? block.timestamp + 300n,

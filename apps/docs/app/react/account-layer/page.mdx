@@ -317,7 +317,8 @@ The hook reads `useSymmioWalletClient()` under the hood. If the user is disconne
 
 For protected writes, pass the optional `timelock` mutation variable to
 `useAllocate`, `useDeallocate`, `useAddMargin`, `useRemoveMargin`, or
-`useDeleteSubAccount`. Omitting it preserves the ordinary write. `useProtectedCall`
+`useDeleteSubAccount`. When omitted, the automatic route may discover and authorize a protected write;
+pass `automaticTimelock: false` to the hook to retain the ordinary write route. `useProtectedCall`
 executes one raw Core or AccountLayer call; `useTimelockApprovalProvider` creates
 the standard HTTP provider for the selected solver, and `useTimelockSelector`
 looks up an SDK policy selector by function name. `useScheduledCallMatch`
@@ -358,6 +359,13 @@ The React package exposes the same provider-neutral timelock flow as core:
 ### Automatic route selection
 
 The standard protected write hooks automatically inspect the selected deployment and selector before issuing an approval. Existing explicit `timelock` mutation inputs always take precedence. On chains or solvers explicitly configured without support, the previous plain write path is preserved. If solver discovery fails, an on-chain selector read can still establish that the operation is unlocked; if it cannot, the hook returns an error rather than assuming a plain write is safe. For app-owned routing, pass `automaticTimelock: false` in the hook options. Integrations with another provider can pass `{ capability, provider, deadline?, onApproval? }` instead; keep the provider object stable during the operation and persist approvals in `onApproval` when recovery must survive reload.
+
+After positive solver discovery, React retains its validated capability for the QueryClient lifetime, scoped to the
+chain, AccountLayer and solver deployment. Each new operation still checks the current account policy and requests
+its own approval when needed. A failed or incomplete `/info` refresh does not silently downgrade known support;
+replacing or clearing the QueryClient starts discovery again.
+After a standard approval transport reports an unavailable service, React performs one background `/info` read
+without retrying the approval request; an ambiguous approval still requires reconciliation.
 
 For multi-call writes, each protected inner call receives a distinct authorization. Automatic handling does not schedule a delayed operation or retry an ambiguous approval request; use the explicit scheduling hooks after reconciling any earlier attempt. The default request deadline is five minutes after the current chain block time.
 

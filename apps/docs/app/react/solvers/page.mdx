@@ -144,9 +144,16 @@ const info = useSolverInfo();
 info.data?.staticSolverFeeOpen; // "0.5"  — USD per instant open
 info.data?.staticSolverFeeClose; // "0.25" — USD per instant close (incl. partial closes)
 info.data?.timelockApproval; // Optional TimelockApprovalCapability from this deployment.
+info.knownTimelockApproval; // Last positively discovered capability in this QueryClient.
 ```
 
-Returns `UseQueryResult<EnigmaSolverInfo, SymmioRequestError>`:
+Returns `UseSolverInfoReturnType`, a `UseQueryResult<EnigmaSolverInfo, SymmioRequestError>` with `knownTimelockApproval`:
+
+`knownTimelockApproval` retains the last validated positive timelock capability for the selected chain,
+AccountLayer, solver and solver URL while this QueryClient exists. A failed refresh or a response omitting
+the capability does not erase it. `data` and `error` still describe the current `/info` query; a browser
+reload or clearing the query cache starts discovery again. This value does not cache the account policy or
+an operation's approval.
 
 | Field                  | Type                                      | Notes                                                                                                              |
 | ---------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |

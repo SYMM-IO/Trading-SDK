@@ -188,11 +188,7 @@ export function WithdrawFlow({
     !fallbackBusy &&
     (!timelock.checkRecovery || (journal.loaded && !journal.recovery && !journal.error)) &&
     (timelock.unsupported ||
-      (timelock.capability &&
-        !timelock.info.error &&
-        !timelock.policy.error &&
-        protectedReady &&
-        isolationType !== undefined)) &&
+      (timelock.capability && !timelock.policy.error && protectedReady && isolationType !== undefined)) &&
     subAccount &&
     parsed !== undefined &&
     validReceiver &&

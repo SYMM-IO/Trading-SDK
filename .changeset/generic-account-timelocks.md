@@ -22,3 +22,5 @@ Declare timelock approval support as a solver capability and expose React routin
 Allow consumers to disable automatic timelock discovery and policy reads, and expose the Core-call encoder through a React hook for exact scheduled-operation recovery.
 
 Expose the pinned AccountLayer ABI from the React entry point for exact-call encoding and decoding in React consumers.
+
+Retain positively discovered solver timelock capability per deployment for the React QueryClient lifetime. Protected writes still read the current selector policy and obtain separate approvals; reloading or clearing the query cache starts discovery again.

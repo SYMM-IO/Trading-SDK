@@ -9,11 +9,13 @@ import {
   type TimelockAuthorization,
   type ValidatedTimelockApproval,
 } from "@symmio/trading-core";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { isAddressEqual, zeroAddress, type Address, type Hex } from "viem";
 import { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { refreshTimelockInfoAfterUnavailable, useKnownTimelockCapability } from "../solvers/timelock-capability-cache";
 import { useSolverInfo } from "../solvers/use-solver-info";
 import { useSelectorTimelock } from "./use-timelock";
 import { useTimelockPolicy } from "./use-timelock-policy";
@@ -55,6 +57,7 @@ export type TimelockRoute =
  */
 export function useTimelockRoute(parameters: UseTimelockRouteParameters) {
   const config = useSymmioConfig(parameters);
+  const queryClient = useQueryClient();
   const connectedChain = useSymmioChainId();
   const chainId = parameters.chainId ?? connectedChain;
   const solver = config.getSolver({ chainId, solverId: parameters.solverId });
@@ -76,14 +79,17 @@ export function useTimelockRoute(parameters: UseTimelockRouteParameters) {
   const [, refresh] = useState(0);
   const configured = solver.capabilities?.timelockApproval;
   const chainSupported = parameters.enabled !== false && config.getChainConfig(chainId).timelockSupported !== false;
-  const canDiscover = chainSupported && configured !== false && solver.id === "enigma" && !parameters.capability;
+  const known = useKnownTimelockCapability(config, chainId, parameters.solverId);
+  const canDiscover =
+    chainSupported && configured !== false && solver.id === "enigma" && !parameters.capability && !known;
   const info = useSolverInfo({
     chainId,
     solverId: parameters.solverId,
     config,
     query: { enabled: canDiscover, retry: false, staleTime: 0 },
   });
-  const capability = parameters.capability ?? info.data?.timelockApproval;
+  const capability =
+    parameters.capability ?? known ?? (info.isPlaceholderData ? undefined : info.data?.timelockApproval);
   const supported =
     chainSupported && configured !== false && (configured === true || Boolean(capability) || canDiscover);
   const virtual = useVirtualAccount({
@@ -151,8 +157,8 @@ export function useTimelockRoute(parameters: UseTimelockRouteParameters) {
         (info.error.kind === "api" && (info.error.status === 0 || (info.error.status ?? 0) >= 500)))
     )
       route = { kind: "delayed", rootAccount, unlocker: selector.data.unlocker, delay: selector.data.delay };
-    else if (!parameters.capability && info.error) route = { kind: "error", message: info.error.message };
-    else if (!parameters.capability && info.isFetching) route = { kind: "loading" };
+    else if (!parameters.capability && !known && info.error) route = { kind: "error", message: info.error.message };
+    else if (!parameters.capability && !known && info.isFetching) route = { kind: "loading" };
     else if (capability) {
       const chain = config.getChainConfig(chainId);
       if (
@@ -192,10 +198,16 @@ export function useTimelockRoute(parameters: UseTimelockRouteParameters) {
       const authorization: TimelockAuthorization = {
         capability: route.capability,
         provider: {
-          requestApproval: (request, options) => {
+          requestApproval: async (request, options) => {
             if (!mounted.current || currentScope.current !== scope)
               throw new Error("Account or deployment changed before requesting approval.");
-            return provider.requestApproval(request, options);
+            try {
+              return await provider.requestApproval(request, options);
+            } catch (error) {
+              if (!parameters.provider)
+                void refreshTimelockInfoAfterUnavailable(queryClient, config, chainId, solver.id, error);
+              throw error;
+            }
           },
         },
         deadline: actions.deadline,

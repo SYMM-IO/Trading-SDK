@@ -54,11 +54,12 @@ export function useTimelockContext(
     },
   });
   const info = useSolverInfo({ chainId, solverId, query: { enabled: supportsInfo, staleTime: 0, retry: false } });
-  const capability = info.data?.timelockApproval;
+  const capability = info.knownTimelockApproval ?? (info.isPlaceholderData ? undefined : info.data?.timelockApproval);
   const policy = useTimelockPolicy({
     account: targetAccount ?? zeroAddress,
     chainId,
     solverId,
+    capability,
     query: { enabled: Boolean(supportsInfo && targetAccount && capability), staleTime: 0, retry: false },
   });
   const scope = `${config.getChainConfigKey(chainId)}:${solver.url}:${targetAccount?.toLowerCase()}`;
@@ -73,7 +74,7 @@ export function useTimelockContext(
     ? `v2:${chainId}:${config.getChainConfig(chainId).addresses.accountLayerAddress.toLowerCase()}:${rootAccount.toLowerCase()}`
     : undefined;
   const unsupported = !supportsInfo || (info.isSuccess && !info.error && !capability);
-  const ready = unsupported || Boolean(capability && policy.data?.ready && !policy.error && !info.error);
+  const ready = unsupported || Boolean(capability && policy.data?.ready && !policy.error);
 
   return {
     config,

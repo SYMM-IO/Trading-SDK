@@ -85,7 +85,7 @@ export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
  * to `false` — a solver must **declare** a capability to enable it.
  */
 export interface SolverCapabilitiesConfig {
-  /** Whether this solver deployment offers timelock approval. Unset defaults to false. */
+  /** Whether this solver deployment offers timelock approval. Unset means unspecified; consumers may discover support. */
   timelockApproval?: boolean;
   /**
    * Whether the solver supports closing a whole market + side group of quotes in

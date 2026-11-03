@@ -1,7 +1,9 @@
+import { QueryClient } from "@tanstack/react-query";
 import { act } from "@testing-library/react";
 import { zeroAddress } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SymmioRequestError } from "../errors/symmio-request-error";
+import { rememberTimelockCapability, timelockCapabilityKey } from "../solvers/timelock-capability-cache";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { useTimelockRoute } from "./use-timelock-route";
 
@@ -44,6 +46,20 @@ function fixture(enabled = true) {
 beforeEach(() => vi.clearAllMocks());
 
 describe("useTimelockRoute", () => {
+  it("offers delayed recovery when known solver support is temporarily unavailable", () => {
+    const { config, capability } = fixture();
+    const queryClient = new QueryClient();
+    rememberTimelockCapability(queryClient, timelockCapabilityKey(config, 42161), capability);
+    stubs.info.mockReturnValue({ error: { kind: "api", status: 503, message: "unavailable" } });
+    const { result } = renderHookWithProviders(
+      () => useTimelockRoute({ config, account: ACCOUNT, selector: SELECTOR }),
+      {
+        queryClient,
+      },
+    );
+    expect(result.current.route).toEqual({ kind: "delayed", rootAccount: ROOT, unlocker: UNLOCKER, delay: 300n });
+    expect(stubs.info.mock.lastCall?.[0].query.enabled).toBe(false);
+  });
   it("does not start solver or policy reads when disabled", () => {
     const { config } = fixture();
     const { result } = renderHookWithProviders(() =>

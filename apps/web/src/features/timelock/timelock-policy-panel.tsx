@@ -45,7 +45,7 @@ export function TimelockPolicyPanel({ context, compact = false }: { context: Tim
     owner &&
     isAddressEqual(wallet.address, owner),
   );
-  const error = info.error ?? policy.error ?? setup.error;
+  const error = (context.capability ? undefined : info.error) ?? policy.error ?? setup.error;
 
   if (context.unsupported)
     return (

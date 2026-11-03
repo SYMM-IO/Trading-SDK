@@ -50,6 +50,7 @@ import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { invalidateTimelockExecutionReads } from "../gasless/invalidate-relay-reads";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import { refreshTimelockInfoAfterUnavailable } from "../solvers/timelock-capability-cache";
 import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
 import { predicateMatch } from "../utils/predicate-match";
 
@@ -79,8 +80,25 @@ export function useTimelockApprovalProvider(
 ) {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
-  const solver = config.getSolver({ chainId: parameters.chainId ?? chainId, solverId: parameters.solverId });
-  return useMemo(() => createHttpTimelockApprovalProvider({ baseUrl: solver.url }), [solver.url]);
+  const queryClient = useQueryClient();
+  const resolvedChainId = parameters.chainId ?? chainId;
+  const solver = config.getSolver({ chainId: resolvedChainId, solverId: parameters.solverId });
+  return useMemo(() => {
+    const provider = createHttpTimelockApprovalProvider({ baseUrl: solver.url });
+    return {
+      async requestApproval(
+        request: Parameters<typeof provider.requestApproval>[0],
+        options?: Parameters<typeof provider.requestApproval>[1],
+      ) {
+        try {
+          return await provider.requestApproval(request, options);
+        } catch (error) {
+          void refreshTimelockInfoAfterUnavailable(queryClient, config, resolvedChainId, solver.id, error);
+          throw error;
+        }
+      },
+    };
+  }, [config, queryClient, resolvedChainId, solver.id, solver.url]);
 }
 
 /** Execute one exact protected call and refresh affected reads after confirmation. */

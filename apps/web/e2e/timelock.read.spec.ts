@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   decodeFunctionData,
+  encodeErrorResult,
   encodeFunctionResult,
   getAbiItem,
   keccak256,
@@ -111,6 +112,7 @@ async function mockDeployment(
     unavailable?: boolean;
     unsupported?: boolean;
     mockSignature?: boolean;
+    simulateMarginTimelock?: boolean;
     rejectSignature?: boolean;
     mockWriteSuccess?: boolean;
     rejectWrites?: boolean;
@@ -301,7 +303,27 @@ async function mockDeployment(
             transactions: [],
             hash: `0x${"ab".repeat(32)}`,
           };
-        if (entry.method === "eth_call") result = call(entry.params![0].data!);
+        if (entry.method === "eth_call") {
+          const data = entry.params![0].data!;
+          if (
+            options.simulateMarginTimelock &&
+            data.startsWith(toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "addMargin" })))
+          )
+            return {
+              jsonrpc: "2.0",
+              id: entry.id,
+              error: {
+                code: 3,
+                message: "execution reverted",
+                data: encodeErrorResult({
+                  abi: accountLayerAbi,
+                  errorName: "TimelockOpNotApprovedOrScheduled",
+                  args: [ROOT, `0x${"00".repeat(32)}`],
+                }),
+              },
+            };
+          result = call(data);
+        }
         if (entry.method === "eth_getTransactionReceipt" && options.mockWriteSuccess)
           result = {
             transactionHash: `0x${"ab".repeat(32)}`,
@@ -1108,6 +1130,23 @@ test("clearing an ambiguous approval in another tab restores the inspector witho
   expect(mock.writes.filter((item) => item === "approval")).toHaveLength(1);
   expect(mock.writes.some((item) => item.startsWith("eth_send"))).toBe(false);
   await second.close();
+});
+
+test("margin simulation timelock error links to settings for the selected account", async ({ page }) => {
+  await mockDeployment(page, { configured: true, simulateMarginTimelock: true });
+  await page.goto("/contracts/account-layer", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  const card = page.getByTestId("method-addMargin");
+  await card.locator("#add-margin-va-account").fill(VA);
+  await card.getByTestId("input-add-margin-amount").fill("1");
+  await card.getByTestId("button-simulate-add-margin").click();
+  await expect(
+    card.getByTestId("result-simulate-addMargin-error").getByRole("link", { name: "Open timelock settings" }),
+  ).toHaveAttribute("href", `/contracts/timelock?account=${VA}`);
+  await card.locator("#add-margin-va-account").fill(ROOT);
+  await expect(
+    card.getByTestId("result-simulate-addMargin-error").getByRole("link", { name: "Open timelock settings" }),
+  ).toHaveAttribute("href", `/contracts/timelock?account=${VA}`);
 });
 
 test("rejecting the wallet transaction after approval permits a new manual attempt", async ({ page }) => {

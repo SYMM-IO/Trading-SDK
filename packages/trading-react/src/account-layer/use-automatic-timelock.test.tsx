@@ -9,6 +9,42 @@ const ACCOUNT = "0x1111111111111111111111111111111111111111" as const;
 const UNLOCKER = "0x2222222222222222222222222222222222222222" as const;
 
 describe("useAutomaticTimelock", () => {
+  it("reuses discovered solver capability across operations but reads the account policy each time", async () => {
+    const { config } = createMockSymmioConfig({ timelockApproval: true });
+    const queryClient = new QueryClient();
+    const capability = {
+      unlocker: UNLOCKER,
+      minTimelockDelaySeconds: 300,
+      validitySeconds: 60,
+      requestDomain: {
+        name: "SymmioTimelockApprovalRequest" as const,
+        version: "1" as const,
+        chainId: "42161",
+        verifyingContract: config.getChainConfig().addresses.accountLayerAddress,
+      },
+    };
+    const policy = { rootAccount: ACCOUNT, ready: true, selectors: [{ status: "ok" }] };
+    const fetch = vi
+      .spyOn(queryClient, "fetchQuery")
+      .mockResolvedValueOnce({ timelockApproval: capability } as never)
+      .mockResolvedValueOnce(policy as never)
+      .mockResolvedValueOnce(policy as never)
+      .mockResolvedValueOnce({ rootAccount: ACCOUNT, ready: false, selectors: [{ status: "missing" }] } as never);
+    const original = config.getClient.bind(config);
+    vi.spyOn(config, "getClient").mockImplementation(
+      (parameters) => ({ ...original(parameters), getBlock: async () => ({ timestamp: 1000n }) }) as never,
+    );
+    const { result } = renderHookWithProviders(() => useAutomaticTimelock(config), { queryClient });
+    const input = { account: ACCOUNT, chainId: 42161, functionName: "addMargin" };
+    expect(await result.current({}, input)).toMatchObject({ capability });
+    expect(await result.current({}, input)).toMatchObject({ capability });
+    expect(await result.current({}, input)).toBeUndefined();
+    expect(fetch).toHaveBeenCalledTimes(4);
+    expect(fetch.mock.calls[0]![0].queryKey[0]).toBe("getSolverInfo");
+    expect(fetch.mock.calls[1]![0].queryKey[0]).toBe("getTimelockPolicy");
+    expect(fetch.mock.calls[2]![0].queryKey[0]).toBe("getTimelockPolicy");
+    expect(fetch.mock.calls[3]![0].queryKey[0]).toBe("getTimelockPolicy");
+  });
   it("does not read solver or policy when the deployment is explicitly unsupported", async () => {
     const { config } = createMockSymmioConfig();
     const queryClient = new QueryClient();
