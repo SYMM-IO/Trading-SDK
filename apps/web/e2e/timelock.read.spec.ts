@@ -1716,6 +1716,30 @@ test("a solver outage does not offer an expiring signed deallocation as a delaye
   await expect(page.getByTestId("timelock-schedule")).toHaveCount(0);
 });
 
+test("a configured withdrawal skips setup again after reselecting its account", async ({ page }) => {
+  await mockDeployment(page, { configured: true });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await expect(page.getByTestId("integration-withdraw-amount")).toBeVisible();
+  await page.getByTestId("step-1").click();
+  await page.getByTestId(`subaccount-${ROOT}`).click();
+  await expect(page.getByTestId("integration-withdraw-amount")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue to withdrawal" })).toHaveCount(0);
+});
+
+test("an unconfigured withdrawal keeps the setup step on reselect", async ({ page }) => {
+  await mockDeployment(page, { configured: false });
+  await enableTimelockSolver(page);
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await expect(page.getByTestId("timelock-policy")).toContainText("0 / 22 selectors configured");
+  await page.getByTestId("step-1").click();
+  await page.getByTestId(`subaccount-${ROOT}`).click();
+  await expect(page.getByTestId("timelock-policy")).toContainText("0 / 22 selectors configured");
+  await expect(page.getByRole("button", { name: "Continue to withdrawal" })).toBeVisible();
+});
+
 test("an unlocked account can withdraw even when the solver advertises timelocks", async ({ page }) => {
   await mockDeployment(page, { configured: false });
   await enableTimelockSolver(page);

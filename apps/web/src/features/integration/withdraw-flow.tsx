@@ -202,7 +202,7 @@ export function WithdrawFlow({
 
   useEffect(() => {
     setStep((previous) => Math.max(previous, maxStep));
-  }, [maxStep]);
+  }, [maxStep, subAccount]);
 
   async function onInitiate() {
     if (!canInitiate) return;
@@ -291,7 +291,9 @@ export function WithdrawFlow({
           onSelect={(account) => {
             onSelectSubAccount(account);
             withdraw.reset();
-            setStep(2);
+            // Re-selecting the current account does not change maxStep, so the
+            // readiness effect will not run again. Honor its existing state.
+            setStep(subAccount && isAddressEqual(account, subAccount) ? Math.max(2, maxStep) : 2);
           }}
         />
       ) : current === 2 && hasTimelockStep ? (
