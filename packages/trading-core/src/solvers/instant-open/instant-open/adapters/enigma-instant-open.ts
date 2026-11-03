@@ -12,6 +12,7 @@ import { buildSignedOperation, signAndFormatInstantOperation } from "../../share
 import { ORDER_TYPE_MARKET, isolationTypeForSide } from "../../shared/types";
 import type { EnigmaInstantOpenResult, InstantOpenParameters } from "../types";
 import type { InstantOpenAdapterContext } from "./context";
+import { assertEnigmaMarginTimelockFresh, prepareEnigmaMarginTimelock } from "./enigma-margin-timelock";
 
 /**
  * Submit an instant open to an **Enigma** (lowcap) hedger.
@@ -22,8 +23,9 @@ import type { InstantOpenAdapterContext } from "./context";
  * The quote carries a **placeholder** Muon signature: lowcap bypasses Muon
  * verification, but the contract still reads `upnlSig.price`, and the encoded
  * signature region is delegated to the solver via a `FlexField` so it can write a
- * live attestation at execution time. Only the `sendQuote` operation carries the
- * delegation; `addMargin` stays fully fixed.
+ * live attestation at execution time. Only `sendQuote` carries this Muon flex
+ * field. Solvers advertising timelock approval metadata receive a wrapped
+ * margin operation with only the approval signature bytes delegated to the solver.
  *
  * @throws {SymmError} `INSTANT_OPEN_MARGIN_REQUIRED` when `margin` is absent —
  *   reachable when the caller omitted `solverId` and the chain's default solver
@@ -82,10 +84,12 @@ export async function submitEnigmaInstantOpen(
       ? encodeSendQuoteWithAffiliateAndData(quoteArgs)
       : encodeSendQuote({ ...quoteArgs, solverFeeCaps: parameters.solverFeeCaps });
 
+  const margin = await prepareEnigmaMarginTimelock(context, parameters.subAccountAddress, addMarginCallData);
   const addMarginOp = buildSignedOperation({
     signer: signerAddress,
     target: accountLayerAddress,
-    callData: addMarginCallData,
+    callData: margin.callData,
+    flexFields: margin.flexFields,
     signerAccount: parameters.subAccountAddress,
     deadline: parameters.operationDeadline ?? deadline,
     salt: parameters.addMarginSalt,
@@ -104,7 +108,9 @@ export async function submitEnigmaInstantOpen(
   await assertInstantSignerDelegated(config, {
     chainId: context.chainId,
     action: "instantOpen",
-    operations: [addMarginOp, sendQuoteOp],
+    // InstantLayer unwraps executeTimelockOp before checking delegation. The
+    // inner call is immutable, so validate exactly that selector here as well.
+    operations: [{ ...addMarginOp, callData: addMarginCallData }, sendQuoteOp],
     enabled: parameters.preflightDelegation,
   });
 
@@ -112,6 +118,8 @@ export async function submitEnigmaInstantOpen(
     signAndFormatInstantOperation(config, { operation: addMarginOp, chainId: context.chainId, walletClient }),
     signAndFormatInstantOperation(config, { operation: sendQuoteOp, chainId: context.chainId, walletClient }),
   ]);
+
+  await assertEnigmaMarginTimelockFresh(context, margin.approvalDeadline);
 
   const response = await sendInstantOpen(config, {
     chainId: context.chainId,

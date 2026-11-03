@@ -1,15 +1,18 @@
 import {
   createConfig,
+  getActiveDelegationsQueryKey,
   getDelegationExpiryQueryKey,
   getInstantLayerNonceQueryKey,
   getIsDelegationActiveQueryKey,
   getOperationalFeeAllowanceQueryKey,
+  getPendingRevocationEtasQueryKey,
   SymmioSupportedChainId,
 } from "@symmio/trading-core";
 import { QueryClient } from "@tanstack/react-query";
 import type { PublicClient } from "viem";
+import { mainnet } from "viem/chains";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { renderHookWithProviders } from "../test/test-utils";
+import { createTestWagmiConfig, renderHookWithProviders } from "../test/test-utils";
 
 const grantDelegation = vi.hoisted(() => vi.fn());
 
@@ -143,6 +146,56 @@ describe("useGrantDelegation — gasless transport", () => {
 
     expect(queryClient.getQueryState(nonce)?.isInvalidated).toBe(true);
     expect(queryClient.getQueryState(allowance)?.isInvalidated).toBe(true);
+  });
+
+  it("refreshes the active-delegation probe and any pending revocation the grant cleared", async () => {
+    const { config } = buildConfig();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const configKey = config.getChainConfigKey(CHAIN);
+    const delegator = { addr: ACCOUNT, isPartyB: false } as const;
+    const active = getActiveDelegationsQueryKey({
+      chainId: CHAIN,
+      delegator,
+      delegates: [DELEGATE],
+      selectors: [[SELECTOR]],
+      configKey,
+    });
+    const revocation = getPendingRevocationEtasQueryKey({
+      chainId: CHAIN,
+      delegator,
+      delegate: DELEGATE,
+      selectors: [SELECTOR],
+      configKey,
+    });
+    queryClient.setQueryData(active, []);
+    queryClient.setQueryData(revocation, new Map([[SELECTOR, 1n]]));
+
+    const { result } = renderHookWithProviders(() => useGrantDelegation({ config }), { queryClient });
+    await result.current.mutateAsync({ ...VARIABLES });
+
+    expect(queryClient.getQueryState(active)?.isInvalidated).toBe(true);
+    expect(queryClient.getQueryState(revocation)?.isInvalidated).toBe(true);
+  });
+
+  it("refreshes the chain the write went to when the call omits `chainId`, even with the wallet elsewhere", async () => {
+    const { config } = buildConfig();
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const key = getIsDelegationActiveQueryKey({
+      chainId: CHAIN,
+      account: ACCOUNT,
+      delegate: DELEGATE,
+      selector: SELECTOR,
+      configKey: config.getChainConfigKey(config.defaultChainId),
+    });
+    queryClient.setQueryData(key, false);
+    /** The wallet sits on a chain SYMMIO does not support; the write still goes to the config default. */
+    const wagmiConfig = createTestWagmiConfig({ connected: false, chains: [mainnet] });
+
+    const { result } = renderHookWithProviders(() => useGrantDelegation({ config }), { queryClient, wagmiConfig });
+    const { account, delegatedSigner, selectors, expiryTimestamp, gasless } = VARIABLES;
+    await result.current.mutateAsync({ account, delegatedSigner, selectors, expiryTimestamp, gasless });
+
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
   });
 
   it("invalidates nothing when the grant fails", async () => {

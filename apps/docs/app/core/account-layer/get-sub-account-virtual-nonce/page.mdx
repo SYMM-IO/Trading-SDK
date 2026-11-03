@@ -1,0 +1,48 @@
+# getSubAccountVirtualNonce
+
+Read a subaccount's Virtual Account (VA) nonce: the counter the AccountLayer derives each new VA's address from. The next VA uses `nonce + 1`. Most apps want [`usePredictedNextVirtualAccount`](/react/account-layer#usepredictednextvirtualaccount), which does that derivation for you.
+
+```ts
+import { getSubAccountVirtualNonce } from "@symmio/trading-core";
+
+const nonce = await getSubAccountVirtualNonce(config, { subAccount });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="subAccount" type="Address" required>
+    The subaccount.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="bigint">The current VA nonce.</Returns>
+
+## Query options
+
+```ts
+import { getSubAccountVirtualNonceQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getSubAccountVirtualNonceQueryOptions(config, { subAccount }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { accountLayerAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: accountLayerAbi,
+  address: accountLayerAddress,
+  functionName: "getSubAccountVirtualNonce",
+  args: [subAccount],
+});
+```

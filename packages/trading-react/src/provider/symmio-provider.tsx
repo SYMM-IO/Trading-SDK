@@ -6,6 +6,7 @@ import {
   SymmError,
   type Config,
   type CreateConfigParameters,
+  type GetClientFn,
   type GetWalletClientFn,
   type SymmioWalletClient,
 } from "@symmio/trading-core";
@@ -44,6 +45,32 @@ export interface SymmioProviderProps {
    */
   defaultChainId?: number;
   /**
+   * Custom read-client resolver. Receives `{ chainId? }` from the SDK and
+   * returns the viem `PublicClient` that every on-chain SDK read — and every
+   * write's dry-run and receipt wait — runs on. Use it when the app reads
+   * through its own client (a dedicated RPC URL, request batching, an
+   * instrumented transport) rather than wagmi's transport for that chain.
+   *
+   * Return a client bound to the requested `chainId`, or throw for a chain the
+   * app does not serve — never a client for another chain, which would read
+   * the wrong contracts without any error.
+   *
+   * When omitted, the provider reads through wagmi's public client for the
+   * requested chain. Memoize the resolver: a new function identity rebuilds
+   * the SDK config, which resets every per-config cache (nonce locks, relay
+   * request registry, stream connections).
+   *
+   * @example
+   * ```tsx
+   * const getClient = useCallback(() => appPublicClient, []);
+   *
+   * <SymmioProvider symmioConfig={symmioConfig} getClient={getClient}>
+   *   {children}
+   * </SymmioProvider>;
+   * ```
+   */
+  getClient?: GetClientFn;
+  /**
    * Custom wallet-client resolver. Receives `{ chainId, from? }` from the SDK
    * and returns the wallet client to sign with. Use this to plug in
    * session-key, multi-signer, or any non-wagmi flow — the resolver decides.
@@ -61,8 +88,9 @@ export interface SymmioProviderProps {
 
 /**
  * Provides the SYMMIO {@link Config} to descendant hooks. The config's viem
- * clients are resolved from the host's wagmi config, so this is the only place
- * the SDK touches wagmi.
+ * clients are resolved from the host's wagmi config unless the host passes its
+ * own `getClient` / `getWalletClient` resolver, so this is the only place the
+ * SDK touches wagmi.
  *
  * **Mount order matters**: this reads wagmi context and (transitively) the
  * host's `@tanstack/react-query` `QueryClient`. Both must be mounted **outside**
@@ -85,6 +113,7 @@ export function SymmioProvider({
   children,
   symmioConfig,
   defaultChainId,
+  getClient: getClientProp,
   getWalletClient: getWalletClientProp,
 }: SymmioProviderProps) {
   const wagmiConfig = useConfig();
@@ -106,17 +135,19 @@ export function SymmioProvider({
       createConfig({
         symmioConfig,
         defaultChainId: effectiveDefaultChainId,
-        getClient: ({ chainId } = {}): PublicClient => {
-          const client = getPublicClient(wagmiConfig, { chainId });
+        getClient:
+          getClientProp ??
+          (({ chainId } = {}): PublicClient => {
+            const client = getPublicClient(wagmiConfig, { chainId });
 
-          if (!client)
-            throw new SymmError(
-              "config",
-              "NO_PUBLIC_CLIENT",
-              `No public client available for chain ${chainId ?? "(default)"}.`,
-            );
-          return client;
-        },
+            if (!client)
+              throw new SymmError(
+                "config",
+                "NO_PUBLIC_CLIENT",
+                `No public client available for chain ${chainId ?? "(default)"}.`,
+              );
+            return client;
+          }),
         getWalletClient:
           getWalletClientProp ??
           (async ({ chainId, from }) => {
@@ -152,7 +183,7 @@ export function SymmioProvider({
             return walletClient;
           }),
       }),
-    [symmioConfig, effectiveDefaultChainId, getWalletClientProp, wagmiConfig],
+    [symmioConfig, effectiveDefaultChainId, getClientProp, getWalletClientProp, wagmiConfig],
   );
 
   return <SymmioConfigContext.Provider value={config}>{children}</SymmioConfigContext.Provider>;

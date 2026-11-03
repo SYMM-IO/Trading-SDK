@@ -3,6 +3,7 @@
 import {
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
+  getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
   getWithdrawRequestsQueryKey,
   requestCancelWithdrawMutationOptions,
@@ -68,7 +69,15 @@ export function useRequestCancelWithdraw(
         throw normalizeSymmError(err);
       }
     },
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
+      /** Broadcast-only callers own confirmation and the later batch refresh. */
+      if (result.receipt) {
+        void queryClient.invalidateQueries({
+          predicate: predicateMatch(getPendingWithdrawRequestsBatchQueryKey, {
+            configKey: config.getChainConfigKey(variables.chainId ?? chainId),
+          }),
+        });
+      }
       // Cancel returns the reserved funds to the subaccount's available balance and
       // removes the request — refetch balances + the withdraw lists (after the receipt).
       const balancePartial = { account: variables.account };

@@ -1,0 +1,62 @@
+# getActiveVirtualAccountByKey
+
+Read a subaccount's **active** Virtual Account (VA) for an isolation key `(isolationType, symbolId)`: the VA that new quotes on that market, and side, are routed into while the subaccount runs in single-VA mode. It wraps the AccountLayer's `getActiveVAByKey`. Predicting the next VA ([`usePredictedNextVirtualAccount`](/react/account-layer#usepredictednextvirtualaccount)) answers where the _next_ position would go; this answers which VA holds the position _now_.
+
+```ts
+import { getActiveVirtualAccountByKey, isolationTypeForSide, PositionType } from "@symmio/trading-core";
+
+const va = await getActiveVirtualAccountByKey(config, {
+  subAccount,
+  isolationType: isolationTypeForSide(PositionType.LONG),
+  symbolId: 42n,
+});
+```
+
+The active VA changes when a position on the key opens or fully closes, so invalidate the query after those writes rather than caching it forever.
+
+## Parameters
+
+<Properties>
+  <Property name="subAccount" type="Address" required>
+    The parent subaccount.
+  </Property>
+  <Property name="isolationType" type="VirtualAccountIsolationType" required>
+    Isolation bucket of the VA. Use `isolationTypeForSide(positionType)` for a side.
+  </Property>
+  <Property name="symbolId" type="bigint" required>
+    Market id.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="Address | null">
+  The active VA, or `null` when none is active for the key. The contract returns the zero address in that case.
+</Returns>
+
+## Query options
+
+```ts
+import { getActiveVirtualAccountByKeyQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getActiveVirtualAccountByKeyQueryOptions(config, { subAccount, isolationType, symbolId }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { accountLayerAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: accountLayerAbi,
+  address: accountLayerAddress,
+  functionName: "getActiveVAByKey",
+  args: [subAccount, isolationType, symbolId],
+});
+```

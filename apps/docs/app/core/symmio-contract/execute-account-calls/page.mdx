@@ -1,0 +1,104 @@
+# executeAccountCalls
+
+Execute an ordered list of named SYMMIO core writes as one subaccount. Use this
+when several core calls must share one atomic transaction. The SDK encodes the
+calls and routes wallet execution through AccountLayer `_call`.
+
+```ts
+import { executeAccountCalls, executeAccountCallsMutationOptions } from "@symmio/trading-core";
+
+const hash = await executeAccountCalls(config, {
+  account,
+  calls: [
+    { functionName: "initiateWithdraw", args: [parts, false, providerData] },
+    { functionName: "finalizeWithdrawRequest", args: [account, requestId] },
+  ],
+  gasless: false,
+});
+await publicClient.waitForTransactionReceipt({ hash });
+```
+
+The example requires a currently finalizable withdrawal and the correct request
+ID. A competing initiation can change that ID. This API does not infer IDs,
+check a previously read ID for races, or pipe return values between calls.
+Applications must reconcile outstanding work before preparing a fresh attempt.
+
+## Parameters and result
+
+`ExecuteAccountCallsParameters` combines the standard write parameters with:
+
+| Field                 | Type                             | Meaning                                                                                                                                      |
+| --------------------- | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account`             | `Address`                        | Subaccount executing every core call.                                                                                                        |
+| `calls`               | `readonly AccountContractCall[]` | Nonempty ordered list of writes.                                                                                                             |
+| `chainId`             | `number`                         | Optional chain override.                                                                                                                     |
+| `from`                | `Address`                        | Optional signer; direct wallet execution requires the account owner.                                                                         |
+| `simulateBeforeWrite` | `boolean`                        | Wallet simulation override; defaults to the SDK config, normally true.                                                                       |
+| `gasless`             | `boolean \| GaslessWriteOptions` | Per-call execution override (`enabled`, `fallback`, `account`, `idempotencyKey`). Otherwise the chain's configured execution policy applies. |
+
+`AccountContractCall` has `functionName: string` and optional
+`args: readonly unknown[]`. Names must be writes in the SDK's SYMMIO core ABI;
+argument encoding fails before wallet resolution. Contract-specific units are
+unchanged: for example, `allocate` uses 18 decimals, while withdrawal receiver
+parts use collateral-token decimals. The calls cannot specify arbitrary targets,
+native value or separate signers.
+
+The result is `Promise<ExecuteAccountCallsReturnType>` (`Hash`). Wait for the
+receipt and check success before refreshing balances and pending requests.
+`executeAccountCallsMutationOptions(config)` forwards the same parameters to
+TanStack Mutation; it does not add cache invalidation or receipt confirmation.
+
+## Execution and recovery
+
+Wallet execution simulates the entire `_call` by default, then submits one
+transaction. An inner revert reverts the transaction. Gasless execution reuses
+the SDK dispatcher, including supported-selector and delegation checks, and
+relays every call in order as one request. It follows the same wallet rules as
+every other relayable write:
+
+- **`gasless: true`** relays or throws. A call the service cannot relay throws
+  `GASLESS_NOT_RELAYABLE` before any prompt; nothing goes to the wallet.
+- **The chain's gasless execution mode, without `gasless: true`,** sends a list
+  that contains a non-relayable call through the wallet as one `_call`, because
+  the whole list must stay atomic.
+- **`fallback: "wallet"`** sends the calls from the wallet only after a
+  confirmed refusal (quota, fee policy, delegation, signing window), when the
+  relay never ran them. An uncertain outcome always throws.
+- **`gasless.idempotencyKey`** makes the calls strictly gasless and retryable,
+  with no wallet path at all — see
+  [Recovering gasless writes](/core/gasless/recovering-writes) and
+  [gasless errors](/core/gasless/errors-and-fallback).
+
+Use [relayGaslessBatch](/core/gasless/relay-gasless-batch) when you need explicit
+gasless metadata, progress and confirmation, mixed targets, or per-entry signers.
+Use the individual write actions for a single higher-level operation.
+
+`EMPTY_ACCOUNT_CALLS` and `INVALID_ACCOUNT_CALL` are validation errors. Encoding,
+simulation and execution errors retain their existing viem/SDK types.
+
+## React
+
+`@symmio/trading-react` has no dedicated hook for this action: the calls are
+arbitrary core writes, so no fixed set of reads can be refreshed for you. Wrap the
+mutation options yourself and refresh the reads your calls change once the
+receipt confirms:
+
+```tsx
+import { executeAccountCallsMutationOptions } from "@symmio/trading-core";
+import { useSymmioConfig } from "@symmio/trading-react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+
+const config = useSymmioConfig();
+const queryClient = useQueryClient();
+const executeCalls = useMutation({
+  ...executeAccountCallsMutationOptions(config),
+  onSuccess: async (hash) => {
+    await config.getClient().waitForTransactionReceipt({ hash });
+    void queryClient.invalidateQueries(); // or only the reads your calls touch
+  },
+});
+```
+
+For a withdrawal, [`useWithdraw`](/react/withdraw#usewithdraw--high-level-withdraw)
+already deallocates and initiates in one atomic transaction on a cross-margin
+account, and refreshes the right reads.

@@ -1,9 +1,10 @@
 import type { Address, Hex } from "viem";
 import type { Config } from "../../core/config";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute, GaslessIdempotencyKeyParameter } from "../../shared/types/properties";
 import type { SubAccountIsolationType } from "../../symmio-contracts/account-layer/types";
 import { getGaslessWalletAddress } from "../get-gasless-wallet-address/get-gasless-wallet-address";
-import { generateGaslessIdempotencyKey, postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { resolveGaslessIdempotencyKey } from "../idempotency-key";
 import { assertGaslessDepositWallet, toGaslessDepositReceipt } from "../to-gasless-deposit-receipt";
 import type { GaslessDepositSubmitReceipt } from "../types";
 import { assertGaslessWalletId, toGaslessWalletIdWire } from "../wallet-id";
@@ -28,7 +29,11 @@ export interface GaslessDepositAccountData {
   isolationType: SubAccountIsolationType;
   /** Whether the account runs in single-VA mode — a product decision, choose explicitly. */
   singleVAMode: boolean;
-  /** Optional hex metadata (affiliate hooks may expect a specific encoding). Defaults to `0x`. */
+  /**
+   * Metadata forwarded unchanged to the affiliate's `onAccountCreation` hook, which decides its encoding; a blob the
+   * hook rejects fails the settlement with `HookFailed`. Defaults to `0x`. For the chains' default affiliates, build it
+   * with `encodeSubAccountHookMetadata`.
+   */
   metadata?: Hex;
 }
 
@@ -36,38 +41,28 @@ export interface GaslessDepositAccountData {
  * Parameters for {@link settleGaslessDepositNewAccount}.
  */
 export type SettleGaslessDepositNewAccountParameters = Compute<
-  ChainIdParameter & {
-    /**
-     * Owner of the GaslessWallet whose deposit address is being settled — an
-     * owner address, never a GaslessWallet address. The new sub-account is
-     * created for this owner.
-     */
-    owner: Address;
-    /**
-     * Which of the owner's GaslessWallets to sweep. Defaults to `0n`, the
-     * original wallet. Each id has its own deposit address and its own balance:
-     * settle the id you funded, and read that id's address with
-     * `getGaslessWalletAddress` before sending anything to it.
-     */
-    walletId?: bigint;
-    /** Affiliate passed to `settleDepositToNewAccount`; the zero address disables attribution. */
-    affiliate: Address;
-    /** Creation data for the new wallet-owned sub-account. */
-    accountData: GaslessDepositAccountData;
-    /**
-     * Stable retry key; defaults to a random UUID.
-     *
-     * **One key per settlement attempt.** Reuse it only to replay a submit
-     * whose response was lost — the service then returns the existing record.
-     * A **completed** settlement's key must never be reused: mint a fresh one
-     * after any terminal status, and after any change to the wallet selection,
-     * or the service answers `409 IDEMPOTENCY_KEY_CONFLICT`
-     * (`isGaslessIdempotencyConflictError`).
-     */
-    idempotencyKey?: string;
-    /** Non-secret client correlation data stored with the request. */
-    metadata?: Record<string, unknown>;
-  }
+  ChainIdParameter &
+    GaslessIdempotencyKeyParameter & {
+      /**
+       * Owner of the GaslessWallet whose deposit address is being settled — an
+       * owner address, never a GaslessWallet address. The new sub-account is
+       * created for this owner.
+       */
+      owner: Address;
+      /**
+       * Which of the owner's GaslessWallets to sweep. Defaults to `0n`, the
+       * original wallet. Each id has its own deposit address and its own balance:
+       * settle the id you funded, and read that id's address with
+       * `getGaslessWalletAddress` before sending anything to it.
+       */
+      walletId?: bigint;
+      /** Affiliate passed to `settleDepositToNewAccount`; the zero address disables attribution. */
+      affiliate: Address;
+      /** Creation data for the new wallet-owned sub-account. */
+      accountData: GaslessDepositAccountData;
+      /** Non-secret client correlation data stored with the request. */
+      metadata?: Record<string, unknown>;
+    }
 >;
 
 /** Return type of {@link settleGaslessDepositNewAccount}. */
@@ -92,9 +87,16 @@ export type SettleGaslessDepositNewAccountReturnType = GaslessDepositSubmitRecei
  * silently. A sweep takes the whole balance of the selected id, so give a
  * deposit flow its own id when it must not share a balance with another flow.
  *
+ * `idempotencyKey` is one key per **user action** (default: a random UUID per
+ * call). Resubmitting under it returns the existing record; a settlement that
+ * reached a terminal status is over, so settling again is a new action with a
+ * new key. A settlement carries no signature deadline: its outcome is bounded by
+ * the deposit wallet's balance instead.
+ *
  * @param config - The SDK config.
- * @param parameters - Owner, optional wallet id, affiliate, account creation data, retry key.
+ * @param parameters - Owner, optional wallet id, affiliate, account creation data, idempotency key.
  * @returns The acceptance receipt (with the observed/credited estimates); persist `requestId`.
+ * @throws {SymmError} `GASLESS_IDEMPOTENCY_KEY_INVALID` for a blank key or one longer than 128 characters.
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
  * @throws {SymmError} `GASLESS_WALLET_ID_INVALID` for a wallet id outside the `uint256` range.
  * @throws {SymmApiError} `GASLESS_SETTLEMENT_SUBMIT_FAILED` on HTTP failure —
@@ -121,9 +123,9 @@ export async function settleGaslessDepositNewAccount(
   parameters: SettleGaslessDepositNewAccountParameters,
 ): Promise<SettleGaslessDepositNewAccountReturnType> {
   const { chainId, owner, affiliate, accountData, metadata } = parameters;
+  const idempotencyKey = resolveGaslessIdempotencyKey(parameters.idempotencyKey);
   const walletId = assertGaslessWalletId(parameters.walletId ?? 0n);
   const context = resolveGaslessHttp(config, { chainId, service: "deposits" });
-  const idempotencyKey = parameters.idempotencyKey ?? generateGaslessIdempotencyKey();
 
   const body: GaslessWireNewAccountSettlementRequest = {
     idempotencyKey,

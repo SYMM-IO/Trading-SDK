@@ -35,8 +35,8 @@ describe("gaslessBatchCallData", () => {
   });
 
   it("refuses a name that is not a relayable write", () => {
-    /** `approveOperationalFee` exists on the diamond, but only its multiplier form is relayable. */
-    expect(() => gaslessBatchCallData({ functionName: "approveOperationalFee", args: [[], []] })).toThrow(
+    /** `internalTransfer` exists on the diamond, but it is not a relayable write. */
+    expect(() => gaslessBatchCallData({ functionName: "internalTransfer", args: [RECIPIENT, 1n] })).toThrow(
       expect.objectContaining({ code: "GASLESS_NOT_RELAYABLE" }),
     );
     expect(() => gaslessBatchCallData({ functionName: "transfer", args: [RECIPIENT, 1n] })).toThrow(

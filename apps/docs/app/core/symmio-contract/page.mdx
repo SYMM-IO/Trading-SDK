@@ -116,6 +116,21 @@ Mirrors the quote-cancel lifecycle, but keyed on the close: `requestToCancelClos
   <MethodEntry name="getPendingWithdrawRequests" href="/core/symmio-contract/get-pending-withdraw-requests">
     The active (non-terminal) withdraw requests for a subaccount.
   </MethodEntry>
+  <MethodEntry name="getPendingWithdrawRequestsBatch" href="/core/symmio-contract/get-pending-withdraw-requests-batch">
+    Every pending-request page for each distinct subaccount.
+  </MethodEntry>
+  <MethodEntry name="getWithdrawCooldownOf" href="/core/symmio-contract/get-withdraw-cooldown-of">
+    The raw timestamp of the account's last deallocation or withdrawable credit.
+  </MethodEntry>
+  <MethodEntry name="getDeallocateDebounceTime" href="/core/symmio-contract/get-deallocate-debounce-time">
+    The protocol's minimum gap between two deallocations, in seconds.
+  </MethodEntry>
+</MethodIndex>
+
+<MethodIndex kind="write">
+  <MethodEntry name="executeAccountCalls" href="/core/symmio-contract/execute-account-calls">
+    Run several named core writes atomically as one subaccount.
+  </MethodEntry>
 </MethodIndex>
 
 ### `withdrawAuto` — high-level entry point

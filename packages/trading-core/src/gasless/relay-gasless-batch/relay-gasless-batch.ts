@@ -1,10 +1,14 @@
-import { isAddressEqual, type Address, type Hex } from "viem";
+import type { Address } from "viem";
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute, FromParameter } from "../../shared/types/properties";
+import type {
+  ChainIdParameter,
+  Compute,
+  FromParameter,
+  GaslessIdempotencyKeyParameter,
+} from "../../shared/types/properties";
 import { generateSalt } from "../../solvers/instant-open/shared/operations";
 import { getInstantLayerNonce } from "../../symmio-contracts/instant-layer/actions/get-instant-layer-nonce";
-import { getIsDelegationActive } from "../../symmio-contracts/instant-layer/actions/get-is-delegation-active";
 import { assertGaslessGatewayCoherence } from "../assert-gateway-coherence";
 import type { GaslessBatchCall } from "../batch/calls";
 import {
@@ -13,39 +17,40 @@ import {
   distinctGaslessBatchWalletIds,
   readGaslessBatchWalletTargets,
   resolveGaslessBatchEntries,
-  type ResolvedGaslessBatchEntry,
 } from "../batch/resolve-gasless-batch";
-import { findUndelegatedGaslessSelectors, getCachedGaslessAccountOwner } from "../delegation-preflight";
+import { GASLESS_SIGNATURE_LIFETIME_SECONDS } from "../constants";
+import { getCachedGaslessAccountOwner } from "../delegation-preflight";
 import { formatGaslessOperation } from "../format-gasless-operation";
-import { getGaslessWalletExecuteSelectors } from "../gasless-wallet-execute/selectors";
 import { getGaslessFeeQuote } from "../get-gasless-fee-quote/get-gasless-fee-quote";
 import { getGaslessWalletNonce } from "../get-gasless-wallet-nonce/get-gasless-wallet-nonce";
-import { generateGaslessIdempotencyKey, postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { resolveGaslessIdempotencyKey } from "../idempotency-key";
 import {
   blocksGaslessNonceStream,
   gaslessInstantNonceStreamKey,
   gaslessWalletNonceStreamKey,
+  getGaslessPendingAcceptance,
   readGaslessStreamNonce,
   submitOnGaslessNonceStreams,
   withGaslessNonceLocks,
 } from "../nonce-lock";
 import { resolveGaslessService } from "../resolve-gasless";
-import { resolveGaslessWalletIdentities, type GaslessWalletIdentities } from "../resolve-wallet-identities";
+import { resolveGaslessWalletIdentities } from "../resolve-wallet-identities";
 import { toGaslessSubmitReceipt } from "../to-gasless-submit-receipt";
 import type { GaslessSubmitReceipt } from "../types";
 import { toGaslessWalletIdWire } from "../wallet-id";
 import type { GaslessWireOperationAccepted, GaslessWireRelayInstantRequest } from "../wire-types";
+import { preflightBatchDelegations } from "./preflight-batch-delegations";
+import { resolveBatchSigners } from "./resolve-batch-signers";
 import { signGaslessBatchOperations } from "./sign-gasless-batch";
-
-/** How long a batch's signatures stay valid — room for one wallet prompt per operation. */
-const GASLESS_BATCH_DEADLINE_SECONDS = 20 * 60;
 
 /**
  * Parameters for {@link relayGaslessBatch}.
  */
 export type RelayGaslessBatchParameters = Compute<
   ChainIdParameter &
-    FromParameter & {
+    FromParameter &
+    GaslessIdempotencyKeyParameter & {
       /**
        * The sub-account every operation runs under: the `signerAccount` of each
        * relayable write, whose InstantLayer nonces the batch consumes and whose
@@ -91,14 +96,17 @@ export type RelayGaslessBatchReturnType = GaslessSubmitReceipt;
  *
  * 1. every call is encoded and checked before any network call — a write the
  *    relayer cannot carry throws `GASLESS_NOT_RELAYABLE`;
- * 2. a session key's delegations are checked before any prompt
- *    (`execution.preflightDelegation`, default on);
+ * 2. each signer's delegations are checked before any prompt
+ *    (`execution.preflightDelegation`, default on) — a delegation that an
+ *    owner-signed grant earlier in the same batch hands a signer already counts;
  * 3. fresh nonces are read and sequenced per stream — the account's InstantLayer
  *    nonces for the writes, each wallet id's own nonces for its entries;
  * 4. the batch is priced on-chain before any prompt (`execution.preflightFee`,
  *    default on) — a quote the contract refuses throws, a quote that fails for
  *    transport reasons does not block;
- * 5. each operation is signed — one EIP-712 prompt per call, in order;
+ * 5. each operation is signed by its call's `from` (the batch's signer by
+ *    default) — in-memory signers such as a session key first, then one
+ *    wallet prompt per remaining call, in order;
  * 6. one `relay-instant` request carries them all, with one wallet id per
  *    operation (`0` for every write).
  *
@@ -112,22 +120,32 @@ export type RelayGaslessBatchReturnType = GaslessSubmitReceipt;
  * consumers should reach for `useRelayGaslessBatch`, which confirms the request
  * before it resolves.
  *
+ * Pass `idempotencyKey` (one per user action, from
+ * `generateGaslessIdempotencyKey`) to make the batch retryable: a later call
+ * with the same key never waits for its own earlier submit, returns that
+ * submit's receipt when this config saw it accepted, and is otherwise accepted
+ * by the service at most once. The signatures' deadline is fixed when the call
+ * starts (`GASLESS_SIGNATURE_LIFETIME_SECONDS`).
+ *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
- * @param parameters - The account, the calls, and optional chain / signer / label overrides.
+ * @param parameters - The account, the calls, and optional chain / signer / label / idempotency-key overrides.
  * @returns The acceptance receipt; persist it immediately.
+ * @throws {SymmError} `GASLESS_IDEMPOTENCY_KEY_INVALID` for a blank key or one longer than 128 characters.
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
  * @throws {SymmError} `GASLESS_EMPTY_BATCH`, `GASLESS_NOT_RELAYABLE` or `GASLESS_WALLET_ID_INVALID`
  *   before any network call.
  * @throws {SymmError} `GASLESS_CONFIG_INCOHERENT` when the GaslessLayer verifies another InstantLayer.
  * @throws {SymmError} `GASLESS_SIGNER_NOT_DELEGATED` when a session key is missing a selector —
- *   grant `getGaslessBatchSelectors(calls)` on `account`.
+ *   grant `getGaslessBatchSelectors(delegateCalls)` for only that key's calls on `account`.
+ * @throws {SymmError} `GASLESS_INVALID_DELEGATION_GRANT` when preflight rejects a grant's signer or inputs.
  * @throws {SymmError} `GASLESS_FREE_QUOTA_EXHAUSTED`, `GASLESS_FEE_QUOTE_REVERTED` or
  *   `GASLESS_LAYER_INTERFACE_UNSUPPORTED` from the fee pre-flight, before any prompt.
  * @throws {SymmError} `GASLESS_NONCE_STREAM_BUSY` when an earlier relay on one of the
  *   batch's nonce streams is still unaccounted for.
  * @throws {SymmApiError} `GASLESS_RELAY_SUBMIT_FAILED` on HTTP failure, and
- *   `GASLESS_SUBMIT_UNCONFIRMED` when the outcome could not be established — replay it with
- *   `resubmitGaslessRequest`, never by signing the batch again.
+ *   `GASLESS_SUBMIT_UNCONFIRMED` when the outcome could not be established — call again under the
+ *   same `idempotencyKey`, or replay it with `resubmitGaslessRequest`; never sign the batch again
+ *   under a new key.
  * @throws The wallet's own error when the user rejects a prompt; nothing is submitted.
  *
  * @example
@@ -149,6 +167,14 @@ export async function relayGaslessBatch(
   parameters: RelayGaslessBatchParameters,
 ): Promise<RelayGaslessBatchReturnType> {
   const { account, calls, from, metadata } = parameters;
+
+  /** Fixed when the call starts, before any lock wait or prompt. */
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + GASLESS_SIGNATURE_LIFETIME_SECONDS);
+  /** One key per user action; validated before any network call or prompt. */
+  const callerOwnedKey = parameters.idempotencyKey !== undefined;
+  const idempotencyKey = resolveGaslessIdempotencyKey(parameters.idempotencyKey);
+  const sameKey = callerOwnedKey ? idempotencyKey : undefined;
+
   const gasless = resolveGaslessService(config, { chainId: parameters.chainId });
   const chain = config.getChainConfig(parameters.chainId);
   const chainId = chain.chainId;
@@ -164,8 +190,9 @@ export async function relayGaslessBatch(
   /** Relayable writes sign for the configured InstantLayer; make sure the gateway verifies that one. */
   if (instantSelectors.length > 0) await assertGaslessGatewayCoherence(config, chainId, gasless);
 
-  const walletClient = await config.getWalletClient({ chainId, from });
-  const signer = walletClient.account.address;
+  const entryClients = await resolveBatchSigners(config, { chainId, entries, from });
+  const entrySigners = entryClients.map((client) => client.account.address);
+  const signer = entrySigners[0]!;
 
   const identities = walletIds.length > 0 ? await resolveGaslessWalletIdentities(config, { chainId, account }) : null;
 
@@ -174,26 +201,10 @@ export async function relayGaslessBatch(
    * selector would otherwise sign every operation, and the relayer's simulation
    * would reject the batch after the user paid for the prompts.
    */
-  if (execution.preflightDelegation ?? true) {
-    const missing = [
-      ...(instantSelectors.length > 0
-        ? await findUndelegatedGaslessSelectors(config, {
-            chainId,
-            signer,
-            signerAccount: account,
-            selectors: instantSelectors,
-          })
-        : []),
-      ...(identities ? await findUndelegatedWalletSelectors(config, { chainId, signer, identities, entries }) : []),
-    ];
-    if (missing.length > 0) {
-      throw new SymmError(
-        "validation",
-        "GASLESS_SIGNER_NOT_DELEGATED",
-        `Gasless: signer ${signer} holds no active InstantLayer delegation from ${account} for selector(s) ${[...new Set(missing)].join(", ")}. Grant getGaslessBatchSelectors(calls) to the session key on ${account}, or sign the batch with the account's owner.`,
-      );
-    }
-  }
+  const checkedOwner =
+    (execution.preflightDelegation ?? true)
+      ? await preflightBatchDelegations(config, { chainId, account, entries, entrySigners, identities })
+      : undefined;
 
   /**
    * `userAddress` is the service's tracking identity: the owner of the account's
@@ -203,7 +214,9 @@ export async function relayGaslessBatch(
    */
   const owner =
     identities?.ownerWallet ??
-    (await getCachedGaslessAccountOwner(config, chainId, account).catch(() => null)) ??
+    (checkedOwner === undefined
+      ? await getCachedGaslessAccountOwner(config, chainId, account).catch(() => null)
+      : checkedOwner) ??
     signer;
 
   const instantKey = instantSelectors.length > 0 ? gaslessInstantNonceStreamKey(chainId, account) : null;
@@ -211,6 +224,12 @@ export async function relayGaslessBatch(
     walletIds.map((walletId) => [walletId, gaslessWalletNonceStreamKey(chainId, walletId, owner, account)] as const),
   );
   const streamKeys = [...(instantKey === null ? [] : [instantKey]), ...walletKeys.values()];
+
+  /** This config already saw an attempt under the same key accepted: return it instead of signing again. */
+  if (sameKey !== undefined) {
+    const earlier = getGaslessPendingAcceptance(config, streamKeys, sameKey);
+    if (earlier) return earlier;
+  }
 
   /**
    * The locks span read-sign-submit on every stream the batch signs on. They are
@@ -221,14 +240,14 @@ export async function relayGaslessBatch(
     const [instantNonce, walletTargets, walletNonces] = await Promise.all([
       instantKey === null
         ? 0n
-        : readGaslessStreamNonce(config, instantKey, () => getInstantLayerNonce(config, { chainId, account })),
+        : readGaslessStreamNonce(config, instantKey, () => getInstantLayerNonce(config, { chainId, account }), sameKey),
       readGaslessBatchWalletTargets(config, { chainId, owner, walletIds }),
-      readWalletNonces(config, { chainId, owner, account, walletKeys }),
+      readWalletNonces(config, { chainId, owner, account, walletKeys, idempotencyKey: sameKey }),
     ]);
 
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + GASLESS_BATCH_DEADLINE_SECONDS);
     const built = buildGaslessBatchOperations(entries, {
       signer,
+      entrySigners,
       account,
       deadline,
       instantNonce,
@@ -261,17 +280,11 @@ export async function relayGaslessBatch(
 
     const signatures = await signGaslessBatchOperations(config, {
       chainId,
-      walletClient,
+      walletClients: entryClients,
       entries,
       operations: built.operations,
     });
 
-    /**
-     * One key per signature: the operations were just signed, so the key is
-     * minted here. Replaying a lost response is `resubmitGaslessRequest`'s job,
-     * which reuses this key with the exact bytes that went with it.
-     */
-    const idempotencyKey = generateGaslessIdempotencyKey();
     const body: GaslessWireRelayInstantRequest = {
       idempotencyKey,
       userAddress: owner,
@@ -298,7 +311,7 @@ export async function relayGaslessBatch(
     return submitOnGaslessNonceStreams(
       config,
       streams,
-      { service: "operations", chainId, deadline },
+      { service: "operations", chainId, deadline, idempotencyKey, callerOwnedKey },
       async () => {
         const raw = await postGaslessSubmit<GaslessWireOperationAccepted>(
           context,
@@ -320,53 +333,33 @@ export async function relayGaslessBatch(
 
 /**
  * The consumed wallet-operation nonce of each wallet a batch executes from,
- * waiting first for anything this SDK already signed on that stream.
+ * waiting first for anything this SDK already signed on that stream under
+ * another key.
  */
 async function readWalletNonces(
   config: Config,
-  parameters: { chainId: number; owner: Address; account: Address; walletKeys: ReadonlyMap<bigint, string> },
+  parameters: {
+    chainId: number;
+    owner: Address;
+    account: Address;
+    walletKeys: ReadonlyMap<bigint, string>;
+    idempotencyKey?: string;
+  },
 ): Promise<Map<bigint, bigint>> {
-  const { chainId, owner, account, walletKeys } = parameters;
+  const { chainId, owner, account, walletKeys, idempotencyKey } = parameters;
   const entries = await Promise.all(
     [...walletKeys].map(
       async ([walletId, key]) =>
         [
           walletId,
-          await readGaslessStreamNonce(config, key, () =>
-            getGaslessWalletNonce(config, { chainId, owner, walletId, account }),
+          await readGaslessStreamNonce(
+            config,
+            key,
+            () => getGaslessWalletNonce(config, { chainId, owner, walletId, account }),
+            idempotencyKey,
           ),
         ] as const,
     ),
   );
   return new Map(entries);
-}
-
-/**
- * The wallet-entry selectors a delegate may not relay: the GaslessLayer demands
- * a delegation for the wallet-execution sentinel **and every inner selector**,
- * on the account's canonical delegator. The wallet's owner needs none.
- */
-async function findUndelegatedWalletSelectors(
-  config: Config,
-  parameters: {
-    chainId: number;
-    signer: Address;
-    identities: GaslessWalletIdentities;
-    entries: readonly ResolvedGaslessBatchEntry[];
-  },
-): Promise<Hex[]> {
-  const { chainId, signer, identities, entries } = parameters;
-  if (isAddressEqual(signer, identities.ownerWallet)) return [];
-
-  const required = [
-    ...new Set(
-      entries.flatMap((entry) => (entry.type === "wallet" ? getGaslessWalletExecuteSelectors(entry.walletCalls) : [])),
-    ),
-  ];
-  const active = await Promise.all(
-    required.map((selector) =>
-      getIsDelegationActive(config, { chainId, account: identities.canonicalAccount, delegate: signer, selector }),
-    ),
-  );
-  return required.filter((_, index) => !active[index]);
 }

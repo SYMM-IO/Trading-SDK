@@ -1,4 +1,4 @@
-import { encodeFunctionData, size, slice, type Abi, type AbiFunction, type Hex } from "viem";
+import { encodeFunctionData, size, slice, type Abi, type AbiFunction, type Address, type Hex } from "viem";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { GaslessWalletCall } from "../gasless-wallet-execute/calls";
 import { getGaslessWalletExecuteSelectors } from "../gasless-wallet-execute/selectors";
@@ -27,12 +27,21 @@ export interface GaslessBatchContractCall {
   functionName: string;
   /** Arguments for `functionName`, in order. Omit for a no-argument function. */
   args?: readonly unknown[];
+  /**
+   * Who signs this call. Defaults to the batch's `from` (or the connected
+   * wallet). Give it to mix signers in one batch, for example a session key
+   * signing a call that an owner-signed grant earlier in the same batch
+   * authorizes.
+   */
+  from?: Address;
 }
 
 /** A relayable write given as raw calldata; its selector decides the target contract. */
 export interface GaslessBatchRawCall {
   /** Calldata of a relayable write. */
   data: Hex;
+  /** Who signs this call. Defaults to the batch's `from` (or the connected wallet). */
+  from?: Address;
 }
 
 /**
@@ -52,6 +61,11 @@ export interface GaslessBatchWalletExecute {
    * balance and nonce stream.
    */
   walletId?: bigint;
+  /**
+   * Who signs this wallet operation. Defaults to the batch's `from`, then the
+   * configured wallet. The wallet contract still executes the inner calls.
+   */
+  from?: Address;
 }
 
 /**
@@ -124,17 +138,17 @@ export function gaslessCallDataSelector(callData: Hex): Hex {
  * The selectors a gasless batch runs — the delegation set a session key must
  * hold to relay it on the batch's account: each relayable write's selector, and
  * for every GaslessWallet entry the wallet-execution sentinel plus each inner
- * call's selector. Lowercased and de-duplicated in first-seen order, because
- * `grantDelegation` rejects a duplicate-bearing array.
+ * call's selector. Lowercased and de-duplicated in first-seen order.
  *
  * Selectors come from the **encoded** calldata, so an overloaded ABI resolves to
  * the function that will actually run.
  *
- * A batch that contains `grantDelegation` must be owner-signed whatever this
- * returns: the InstantLayer rejects a delegate-signed grant, so no delegation
- * makes it relayable by a session key.
+ * For a mixed-signer batch, pass only the calls the delegate signs. This helper
+ * collects selectors without resolving `from`. A `grantDelegation` or
+ * `grantDelegations` entry must itself be owner-signed: no delegation makes a
+ * grant relayable by a session key.
  *
- * @param calls - The batch, in any order.
+ * @param calls - The calls signed by the delegate, in any order.
  * @returns The selector set, as `bytes4` hex.
  * @throws Viem's encoding error when an ABI-level call does not encode.
  *

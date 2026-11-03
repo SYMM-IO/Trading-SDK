@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { SymmApiError } from "../shared/errors/symm-error";
-import { isConfirmedGaslessFeeLimitError, isConfirmedGaslessUnavailableError } from "./fallback";
+import { SymmApiError, SymmError } from "../shared/errors/symm-error";
+import {
+  isConfirmedGaslessFeeLimitError,
+  isConfirmedGaslessRefusalError,
+  isConfirmedGaslessUnavailableError,
+  isGaslessRequestRejectedOrRevertedError,
+} from "./fallback";
 import { GASLESS_TEST_CHAIN } from "./test/config";
 import { GASLESS_SUBMIT_UNCONFIRMED_CODE, type GaslessUnconfirmedSubmit } from "./unconfirmed-submit";
 
@@ -130,5 +135,76 @@ describe("isConfirmedGaslessUnavailableError", () => {
     });
 
     expect(isConfirmedGaslessUnavailableError(rewrapped)).toBe(true);
+  });
+});
+
+describe("isConfirmedGaslessRefusalError", () => {
+  it.each([
+    { label: "a fee-policy refusal", err: apiError(409, { detail: { code: "FEE_POLICY_WOULD_REVERT" } }) },
+    { label: "an allowance refusal", err: apiError(409, { detail: { code: "INSUFFICIENT_ALLOWANCE" } }) },
+    { label: "a gateway rate limit", err: apiError(429, { error: "Rate limit exceeded" }) },
+    { label: "a gateway that is not ready", err: apiError(503, GATEWAY_ENVELOPE) },
+    {
+      label: "an exhausted free quota found by the fee pre-flight",
+      err: new SymmError("validation", "GASLESS_FREE_QUOTA_EXHAUSTED", "quota"),
+    },
+  ])("confirms $label", ({ err }) => {
+    expect(isConfirmedGaslessRefusalError(err)).toBe(true);
+  });
+
+  it.each([
+    { label: "an unconfirmed submit", err: apiError(429, UNCONFIRMED, GASLESS_SUBMIT_UNCONFIRMED_CODE) },
+    { label: "an idempotency conflict", err: apiError(409, { detail: { code: "IDEMPOTENCY_KEY_CONFLICT" } }) },
+    {
+      label: "a non-billing rejection after acceptance",
+      err: apiError(200, { status: "rejected", error_code: "SIMULATION_REVERTED" }, "GASLESS_RELAY_REJECTED"),
+    },
+    { label: "a plain error", err: new Error("boom") },
+  ])("refuses $label", ({ err }) => {
+    expect(isConfirmedGaslessRefusalError(err)).toBe(false);
+  });
+});
+
+describe("isGaslessRequestRejectedOrRevertedError", () => {
+  it.each([
+    { code: "GASLESS_RELAY_REJECTED", status: "rejected" },
+    { code: "GASLESS_RELAY_REVERTED", status: "reverted" },
+  ])("confirms $code carrying a $status record", ({ code, status }) => {
+    expect(isGaslessRequestRejectedOrRevertedError(apiError(200, { status, tx_hash: null }, code))).toBe(true);
+  });
+
+  it("confirms the code when the error carries no record", () => {
+    expect(
+      isGaslessRequestRejectedOrRevertedError(new SymmError("api", "GASLESS_RELAY_REVERTED", "reverted on-chain")),
+    ).toBe(true);
+  });
+
+  it("never treats a failed request as final — its transaction may still mine", () => {
+    expect(isGaslessRequestRejectedOrRevertedError(apiError(200, { status: "failed" }, "GASLESS_RELAY_FAILED"))).toBe(
+      false,
+    );
+  });
+
+  it("refuses a code whose carried record disagrees with it", () => {
+    expect(
+      isGaslessRequestRejectedOrRevertedError(apiError(200, { status: "submitted" }, "GASLESS_RELAY_REJECTED")),
+    ).toBe(false);
+  });
+
+  it("classifies the same way through a framework layer's re-wrapped error", () => {
+    const rewrapped = Object.assign(new Error("reverted"), {
+      code: "GASLESS_RELAY_REVERTED",
+      status: 200,
+      responseData: { status: "reverted" },
+    });
+
+    expect(isGaslessRequestRejectedOrRevertedError(rewrapped)).toBe(true);
+  });
+
+  it("refuses unrelated errors", () => {
+    expect(
+      isGaslessRequestRejectedOrRevertedError(apiError(409, { detail: { code: "FEE_POLICY_WOULD_REVERT" } })),
+    ).toBe(false);
+    expect(isGaslessRequestRejectedOrRevertedError(new Error("boom"))).toBe(false);
   });
 });

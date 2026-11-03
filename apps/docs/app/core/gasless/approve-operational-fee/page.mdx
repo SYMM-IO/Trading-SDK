@@ -20,6 +20,13 @@ const { allowance } = await getOperationalFeeAllowance(config, { payer: subAccou
 
 The diamond keys allowances by `msg.sender`, so the call is routed through the AccountLayer `_call` proxy — the diamond sees the **sub-account** as the payer. A direct wallet call would grant the allowance from the wrong account. The connected wallet must be the sub-account's owner. Under the hood this encodes `approveOperationalFeeWithMultiplier(chargers[], amounts[], feeMultipliers[])`; `chargers` defaults to the chain's `gasless.gaslessLayerAddress` and `feeMultipliers` to `OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER` (`10000n` — list price, in basis points). Because the call always sets a multiplier, omitting `feeMultipliers` resets a previously set one to list price.
 
+<Callout type="info">
+  To set the allowance **without touching the multiplier**, use
+  [`approveOperationalFeeAllowance`](/core/gasless/approve-operational-fee-allowance), the diamond's two-argument
+  `approveOperationalFee`. It is also the variant to use when a session key's delegation holds only that function's
+  selector.
+</Callout>
+
 ## Amounts and what an approval does
 
 - **Amounts are 18-decimal Core units**, the scale of the Core balance fees are drawn from, not the collateral token's decimals. On a 6-decimal USDC chain `parseUnits("5", 18)` is a 5 USDC budget, while `parseUnits("5", 6)` would allow only 0.000000000005 USDC. To start from a token amount, convert it with [`collateralToCore18`](/core/shared-types#collateraltocore18).

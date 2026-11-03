@@ -142,6 +142,7 @@ export {
 export {
   useAccountBalanceInfo,
   useAccountBalanceOf,
+  useActiveVirtualAccountByKey,
   useAddMargin,
   useAffiliateState,
   useAllocate,
@@ -173,6 +174,8 @@ export {
   useUserSubAccountsAddresses,
   useVirtualAccount,
   useVirtualAccountsAddressesOfSubAccount,
+  useVirtualAccountsCountOfSubAccount,
+  useVirtualAccountsOfSubAccount,
   type AddMarginResult,
   type AllocateResult,
   type CancelRegistrationResult,
@@ -192,6 +195,8 @@ export {
   type UseAccountBalanceInfoReturnType,
   type UseAccountBalanceOfParameters,
   type UseAccountBalanceOfReturnType,
+  type UseActiveVirtualAccountByKeyParameters,
+  type UseActiveVirtualAccountByKeyReturnType,
   type UseAddMarginParameters,
   type UseAddMarginReturnType,
   type UseAffiliateStateParameters,
@@ -254,6 +259,10 @@ export {
   type UseVirtualAccountReturnType,
   type UseVirtualAccountsAddressesOfSubAccountParameters,
   type UseVirtualAccountsAddressesOfSubAccountReturnType,
+  type UseVirtualAccountsCountOfSubAccountParameters,
+  type UseVirtualAccountsCountOfSubAccountReturnType,
+  type UseVirtualAccountsOfSubAccountParameters,
+  type UseVirtualAccountsOfSubAccountReturnType,
 } from "./account-layer";
 
 /**
@@ -292,6 +301,7 @@ export {
   useDelegationExpiry,
   useFinalizeRevokeDelegation,
   useGrantDelegation,
+  useGrantDelegations,
   useInitiateRevokeDelegation,
   useInstantClose,
   useInstantCloseAuto,
@@ -314,8 +324,10 @@ export {
   useRevocationCooldown,
   useSessionKeySelectors,
   useSimulateGrantDelegation,
+  useSimulateGrantDelegations,
   type FinalizeRevokeDelegationResult,
   type GrantDelegationResult,
+  type GrantDelegationsResult,
   type InitiateRevokeDelegationResult,
   type UseActiveDelegationsParameters,
   type UseActiveDelegationsReturnType,
@@ -327,6 +339,8 @@ export {
   type UseFinalizeRevokeDelegationReturnType,
   type UseGrantDelegationParameters,
   type UseGrantDelegationReturnType,
+  type UseGrantDelegationsParameters,
+  type UseGrantDelegationsReturnType,
   type UseInitiateRevokeDelegationParameters,
   type UseInitiateRevokeDelegationReturnType,
   type UseInstantCloseAutoParameters,
@@ -374,6 +388,8 @@ export {
   type UseSessionKeySelectorsReturnType,
   type UseSimulateGrantDelegationParameters,
   type UseSimulateGrantDelegationReturnType,
+  type UseSimulateGrantDelegationsParameters,
+  type UseSimulateGrantDelegationsReturnType,
 } from "./instant-layer";
 
 /**
@@ -381,29 +397,37 @@ export {
  * --------------
  * The request-based withdraw flow: initiate / cancel / finalize mutations (the
  * write wrappers hide the AccountLayer `_call` proxying) plus the read views for
- * pending requests, ids, and the withdrawable time.
+ * pending requests, ids, the withdrawable time, and the raw deallocation timing
+ * inputs (`useWithdrawCooldownOf`, `useDeallocateDebounceTime`).
  */
 export {
+  useDeallocateDebounceTime,
   useFinalizeWithdrawRequest,
   useInitiateWithdraw,
   useLastWithdrawRequestId,
   usePendingWithdrawRequests,
+  usePendingWithdrawRequestsBatch,
   useRequestCancelWithdraw,
   useSimulateFinalizeWithdrawRequest,
   useSimulateInitiateWithdraw,
   useSimulateRequestCancelWithdraw,
   useWithdraw,
+  useWithdrawCooldownOf,
   useWithdrawRequest,
   useWithdrawableTime,
   type FinalizeWithdrawRequestResult,
   type InitiateWithdrawResult,
   type RequestCancelWithdrawResult,
+  type UseDeallocateDebounceTimeParameters,
+  type UseDeallocateDebounceTimeReturnType,
   type UseFinalizeWithdrawRequestParameters,
   type UseFinalizeWithdrawRequestReturnType,
   type UseInitiateWithdrawParameters,
   type UseInitiateWithdrawReturnType,
   type UseLastWithdrawRequestIdParameters,
   type UseLastWithdrawRequestIdReturnType,
+  type UsePendingWithdrawRequestsBatchParameters,
+  type UsePendingWithdrawRequestsBatchReturnType,
   type UsePendingWithdrawRequestsParameters,
   type UsePendingWithdrawRequestsReturnType,
   type UseRequestCancelWithdrawParameters,
@@ -414,6 +438,8 @@ export {
   type UseSimulateInitiateWithdrawReturnType,
   type UseSimulateRequestCancelWithdrawParameters,
   type UseSimulateRequestCancelWithdrawReturnType,
+  type UseWithdrawCooldownOfParameters,
+  type UseWithdrawCooldownOfReturnType,
   type UseWithdrawParameters,
   type UseWithdrawRequestParameters,
   type UseWithdrawRequestReturnType,
@@ -1301,6 +1327,7 @@ export {
  */
 export {
   useApproveOperationalFee,
+  useApproveOperationalFeeAllowance,
   useGaslessBatchFeeQuote,
   useGaslessDepositPolicy,
   useGaslessFeeQuote,
@@ -1318,6 +1345,8 @@ export {
   useSettleGaslessDepositExistingAccount,
   useSettleGaslessDepositNewAccount,
   useSupportsGaslessService,
+  type ApproveOperationalFeeAllowanceResult,
+  type ApproveOperationalFeeAllowanceVariables,
   type ApproveOperationalFeeResult,
   type ApproveOperationalFeeVariables,
   type GaslessRelayParameters,
@@ -1336,6 +1365,8 @@ export {
   type SettleGaslessDepositExistingAccountVariables,
   type SettleGaslessDepositNewAccountResult,
   type SettleGaslessDepositNewAccountVariables,
+  type UseApproveOperationalFeeAllowanceParameters,
+  type UseApproveOperationalFeeAllowanceReturnType,
   type UseApproveOperationalFeeParameters,
   type UseApproveOperationalFeeReturnType,
   type UseGaslessBatchFeeQuoteParameters,

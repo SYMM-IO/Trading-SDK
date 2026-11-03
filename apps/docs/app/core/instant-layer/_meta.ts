@@ -9,6 +9,7 @@ export default {
   "get-pending-revocation-etas": "getPendingRevocationEtas",
   "-- writes": { type: "separator", title: "Writes" },
   "grant-delegation": "grantDelegation",
+  "grant-delegations": "grantDelegations",
   "initiate-revoke-delegation": "initiateRevokeDelegation",
   "finalize-revoke-delegation": "finalizeRevokeDelegation",
   "-- types": { type: "separator", title: "Types" },

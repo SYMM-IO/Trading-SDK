@@ -73,6 +73,7 @@ export {
   depositForAccountMutationOptions,
   editAccountName,
   editAccountNameMutationOptions,
+  encodeSubAccountHookMetadata,
   generateAccountManagerAddress,
   generateAccountManagerAddressQueryKey,
   generateAccountManagerAddressQueryOptions,
@@ -82,6 +83,9 @@ export {
   getAccountBalanceOf,
   getAccountBalanceOfQueryKey,
   getAccountBalanceOfQueryOptions,
+  getActiveVirtualAccountByKey,
+  getActiveVirtualAccountByKeyQueryKey,
+  getActiveVirtualAccountByKeyQueryOptions,
   getAffiliateState,
   getAffiliateStateQueryKey,
   getAffiliateStateQueryOptions,
@@ -109,6 +113,12 @@ export {
   getVirtualAccountsAddressesOfSubAccount,
   getVirtualAccountsAddressesOfSubAccountQueryKey,
   getVirtualAccountsAddressesOfSubAccountQueryOptions,
+  getVirtualAccountsCountOfSubAccount,
+  getVirtualAccountsCountOfSubAccountQueryKey,
+  getVirtualAccountsCountOfSubAccountQueryOptions,
+  getVirtualAccountsOfSubAccount,
+  getVirtualAccountsOfSubAccountQueryKey,
+  getVirtualAccountsOfSubAccountQueryOptions,
   removeMargin,
   removeMarginMutationOptions,
   requestToRegisterAffiliate,
@@ -166,6 +176,12 @@ export {
   type GetAccountBalanceOfQueryKey,
   type GetAccountBalanceOfQueryOptions,
   type GetAccountBalanceOfReturnType,
+  type GetActiveVirtualAccountByKeyData,
+  type GetActiveVirtualAccountByKeyOptions,
+  type GetActiveVirtualAccountByKeyParameters,
+  type GetActiveVirtualAccountByKeyQueryKey,
+  type GetActiveVirtualAccountByKeyQueryOptions,
+  type GetActiveVirtualAccountByKeyReturnType,
   type GetAffiliateStateData,
   type GetAffiliateStateOptions,
   type GetAffiliateStateParameters,
@@ -220,6 +236,18 @@ export {
   type GetVirtualAccountsAddressesOfSubAccountQueryKey,
   type GetVirtualAccountsAddressesOfSubAccountQueryOptions,
   type GetVirtualAccountsAddressesOfSubAccountReturnType,
+  type GetVirtualAccountsCountOfSubAccountData,
+  type GetVirtualAccountsCountOfSubAccountOptions,
+  type GetVirtualAccountsCountOfSubAccountParameters,
+  type GetVirtualAccountsCountOfSubAccountQueryKey,
+  type GetVirtualAccountsCountOfSubAccountQueryOptions,
+  type GetVirtualAccountsCountOfSubAccountReturnType,
+  type GetVirtualAccountsOfSubAccountData,
+  type GetVirtualAccountsOfSubAccountOptions,
+  type GetVirtualAccountsOfSubAccountParameters,
+  type GetVirtualAccountsOfSubAccountQueryKey,
+  type GetVirtualAccountsOfSubAccountQueryOptions,
+  type GetVirtualAccountsOfSubAccountReturnType,
   type RemoveMarginParameters,
   type RemoveMarginReturnType,
   type RequestToRegisterAffiliateParameters,
@@ -247,6 +275,7 @@ export {
   type Stakeholder,
   type SubAccountCreationData,
   type SubAccountDetail,
+  type SubAccountHookMetadataInput,
   type VirtualAccountDetail,
 } from "./symmio-contracts/account-layer";
 
@@ -293,8 +322,10 @@ export {
  * mapping expiry, the contract's active status, and — via
  * `getActiveDelegations` — the canonicalizing multi-selector probe that
  * resolves a virtual account to its parent the way enforcement does. Writes
- * cover the full grant lifecycle: `grantDelegation` (relayable, so onboarding a
- * session key costs no gas) and the two-step `initiateRevokeDelegation` /
+ * cover the full grant lifecycle: `grantDelegation` and the multi-delegate
+ * `grantDelegations` (both relayable, so onboarding a session key costs no gas,
+ * and one signature can authorize several delegates) and the two-step
+ * `initiateRevokeDelegation` /
  * `finalizeRevokeDelegation`, which are wallet-only because the contract
  * accepts a self-targeted operation solely as a delegation grant. A revocation
  * in flight is visible only through `getPendingRevocationEtas` — the active
@@ -323,10 +354,14 @@ export {
   getRevocationCooldownQueryOptions,
   grantDelegation,
   grantDelegationMutationOptions,
+  grantDelegations,
+  grantDelegationsMutationOptions,
   initiateRevokeDelegation,
   initiateRevokeDelegationMutationOptions,
   simulateGrantDelegation,
   simulateGrantDelegationMutationOptions,
+  simulateGrantDelegations,
+  simulateGrantDelegationsMutationOptions,
   type ActiveDelegationInfo,
   type FinalizeRevokeDelegationParameters,
   type FinalizeRevokeDelegationReturnType,
@@ -368,11 +403,16 @@ export {
   type GetRevocationCooldownReturnType,
   type GrantDelegationParameters,
   type GrantDelegationReturnType,
+  type GrantDelegationsEntry,
+  type GrantDelegationsParameters,
+  type GrantDelegationsReturnType,
   type InitiateRevokeDelegationParameters,
   type InitiateRevokeDelegationReturnType,
   type InstantLayerAccount,
   type SimulateGrantDelegationParameters,
   type SimulateGrantDelegationReturnType,
+  type SimulateGrantDelegationsParameters,
+  type SimulateGrantDelegationsReturnType,
 } from "./symmio-contracts/instant-layer";
 
 /**
@@ -397,6 +437,7 @@ export {
   GASLESS_RELAYABLE_SELECTORS,
   GASLESS_SESSION_KEY_SELECTORS,
   GASLESS_SESSION_KEY_WITHDRAW_SELECTORS,
+  GASLESS_SIGNATURE_LIFETIME_SECONDS,
   GASLESS_STREAM_SETTLE_MS,
   GASLESS_STREAM_STALE_MS,
   GASLESS_SUBMITTED_POLL_MS,
@@ -414,10 +455,12 @@ export {
   gaslessPollDelay,
   gaslessWalletExecute,
   gaslessWalletExecuteMutationOptions,
+  generateGaslessIdempotencyKey,
   getGaslessBatchFeeQuote,
   getGaslessBatchFeeQuoteQueryKey,
   getGaslessBatchFeeQuoteQueryOptions,
   getGaslessBatchSelectors,
+  getGaslessDeploymentKey,
   getGaslessDepositPolicy,
   getGaslessDepositPolicyQueryKey,
   getGaslessDepositPolicyQueryOptions,
@@ -445,10 +488,12 @@ export {
   getGaslessWriteRequest,
   getSessionKeySelectors,
   isConfirmedGaslessFeeLimitError,
+  isConfirmedGaslessRefusalError,
   isConfirmedGaslessUnavailableError,
   isGaslessFreeQuotaExhaustedError,
   isGaslessIdempotencyConflictError,
   isGaslessRelayableSelector,
+  isGaslessRequestRejectedOrRevertedError,
   isGaslessRequestTerminal,
   isNewerGaslessRequest,
   parseGaslessErrorDetail,
@@ -510,6 +555,8 @@ export {
   type GetGaslessBatchFeeQuoteQueryKey,
   type GetGaslessBatchFeeQuoteQueryOptions,
   type GetGaslessBatchFeeQuoteReturnType,
+  type GetGaslessDeploymentKeyParameters,
+  type GetGaslessDeploymentKeyReturnType,
   type GetGaslessDepositPolicyData,
   type GetGaslessDepositPolicyOptions,
   type GetGaslessDepositPolicyParameters,
@@ -733,6 +780,8 @@ export {
   OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER,
   WithdrawStatus,
   approveOperationalFee,
+  approveOperationalFeeAllowance,
+  approveOperationalFeeAllowanceMutationOptions,
   approveOperationalFeeMutationOptions,
   createClassicWithdrawPart,
   deallocateAndInitiateWithdraw,
@@ -753,6 +802,9 @@ export {
   getOperationalFeeAllowanceQueryKey,
   getOperationalFeeAllowanceQueryOptions,
   getPendingWithdrawRequests,
+  getPendingWithdrawRequestsBatch,
+  getPendingWithdrawRequestsBatchQueryKey,
+  getPendingWithdrawRequestsBatchQueryOptions,
   getPendingWithdrawRequestsQueryKey,
   getPendingWithdrawRequestsQueryOptions,
   getWithdrawRequests,
@@ -781,6 +833,8 @@ export {
   withdrawAuto,
   withdrawAutoMutationOptions,
   withdrawMutationOptions,
+  type ApproveOperationalFeeAllowanceParameters,
+  type ApproveOperationalFeeAllowanceReturnType,
   type ApproveOperationalFeeParameters,
   type ApproveOperationalFeeReturnType,
   type DeallocateAndInitiateWithdrawParameters,
@@ -810,6 +864,12 @@ export {
   type GetOperationalFeeAllowanceQueryKey,
   type GetOperationalFeeAllowanceQueryOptions,
   type GetOperationalFeeAllowanceReturnType,
+  type GetPendingWithdrawRequestsBatchData,
+  type GetPendingWithdrawRequestsBatchOptions,
+  type GetPendingWithdrawRequestsBatchParameters,
+  type GetPendingWithdrawRequestsBatchQueryKey,
+  type GetPendingWithdrawRequestsBatchQueryOptions,
+  type GetPendingWithdrawRequestsBatchReturnType,
   type GetPendingWithdrawRequestsData,
   type GetPendingWithdrawRequestsOptions,
   type GetPendingWithdrawRequestsParameters,
@@ -830,6 +890,7 @@ export {
   type GetWithdrawableTimeReturnType,
   type InitiateWithdrawParameters,
   type InitiateWithdrawReturnType,
+  type PendingWithdrawRequestsForUser,
   type RequestCancelWithdrawParameters,
   type RequestCancelWithdrawReturnType,
   type RequestToCancelCloseRequestParameters,
@@ -866,6 +927,7 @@ export {
   listSupportedChains,
   type GaslessExecutionConfig,
   type GaslessFallback,
+  type GaslessRequestContext,
   type SolverId,
   type SymmioChainConfig,
   type SymmioContractAddresses,
@@ -1654,6 +1716,7 @@ export type {
   DeepPartial,
   ExactPartial,
   FromParameter,
+  GaslessIdempotencyKeyParameter,
   GaslessWriteOptions,
   GaslessWriteParameter,
   ReadSolverParameter,
@@ -3151,6 +3214,45 @@ export {
 } from "./pools/token-support";
 export { getPoolTransactionRange } from "./pools/transactions";
 export { validateInstantOpenBalanceFunding } from "./solvers/instant-open/shared/resolve-instant-open-sizing";
+
+/**
+ * SYMMIO Core account calls and timing reads
+ * ------------------------------------------
+ * `executeAccountCalls` runs an ordered list of named SYMMIO core writes
+ * atomically as one subaccount — a single AccountLayer `_call` transaction on
+ * the wallet path, or the gasless dispatcher (bound by its relayable
+ * selectors). It never falls back to the wallet, and never infers request ids
+ * or feeds one call's return value into the next. The reads expose the raw
+ * timing inputs behind the withdraw flow: `getDeallocateDebounceTime` is the
+ * protocol's deallocation debounce in seconds, and `getWithdrawCooldownOf` is
+ * the account's stored `deallocateTimestamp` — a timestamp, not a duration or
+ * unlock time (use `getWithdrawableTime` for readiness).
+ */
+export {
+  executeAccountCalls,
+  executeAccountCallsMutationOptions,
+  getDeallocateDebounceTime,
+  getDeallocateDebounceTimeQueryKey,
+  getDeallocateDebounceTimeQueryOptions,
+  getWithdrawCooldownOf,
+  getWithdrawCooldownOfQueryKey,
+  getWithdrawCooldownOfQueryOptions,
+  type AccountContractCall,
+  type ExecuteAccountCallsParameters,
+  type ExecuteAccountCallsReturnType,
+  type GetDeallocateDebounceTimeData,
+  type GetDeallocateDebounceTimeOptions,
+  type GetDeallocateDebounceTimeParameters,
+  type GetDeallocateDebounceTimeQueryKey,
+  type GetDeallocateDebounceTimeQueryOptions,
+  type GetDeallocateDebounceTimeReturnType,
+  type GetWithdrawCooldownOfData,
+  type GetWithdrawCooldownOfOptions,
+  type GetWithdrawCooldownOfParameters,
+  type GetWithdrawCooldownOfQueryKey,
+  type GetWithdrawCooldownOfQueryOptions,
+  type GetWithdrawCooldownOfReturnType,
+} from "./symmio-contracts/symmio";
 
 export {
   calculatePoolPortfolio,

@@ -32,9 +32,12 @@ export const GASLESS_TEST_CHAIN = SymmioSupportedChainId.ARBITRUM;
 export function gaslessTestConfig(overrides?: DeepPartial<SymmioGaslessConfig>): {
   config: Config;
   readContract: Mock;
+  getTransactionReceipt: Mock;
 } {
   const readContract = vi.fn();
-  const publicClient = { readContract } as unknown as PublicClient;
+  /** Finds every receipt by default: this RPC is caught up unless a test says otherwise. */
+  const getTransactionReceipt = vi.fn().mockResolvedValue({ status: "success" });
+  const publicClient = { readContract, getTransactionReceipt } as unknown as PublicClient;
 
   const config = createConfig({
     getClient: () => publicClient,
@@ -51,7 +54,7 @@ export function gaslessTestConfig(overrides?: DeepPartial<SymmioGaslessConfig>):
     },
   });
 
-  return { config, readContract };
+  return { config, readContract, getTransactionReceipt };
 }
 
 /** Deterministic signature the stub wallet returns for EIP-712 prompts. */
@@ -75,6 +78,11 @@ export interface GaslessWriteTestConfigOptions {
    * counts stay observable across signers.
    */
   signersByFrom?: Readonly<Record<Address, Address>>;
+  /**
+   * Signers whose wallet client holds a viem `local` account — an in-memory
+   * key such as a session key — instead of the default `json-rpc` one.
+   */
+  localSigners?: readonly Address[];
 }
 
 /**
@@ -91,14 +99,24 @@ export function gaslessWriteTestConfig(
   readContract: Mock;
   writeContract: Mock;
   signTypedData: Mock;
+  getBlock: Mock;
+  getTransactionReceipt: Mock;
 } {
   const readContract = vi.fn();
+  const getBlock = vi.fn().mockResolvedValue({ timestamp: 2_000_000_000n });
+  /** Finds every receipt by default: this RPC is caught up unless a test says otherwise. */
+  const getTransactionReceipt = vi.fn().mockResolvedValue({ status: "success" });
   const writeContract = vi.fn().mockResolvedValue(TEST_GASLESS_TX_HASH);
   const signTypedData = vi.fn().mockResolvedValue(TEST_GASLESS_SIGNATURE);
-  const publicClient = { readContract } as unknown as import("viem").PublicClient;
+  const publicClient = { readContract, getBlock, getTransactionReceipt } as unknown as import("viem").PublicClient;
   const clientFor = (signer: Address) =>
     ({
-      account: { address: signer, type: "json-rpc" },
+      account: {
+        address: signer,
+        type: options?.localSigners?.some((local) => local.toLowerCase() === signer.toLowerCase())
+          ? "local"
+          : "json-rpc",
+      },
       chain: { id: GASLESS_TEST_CHAIN },
       writeContract,
       signTypedData,
@@ -121,5 +139,5 @@ export function gaslessWriteTestConfig(
     },
   });
 
-  return { config, readContract, writeContract, signTypedData };
+  return { config, readContract, writeContract, signTypedData, getBlock, getTransactionReceipt };
 }

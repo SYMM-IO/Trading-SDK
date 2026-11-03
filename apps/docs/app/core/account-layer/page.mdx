@@ -22,6 +22,30 @@ Each method has its own page with the full signature, parameters, return shape, 
   <MethodEntry name="getAccountBalanceInfo" href="/core/account-layer/get-account-balance-info">
     Classic-pool (allocated) balance plus the CVA / LF / margin locks held against it.
   </MethodEntry>
+  <MethodEntry name="getVirtualAccountsOfSubAccount" href="/core/account-layer/get-virtual-accounts-of-sub-account">
+    A subaccount's virtual accounts with their market and side, in one call.
+  </MethodEntry>
+  <MethodEntry
+    name="getVirtualAccountsAddressesOfSubAccount"
+    href="/core/account-layer/get-virtual-accounts-addresses-of-sub-account"
+  >
+    A subaccount's virtual-account addresses — the `partyA` of each isolated position.
+  </MethodEntry>
+  <MethodEntry
+    name="getVirtualAccountsCountOfSubAccount"
+    href="/core/account-layer/get-virtual-accounts-count-of-sub-account"
+  >
+    How many virtual accounts a subaccount holds, to page past 200.
+  </MethodEntry>
+  <MethodEntry name="getVirtualAccount" href="/core/account-layer/get-virtual-account">
+    One virtual account's market, parent and isolation type.
+  </MethodEntry>
+  <MethodEntry name="getActiveVirtualAccountByKey" href="/core/account-layer/get-active-virtual-account-by-key">
+    The virtual account currently active for a market and side, or `null`.
+  </MethodEntry>
+  <MethodEntry name="getSubAccountVirtualNonce" href="/core/account-layer/get-sub-account-virtual-nonce">
+    The nonce the next virtual account's address derives from.
+  </MethodEntry>
 </MethodIndex>
 
 ## Writes
@@ -47,6 +71,14 @@ Each method has its own page with the full signature, parameters, return shape, 
   </MethodEntry>
   <MethodEntry name="editAccountName" href="/core/account-layer/edit-account-name">
     Rename a subaccount.
+  </MethodEntry>
+</MethodIndex>
+
+## Helpers
+
+<MethodIndex kind="type">
+  <MethodEntry name="encodeSubAccountHookMetadata" href="/core/account-layer/encode-sub-account-hook-metadata">
+    Encode a new subaccount's metadata for the affiliate's creation hook.
   </MethodEntry>
 </MethodIndex>
 

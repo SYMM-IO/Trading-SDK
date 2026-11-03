@@ -313,6 +313,45 @@ The two solver kinds open positions differently, and `instantOpen` dispatches on
 
 Rasa's attestation is encoded _inside_ the signed calldata, so it cannot be cached or fetched afterwards — `instantOpen` fetches it for you on that path.
 
+### Enigma margin timelocks
+
+On Enigma v0.8.6 deployments, submission reads the solver's `/info` before signing.
+When it advertises `timelock_approval`, the margin operation calls AccountLayer
+`executeTimelockOp` around exactly one `addMarginToNextVA`. Its single approval
+fixes the root account, unlocker, inner-calldata hash, deadline and salt. Only the
+65 zero-filled signature bytes are delegated to the configured PartyB proxy;
+approval fields, ABI offsets and inner calldata cannot be changed by that filler.
+The canonical signature range starts at byte 352 after the function selector.
+
+The approval deadline uses the latest chain timestamp plus the advertised approval
+validity. It is independent of the quote and operation deadlines. Submission checks
+the chain time again after signing and rejects an approval with less than 30 seconds
+remaining instead of sending it. Retrying prepares a fresh approval and signatures.
+
+Before signing, `allTimelockedBy` must confirm the solver's published approvable
+selector set against its advertised unlocker and minimum delay. These are account
+timelocks, separate from InstantLayer session-key delegation. The SDK does not
+configure them or request an approval from `/timelock-approval`. Owner approval of
+a timelock setup belongs in a separate account-management flow. The solver still
+checks admission conditions such as unresolved schedules and live approvals.
+
+| Error code                                    | Meaning                                                                                                               |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `INSTANT_OPEN_TIMELOCK_POLICY_REQUIRED`       | Required account timelocks are absent, use another unlocker, or have insufficient delay; nothing is signed or posted. |
+| `INVALID_INSTANT_OPEN_TIMELOCK_METADATA`      | Advertised metadata is malformed or names another chain/AccountLayer.                                                 |
+| `FETCH_INSTANT_OPEN_TIMELOCK_METADATA_FAILED` | Solver requirements could not be fetched; submission stops.                                                           |
+| `INSTANT_OPEN_TIMELOCK_APPROVAL_EXPIRED`      | Signing left less than 30 seconds of approval validity; prepare a fresh order.                                        |
+
+The delegation check still authorizes the fixed inner `addMarginToNextVA` selector,
+not the wrapper. `preflightDelegation: false` skips only delegation reads; it never
+bypasses the timelock policy check. No extra wrapper delegation is needed.
+
+Solvers that do not advertise this metadata keep their plain margin operation;
+metadata fetch failures and malformed metadata never trigger that legacy path.
+Enigma v0.8.5 and Rasa retain their existing encoding. See the
+[staging solver specification](https://arb-staging.enigma.bz/api/swagger/doc.json)
+and [AccountLayer timelock semantics](https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/docs/v0.8.6/pages/accountlayer-timelock.html).
+
 ### Delegation preflight
 
 `instantOpen` signs with whatever key `from` resolves to — usually a session key. Before it signs anything, it checks that the key holds an active [InstantLayer delegation](/core/instant-layer/grant-delegation) from the sub-account for every operation it is about to sign: `addMarginToNextVA` and the quote-send on Enigma, the quote-send alone on Rasa. A key without one fails right there with `INSTANT_SIGNER_NOT_DELEGATED`, before anything is signed or sent, instead of failing at the solver after the user tried to trade.
@@ -326,7 +365,7 @@ It is the same check [gasless](/core/gasless) runs before relaying a session-key
 
 ### Parameters
 
-`InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; no fetching happens here, apart from the Rasa Muon signature and the [delegation preflight](#delegation-preflight) noted above.
+`InstantOpenParameters` — the resolved bag from `prepareInstantOpenParams`. Every field is a concrete value; submission also performs the Rasa Muon read, Enigma [timelock requirements](#enigma-margin-timelocks), and [delegation preflight](#delegation-preflight) described above.
 
 `preflightDelegation` (default `true`) turns the delegation preflight off for one call. `prepareInstantOpenParams` passes it through, so `instantOpenAuto` and `limitOpenAuto` accept it too.
 

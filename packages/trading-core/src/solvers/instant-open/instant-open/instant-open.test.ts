@@ -1,9 +1,20 @@
-import { decodeFunctionData, parseUnits, type Address } from "viem";
-import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
+import {
+  concatHex,
+  decodeFunctionData,
+  getAddress,
+  keccak256,
+  parseUnits,
+  sliceHex,
+  zeroAddress,
+  type Address,
+  type PublicClient,
+} from "viem";
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../../../core/chains";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { delegationReads, programDelegationReads } from "../../../shared/test/delegation-reads";
 import { mockConfig, TEST_USER } from "../../../shared/test/mock-config";
+import { accountLayerAbi } from "../../../symmio-contracts/abi/v0.8.6/account-layer";
 import { symmioAbi } from "../../../symmio-contracts/abi/v0.8.6/symmio";
 import { PositionType } from "../../../symmio-contracts/symmio/types";
 import {
@@ -14,16 +25,18 @@ import {
 import { instantOpen } from "./instant-open";
 import type { EnigmaInstantOpenResult, InstantOpenReturnType, RasaInstantOpenResult } from "./types";
 
-const { postInstantTradeInstantOpen, instantRequestForQuoteWithSignatureInstantTradeOpenPost, fetchMuonMock } =
+const { postInstantTradeInstantOpen, instantRequestForQuoteWithSignatureInstantTradeOpenPost, fetchMuonMock, getInfo } =
   vi.hoisted(() => ({
     postInstantTradeInstantOpen: vi.fn(),
     instantRequestForQuoteWithSignatureInstantTradeOpenPost: vi.fn(),
     fetchMuonMock: vi.fn(),
+    getInfo: vi.fn(),
   }));
 
 vi.mock("../../types/generated/enigma-solver", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../types/generated/enigma-solver")>()),
   postInstantTradeInstantOpen,
+  getInfo,
 }));
 
 vi.mock("../../types/generated/rasa-solver", async (importOriginal) => ({
@@ -81,6 +94,164 @@ function params(overrides: Record<string, unknown> = {}) {
     ...overrides,
   };
 }
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  getInfo.mockReset().mockResolvedValue({ data: {} });
+});
+
+describe("instantOpen — Enigma timelock margin", () => {
+  const now = 1_700_000_000n;
+
+  function setup() {
+    const mocks = mockConfig();
+    const getBlock = vi.fn().mockResolvedValue({ timestamp: now });
+    const config = {
+      ...mocks.config,
+      getClient: () => ({ ...mocks.config.getClient(), getBlock }) as unknown as PublicClient,
+    };
+    const info = {
+      timelock_approval: {
+        validity_seconds: 60,
+        min_timelock_delay_seconds: 600,
+        unlocker: OWNER,
+        request_domain: {
+          name: "SymmioTimelockApprovalRequest",
+          version: "1",
+          chainId: "42161",
+          verifyingContract: config.getChainConfig().addresses.accountLayerAddress,
+        },
+      },
+    };
+    getInfo.mockResolvedValue({ data: info });
+    mocks.readContract.mockResolvedValue(true);
+    postInstantTradeInstantOpen.mockResolvedValue({ data: { temp_quote_id: 7 } });
+    return { ...mocks, config, getBlock, info };
+  }
+
+  it("signs a canonical wrapper with immutable approval fields and one 65-byte signature flex field", async () => {
+    const { config, readContract } = setup();
+    await instantOpen(config, params({ preflightDelegation: false, operationDeadline: now + 300n }));
+
+    const [request] = postInstantTradeInstantOpen.mock.lastCall!;
+    const operation = request.addMargin.signedOperation;
+    const decoded = decodeFunctionData({ abi: accountLayerAbi, data: operation.callData });
+    expect(decoded.functionName).toBe("executeTimelockOp");
+    if (decoded.functionName !== "executeTimelockOp") throw new Error("Expected timelock wrapper");
+    const [approvals, inner] = decoded.args;
+    expect(approvals).toHaveLength(1);
+    expect(approvals[0]).toMatchObject({
+      approval: {
+        account: SUB_ACCOUNT,
+        unlocker: getAddress(OWNER),
+        callDataHash: keccak256(inner),
+        deadline: now + 60n,
+      },
+      signature: `0x${"00".repeat(65)}`,
+    });
+    expect(decodeFunctionData({ abi: accountLayerAbi, data: inner })).toMatchObject({
+      functionName: "addMarginToNextVA",
+      args: [SUB_ACCOUNT, 2, 1n, 3_000000000000000000n],
+    });
+    expect(operation.flexFields).toEqual([
+      { offset: 352, length: 65, authorizedFlexFiller: config.getSolver().address },
+    ]);
+    const signature = `0x${"ab".repeat(65)}` as const;
+    const filled = concatHex([sliceHex(operation.callData, 0, 356), signature, sliceHex(operation.callData, 421)]);
+    expect(decodeFunctionData({ abi: accountLayerAbi, data: filled })).toEqual({
+      ...decoded,
+      args: [[{ ...approvals[0], signature }], inner],
+    });
+    expect(operation.maxUses).toBe(1);
+    expect(operation.replayAttackHeader.deadline).toBe(Number(now + 300n));
+    expect(readContract).toHaveBeenCalledWith(
+      expect.objectContaining({
+        functionName: "allTimelockedBy",
+        args: [SUB_ACCOUNT, OWNER, 600n, expect.arrayContaining([ADD_MARGIN_TO_NEXT_VA_SELECTOR])],
+      }),
+    );
+    const selectors = readContract.mock.calls.find(([call]) => call.functionName === "allTimelockedBy")![0].args[3];
+    expect(new Set(selectors).size).toBe(22);
+  });
+
+  it("reports missing policy before signing or posting even when delegation preflight is disabled", async () => {
+    const { config, readContract, signTypedData, getBlock } = setup();
+    readContract.mockResolvedValue(false);
+    await expect(instantOpen(config, params({ preflightDelegation: false }))).rejects.toMatchObject({
+      code: "INSTANT_OPEN_TIMELOCK_POLICY_REQUIRED",
+    });
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(postInstantTradeInstantOpen).not.toHaveBeenCalled();
+    expect(getBlock).not.toHaveBeenCalled();
+  });
+
+  it("checks the fixed inner margin selector rather than requiring delegation for the wrapper", async () => {
+    const { config, readContract } = setup();
+    programDelegationReads(readContract, {
+      owners: { [SUB_ACCOUNT]: OWNER },
+      isDelegationActive: (_account, _signer, selector) =>
+        selector === ADD_MARGIN_TO_NEXT_VA_SELECTOR || selector === SEND_QUOTE_SELECTOR,
+    });
+    const delegationRead = readContract.getMockImplementation()!;
+    readContract.mockImplementation((read) => (read.functionName === "allTimelockedBy" ? true : delegationRead(read)));
+
+    await expect(instantOpen(config, params())).resolves.toMatchObject({ success: true });
+    expect(delegationReads(readContract)).toEqual([
+      [SUB_ACCOUNT, TEST_USER, ADD_MARGIN_TO_NEXT_VA_SELECTOR],
+      [SUB_ACCOUNT, TEST_USER, SEND_QUOTE_SELECTOR],
+    ]);
+  });
+
+  it("rejects metadata for a different AccountLayer before any signature", async () => {
+    const { config, info, signTypedData, readContract } = setup();
+    info.timelock_approval.request_domain.verifyingContract = OWNER;
+    await expect(instantOpen(config, params())).rejects.toMatchObject({
+      code: "INVALID_INSTANT_OPEN_TIMELOCK_METADATA",
+    });
+    expect(readContract).not.toHaveBeenCalled();
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(postInstantTradeInstantOpen).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    { unlocker: zeroAddress },
+    { unlocker: "not-an-address" },
+    { validity_seconds: 29 },
+    { validity_seconds: 1.5 },
+    { min_timelock_delay_seconds: -1 },
+    { min_timelock_delay_seconds: "600" },
+    { request_domain: { name: "wrong-domain" } },
+  ])("rejects malformed advertised metadata %j without selecting the bare-margin path", async (update) => {
+    const { config, info, signTypedData, readContract } = setup();
+    getInfo.mockResolvedValue({ data: { timelock_approval: { ...info.timelock_approval, ...update } } });
+    await expect(instantOpen(config, params())).rejects.toMatchObject({
+      code: "INVALID_INSTANT_OPEN_TIMELOCK_METADATA",
+    });
+    expect(readContract).not.toHaveBeenCalled();
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(postInstantTradeInstantOpen).not.toHaveBeenCalled();
+  });
+
+  it("does not downgrade after a metadata fetch failure", async () => {
+    const { config, signTypedData } = setup();
+    getInfo.mockRejectedValue(new Error("metadata unavailable"));
+    await expect(instantOpen(config, params())).rejects.toMatchObject({
+      code: "FETCH_INSTANT_OPEN_TIMELOCK_METADATA_FAILED",
+    });
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(postInstantTradeInstantOpen).not.toHaveBeenCalled();
+  });
+
+  it("rejects an approval that becomes too short-lived while the wallet signs", async () => {
+    const { config, getBlock, signTypedData } = setup();
+    getBlock.mockResolvedValueOnce({ timestamp: now }).mockResolvedValue({ timestamp: now + 31n });
+    await expect(instantOpen(config, params({ preflightDelegation: false }))).rejects.toMatchObject({
+      code: "INSTANT_OPEN_TIMELOCK_APPROVAL_EXPIRED",
+    });
+    expect(signTypedData).toHaveBeenCalledTimes(2);
+    expect(postInstantTradeInstantOpen).not.toHaveBeenCalled();
+  });
+});
 
 describe("instantOpen — kind dispatch", () => {
   afterEach(() => {

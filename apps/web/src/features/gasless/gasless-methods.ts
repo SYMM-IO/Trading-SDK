@@ -42,7 +42,15 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
     method: "getOperationalFeeAllowance",
     action: "useOperationalFeeAllowance",
     kind: "write",
-    aliases: ["approveOperationalFee", "useApproveOperationalFee", "operational fee", "allowance"],
+    aliases: [
+      "approveOperationalFee",
+      "useApproveOperationalFee",
+      "approveOperationalFeeAllowance",
+      "useApproveOperationalFeeAllowance",
+      "operational fee",
+      "allowance",
+      "fee multiplier",
+    ],
   },
   {
     id: "gasless-batch",
@@ -57,6 +65,9 @@ export const GASLESS_METHODS: readonly GaslessMethodMeta[] = [
       "fee preview",
       "batch",
       "multiple actions",
+      "per-call signer",
+      "mixed signers",
+      "session key onboarding",
     ],
   },
   {

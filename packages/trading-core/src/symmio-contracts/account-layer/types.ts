@@ -169,8 +169,10 @@ export interface SubAccountCreationData {
    */
   name: string;
   /**
-   * Free-form metadata blob forwarded to the affiliate's `onAccountCreation`
-   * hook. Pass `0x` when unused.
+   * Metadata blob forwarded unchanged to the affiliate's `onAccountCreation`
+   * hook, which decides its encoding; a blob the hook rejects reverts the
+   * creation with `HookFailed`. For the chains' default affiliates, build it
+   * with `encodeSubAccountHookMetadata`.
    */
   metadata: Hex;
   /**

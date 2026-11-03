@@ -1,4 +1,12 @@
-import { getChainConfig, symmioAbi, SymmioSupportedChainId, type SingleUpnlSig } from "@symmio/trading-core";
+import {
+  getChainConfig,
+  getWithdrawableTimeQueryKey,
+  getWithdrawCooldownOfQueryKey,
+  symmioAbi,
+  SymmioSupportedChainId,
+  type SingleUpnlSig,
+} from "@symmio/trading-core";
+import { QueryClient } from "@tanstack/react-query";
 import { act } from "@testing-library/react";
 import { encodeFunctionData, type Address } from "viem";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -65,6 +73,29 @@ describe("useDeallocate", () => {
 
     expect(getDeallocateUpnlSig).not.toHaveBeenCalled();
     expect(writeContract.mock.calls[0]![0].args).toEqual([SUB_ACCOUNT, [EXPECTED_DATA]]);
+  });
+
+  it("refreshes the account's cooldown and withdrawable-time reads, and no other account's", async () => {
+    const { config, writeContract } = createMockSymmioConfig();
+    writeContract.mockResolvedValueOnce(TEST_TX_HASH);
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const OTHER: Address = "0xdddddddddddddddddddddddddddddddddddddddd";
+    const own = [
+      getWithdrawCooldownOfQueryKey({ user: SUB_ACCOUNT }),
+      getWithdrawableTimeQueryKey({ user: SUB_ACCOUNT }),
+    ];
+    const other = getWithdrawCooldownOfQueryKey({ user: OTHER });
+    for (const key of [...own, other]) client.setQueryData(key, 0n);
+
+    const { result } = renderHookWithProviders(() => useDeallocate({ config, waitForReceipt: false }), {
+      queryClient: client,
+    });
+    await act(async () => {
+      await result.current.mutateAsync({ account: SUB_ACCOUNT, amount: AMOUNT, upnlSig: UPNL_SIG });
+    });
+
+    for (const key of own) expect(client.getQueryState(key)?.isInvalidated).toBe(true);
+    expect(client.getQueryState(other)?.isInvalidated).toBe(false);
   });
 
   it("rejects with kind 'sdk' when no wallet is connected, without writing", async () => {

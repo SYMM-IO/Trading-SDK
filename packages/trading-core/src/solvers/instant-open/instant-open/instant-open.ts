@@ -33,6 +33,10 @@ import type { InstantOpenParameters, InstantOpenReturnType } from "./types";
  * Before signing, it checks that the signer holds the InstantLayer delegation
  * for every operation it is about to sign (skip it with
  * `preflightDelegation: false`). The sub-account's owner needs none.
+ * On Enigma v0.8.6 deployments, it also reads `/info`. A solver advertising
+ * timelock approvals requires the configured account policy and receives an
+ * `executeTimelockOp` margin wrapper with only 65 approval-signature bytes
+ * fillable by the solver. This policy check is not skipped by delegation options.
  *
  * @param config - The SDK config.
  * @param parameters - Final-wei order, locked params, and the target sub-account.
@@ -41,6 +45,12 @@ import type { InstantOpenParameters, InstantOpenReturnType } from "./types";
  *   required inputs are missing.
  * @throws {SymmError} `INSTANT_SIGNER_NOT_DELEGATED` when the signer lacks the
  *   delegation, before anything is signed.
+ * @throws {SymmError} `INSTANT_OPEN_TIMELOCK_POLICY_REQUIRED` when the account's
+ *   selector timelocks do not satisfy the advertised solver policy. No policy is changed.
+ * @throws {SymmError} `INVALID_INSTANT_OPEN_TIMELOCK_METADATA` for malformed or
+ *   foreign-domain metadata, or `FETCH_INSTANT_OPEN_TIMELOCK_METADATA_FAILED` when it cannot be read.
+ * @throws {SymmError} `INSTANT_OPEN_TIMELOCK_APPROVAL_EXPIRED` when signing leaves
+ *   less than 30 seconds on the approval; no open is submitted.
  * @throws {SymmApiError} when the hedger request fails.
  *
  * @example
