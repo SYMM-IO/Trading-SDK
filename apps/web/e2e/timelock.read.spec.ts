@@ -14,11 +14,7 @@ import {
 } from "viem";
 import { getSessionKeyBlockedReason } from "../src/features/gasless/session-key-write-policy";
 import { withSelectedApprovalSigner } from "../src/features/timelock/approval-signer";
-import {
-  isDefiniteGaslessSimulationRejection,
-  isUnsubmittedWalletRejection,
-  readScheduledRecovery,
-} from "../src/features/timelock/timelock-recovery";
+import { readScheduledRecovery } from "../src/features/timelock/timelock-recovery-codec";
 
 const OWNER = "0x0AF32c77e9431c8a618E821a719A5cdA9D703F67";
 const ROOT = "0x1111111111111111111111111111111111111111";
@@ -57,7 +53,7 @@ test("standard session-key grants do not expose unsupported timelock writes", ()
   expect(getSessionKeyBlockedReason("timelockNamed:removeMargin")).toBeUndefined();
 });
 
-test("schedule recovery preserves the original account and accepts legacy records", async () => {
+test("schedule recovery preserves the original account and accepts legacy records", () => {
   const legacy = { kind: "scheduled-operation", confirmed: true, callData: "0x12345678", innerCallData: "0x12345678" };
   expect(readScheduledRecovery(JSON.stringify(legacy))).toEqual(legacy);
   expect(readScheduledRecovery(JSON.stringify({ ...legacy, originalAccount: VA }))).toEqual({
@@ -68,7 +64,7 @@ test("schedule recovery preserves the original account and accepts legacy record
 });
 
 test("only a definite unsubmitted simulation rejection clears the recovery guard", async () => {
-  const { SymmApiError, parseGaslessErrorDetail } = await import("@symmio/trading-react");
+  const { SymmApiError, isDefiniteGaslessSimulationRejection } = await import("@symmio/trading-react");
   const rejection = new SymmApiError({
     code: "GASLESS_RELAY_SUBMIT_FAILED",
     message: "Simulation rejected",
@@ -78,30 +74,36 @@ test("only a definite unsubmitted simulation rejection clears the recovery guard
     method: "POST",
     responseData: { detail: { code: "SIMULATION_REVERTED", message: "reverted" } },
   });
-  expect(isDefiniteGaslessSimulationRejection({ cause: rejection }, parseGaslessErrorDetail)).toBe(true);
-  expect(
-    isDefiniteGaslessSimulationRejection({ hash: `0x${"12".repeat(32)}`, cause: rejection }, parseGaslessErrorDetail),
-  ).toBe(false);
-  expect(isDefiniteGaslessSimulationRejection({ status: 0 }, parseGaslessErrorDetail)).toBe(false);
-  expect(
-    isDefiniteGaslessSimulationRejection(
-      { status: 400, responseData: { detail: { code: "OTHER" } } },
-      parseGaslessErrorDetail,
-    ),
-  ).toBe(false);
-});
-
-test("wallet rejection is not considered unsubmitted when a transaction hash is present", () => {
-  expect(isUnsubmittedWalletRejection({ kind: "user-rejected" })).toBe(true);
-  expect(isUnsubmittedWalletRejection({ kind: "user-rejected", cause: { hash: `0x${"12".repeat(32)}` } })).toBe(false);
-  expect(isUnsubmittedWalletRejection({ kind: "user-rejected", cause: { code: "GASLESS_SUBMIT_UNCONFIRMED" } })).toBe(
+  expect(isDefiniteGaslessSimulationRejection({ cause: rejection })).toBe(true);
+  expect(isDefiniteGaslessSimulationRejection({ hash: `0x${"12".repeat(32)}`, cause: rejection })).toBe(false);
+  expect(isDefiniteGaslessSimulationRejection({ status: 0 })).toBe(false);
+  expect(isDefiniteGaslessSimulationRejection({ status: 400, responseData: { detail: { code: "OTHER" } } })).toBe(
     false,
   );
-  expect(isUnsubmittedWalletRejection({ kind: "user-rejected", responseData: { request_id: "pending" } })).toBe(false);
+});
+
+test("wallet rejection is not considered unsubmitted when a transaction hash is present", async () => {
+  const { isUnsubmittedTimelockWalletRejection } = await import("@symmio/trading-react");
+  expect(isUnsubmittedTimelockWalletRejection({ kind: "user-rejected" })).toBe(true);
+  expect(isUnsubmittedTimelockWalletRejection({ kind: "user-rejected", cause: { hash: `0x${"12".repeat(32)}` } })).toBe(
+    false,
+  );
   expect(
-    isUnsubmittedWalletRejection({ kind: "user-rejected", cause: { transactionHash: `0x${"12".repeat(32)}` } }),
+    isUnsubmittedTimelockWalletRejection({
+      kind: "user-rejected",
+      cause: { code: "GASLESS_SUBMIT_UNCONFIRMED" },
+    }),
   ).toBe(false);
-  expect(isUnsubmittedWalletRejection({ kind: "unknown" })).toBe(false);
+  expect(isUnsubmittedTimelockWalletRejection({ kind: "user-rejected", responseData: { request_id: "pending" } })).toBe(
+    false,
+  );
+  expect(
+    isUnsubmittedTimelockWalletRejection({
+      kind: "user-rejected",
+      cause: { transactionHash: `0x${"12".repeat(32)}` },
+    }),
+  ).toBe(false);
+  expect(isUnsubmittedTimelockWalletRejection({ kind: "unknown" })).toBe(false);
 });
 
 /** Deterministic read fixtures: every external HTTP request is intercepted; no real writes are possible. */
@@ -395,8 +397,16 @@ async function openWithdrawal(page: Page) {
 
 async function continueToWithdrawal(page: Page) {
   const button = page.getByRole("button", { name: "Continue to withdrawal" });
-  await expect(button.or(page.getByTestId("integration-withdraw-amount"))).toBeVisible();
-  if (await button.isVisible()) await button.click();
+  const amount = page.getByTestId("integration-withdraw-amount");
+  await expect(button.or(amount)).toBeVisible();
+  if (await button.isVisible()) {
+    try {
+      await button.click();
+    } catch (error) {
+      if (!(await amount.isVisible())) throw error;
+    }
+  }
+  await expect(amount).toBeVisible();
 }
 
 async function connectMockWallet(page: Page) {
@@ -1733,10 +1743,10 @@ test("an unconfigured withdrawal keeps the setup step on reselect", async ({ pag
   await enableTimelockSolver(page);
   await openTimelock(page);
   await openWithdrawal(page);
-  await expect(page.getByTestId("timelock-policy")).toContainText("0 / 22 selectors configured");
+  await expect(page.getByTestId("timelock-policy")).toContainText("0 / 22 configured");
   await page.getByTestId("step-1").click();
   await page.getByTestId(`subaccount-${ROOT}`).click();
-  await expect(page.getByTestId("timelock-policy")).toContainText("0 / 22 selectors configured");
+  await expect(page.getByTestId("timelock-policy")).toContainText("0 / 22 configured");
   await expect(page.getByRole("button", { name: "Continue to withdrawal" })).toBeVisible();
 });
 

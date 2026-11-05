@@ -80,14 +80,16 @@ export async function callAsSubAccount(
     );
   }
 
-  return walletClient.writeContract({
-    address: addresses.accountLayerAddress,
-    abi: accountLayerAbi,
-    functionName: "_call",
-    args: [account, callDatas],
-    account: walletClient.account,
-    chain: walletClient.chain,
-  }).catch(rethrowTimelockRevert);
+  return walletClient
+    .writeContract({
+      address: addresses.accountLayerAddress,
+      abi: accountLayerAbi,
+      functionName: "_call",
+      args: [account, callDatas],
+      account: walletClient.account,
+      chain: walletClient.chain,
+    })
+    .catch(rethrowTimelockRevert);
 }
 
 /**

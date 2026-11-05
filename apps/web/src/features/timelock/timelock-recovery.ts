@@ -1,4 +1,11 @@
-import { isAddress, type Address, type Hex } from "viem";
+import {
+  getTimelockRecoveryTransactionHash,
+  isDefiniteGaslessSimulationRejection as isDefiniteGaslessSimulationRejectionCore,
+  isDefiniteTimelockApprovalRejection,
+  isUnsubmittedTimelockWalletRejection,
+} from "@symmio/trading-react";
+import type { Address } from "viem";
+export { readScheduledRecovery, type ScheduledRecovery } from "./timelock-recovery-codec";
 
 const RECOVERY_CHANGED = "symm:timelock-recovery-changed";
 const HISTORY_PREFIX = "symm:timelock-history:v1:";
@@ -90,15 +97,6 @@ export function mayHaveTimelockRecovery(chainId: number, accountLayer: Address, 
   }
 }
 
-/** Browser-only journal format for this console, never an SDK persistence policy. */
-export interface ScheduledRecovery {
-  kind: "scheduled-operation";
-  confirmed: boolean;
-  callData: Hex;
-  innerCallData: Hex;
-  originalAccount?: Address;
-}
-
 function legacyTimelockKeys(key: string): string[] {
   const suffix = key.split(":").slice(-2).join(":");
   const prefix = "symm:timelock-attempt:";
@@ -156,83 +154,17 @@ export async function clearReviewedTimelockRecovery(key: string, expectedRecover
 
 /** Find a submitted transaction in nested SDK/receipt errors without assuming an error class. */
 export function recoveryTransactionHash(error: unknown): string | undefined {
-  let current = error;
-  for (let depth = 0; depth < 12 && current && typeof current === "object"; depth++) {
-    if ("hash" in current && typeof current.hash === "string" && /^0x[\da-fA-F]{64}$/.test(current.hash))
-      return current.hash;
-    current = "cause" in current ? current.cause : undefined;
-  }
-  return undefined;
+  return getTimelockRecoveryTransactionHash(error);
 }
 
 /** Only documented responses that explicitly reject approval before issuance are definitive. */
 export function isDefiniteApprovalRejection(error: unknown): boolean {
-  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "api") return false;
-  if (!("status" in error) || !("timelock" in error) || !error.timelock || typeof error.timelock !== "object")
-    return false;
-  if (!("knownCode" in error.timelock)) return false;
-  const code = error.timelock.knownCode;
-  return (
-    (error.status === 400 &&
-      (code === 3700 || code === 3701 || code === 3702 || code === 3703 || code === 3704 || code === 3710)) ||
-    (error.status === 429 && code === 3705) ||
-    (error.status === 403 && code === 3709)
-  );
+  return isDefiniteTimelockApprovalRejection(error);
 }
 
 /** Wallet rejection is definite only when no submitted transaction hash was retained. */
 export function isUnsubmittedWalletRejection(error: unknown): boolean {
-  if (!error || typeof error !== "object" || !("kind" in error) || error.kind !== "user-rejected") return false;
-  if (recoveryTransactionHash(error)) return false;
-  let current: unknown = error;
-  for (let depth = 0; depth < 12 && current && typeof current === "object"; depth++) {
-    const value = current as {
-      code?: unknown;
-      requestId?: unknown;
-      request_id?: unknown;
-      transactionHash?: unknown;
-      txHash?: unknown;
-      broadcastHash?: unknown;
-      idempotencyKey?: unknown;
-      idempotency_key?: unknown;
-      responseData?: unknown;
-      cause?: unknown;
-    };
-    if (
-      value.code === "GASLESS_SUBMIT_UNCONFIRMED" ||
-      value.requestId ||
-      value.request_id ||
-      value.transactionHash ||
-      value.txHash ||
-      value.broadcastHash ||
-      value.idempotencyKey ||
-      value.idempotency_key
-    )
-      return false;
-    if (value.responseData && typeof value.responseData === "object") {
-      const response = value.responseData as {
-        requestId?: unknown;
-        request_id?: unknown;
-        idempotencyKey?: unknown;
-        idempotency_key?: unknown;
-        transactionHash?: unknown;
-        txHash?: unknown;
-        broadcastHash?: unknown;
-      };
-      if (
-        response.requestId ||
-        response.request_id ||
-        response.idempotencyKey ||
-        response.idempotency_key ||
-        response.transactionHash ||
-        response.txHash ||
-        response.broadcastHash
-      )
-        return false;
-    }
-    current = value.cause;
-  }
-  return true;
+  return isUnsubmittedTimelockWalletRejection(error);
 }
 
 /** Clear only this attempt's unchanged record after a definite non-submission. */
@@ -262,18 +194,8 @@ export async function clearRejectedApprovalAttempt(
 }
 
 /** A rejected relay simulation with no transaction hash did not submit a transaction. */
-export function isDefiniteGaslessSimulationRejection(
-  error: unknown,
-  parseDetail: (value: unknown) => { code: string | null } | null,
-): boolean {
-  if (recoveryTransactionHash(error)) return false;
-  let current: unknown = error;
-  for (let depth = 0; depth < 8 && current && typeof current === "object"; depth++) {
-    const item = current as { status?: unknown; cause?: unknown };
-    if (item.status === 400 && parseDetail(current)?.code === "SIMULATION_REVERTED") return true;
-    current = item.cause;
-  }
-  return false;
+export function isDefiniteGaslessSimulationRejection(error: unknown): boolean {
+  return isDefiniteGaslessSimulationRejectionCore(error);
 }
 
 /** Serialize fresh approval attempts across browser tabs for one account scope. */
@@ -293,37 +215,4 @@ export async function withTimelockAttemptLock<T>(
       return action();
     }),
   );
-}
-
-export function readScheduledRecovery(value: string | null): ScheduledRecovery | undefined {
-  if (!value) return undefined;
-  try {
-    const data: unknown = JSON.parse(value);
-    if (!data || typeof data !== "object" || !("kind" in data) || data.kind !== "scheduled-operation") return undefined;
-    if (
-      !("confirmed" in data) ||
-      typeof data.confirmed !== "boolean" ||
-      !("callData" in data) ||
-      !("innerCallData" in data)
-    )
-      return undefined;
-    if (
-      typeof data.callData !== "string" ||
-      typeof data.innerCallData !== "string" ||
-      !/^0x(?:[\da-fA-F]{2}){4,}$/.test(data.callData) ||
-      !/^0x(?:[\da-fA-F]{2}){4,}$/.test(data.innerCallData)
-    )
-      return undefined;
-    if ("originalAccount" in data && (typeof data.originalAccount !== "string" || !isAddress(data.originalAccount)))
-      return undefined;
-    return {
-      kind: data.kind,
-      confirmed: data.confirmed,
-      callData: data.callData as Hex,
-      innerCallData: data.innerCallData as Hex,
-      ...("originalAccount" in data ? { originalAccount: data.originalAccount as Address } : {}),
-    };
-  } catch {
-    return undefined;
-  }
 }

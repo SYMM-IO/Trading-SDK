@@ -2,7 +2,7 @@ import { isAxiosError } from "axios";
 import { encodeFunctionData, hexToBigInt, keccak256, sliceHex, type Address, type Hex } from "viem";
 import { SymmApiError, SymmError } from "../../../../shared/errors/symm-error";
 import { accountLayerAbi } from "../../../../symmio-contracts/abi/v0.8.6/account-layer";
-import { resolveTimelockRootAccount } from "../../../../symmio-contracts/account-layer/actions/timelock";
+import { resolveTimelockRootAccount } from "../../../../symmio-contracts/account-layer/resolve-timelock-root-account";
 import { INSTANT_OPEN_TIMELOCK_SELECTORS } from "../../../../timelock/policy";
 import { parseTimelockInfo } from "../../../get-solver-info/parse-timelock-info";
 import { getInfo } from "../../../types/generated/enigma-solver";

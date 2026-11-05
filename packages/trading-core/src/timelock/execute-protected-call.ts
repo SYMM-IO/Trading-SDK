@@ -1,14 +1,12 @@
-import { isAddressEqual, keccak256, sliceHex, zeroAddress, type Address, type Hash, type Hex } from "viem";
+import { isAddressEqual, keccak256, sliceHex, type Address, type Hash, type Hex } from "viem";
 import type { Config } from "../core/config";
 import { getGaslessAttemptStart, withGaslessAttemptStart } from "../gasless/dispatch/attempt-start";
 import { SymmError } from "../shared/errors/symm-error";
 import type { GaslessWriteParameter, WriteContractParameter } from "../shared/types/properties";
 import { getSubAccount } from "../symmio-contracts/account-layer/actions/get-sub-account";
-import {
-  executeTimelockOp,
-  getSelectorTimelock,
-  resolveTimelockRootAccount,
-} from "../symmio-contracts/account-layer/actions/timelock";
+import { executeTimelockOp } from "../symmio-contracts/account-layer/execute-timelock-op";
+import { getSelectorTimelock } from "../symmio-contracts/account-layer/get-selector-timelock";
+import { resolveTimelockRootAccount } from "../symmio-contracts/account-layer/resolve-timelock-root-account";
 import type { SignedTimelockApproval } from "../symmio-contracts/account-layer/types";
 import { getIsDelegationActive } from "../symmio-contracts/instant-layer/actions/get-is-delegation-active";
 import {
@@ -18,6 +16,7 @@ import {
   type TimelockApprovalProvider,
   type ValidatedTimelockApproval,
 } from "./approval";
+import { assertCoreTimelockWrapperUnprotected } from "./protected-call-preflight";
 
 /** Optional one-attempt authorization for a protected operation. Create a new object for a deliberate new attempt. */
 export type TimelockAuthorization =
@@ -155,16 +154,8 @@ export async function executeProtectedCall(config: Config, parameters: ExecutePr
   assertTimelockAuthorizationUnused(timelock);
   const root = await resolveTimelockRootAccount(config, { account, chainId });
   const policy = await getSelectorTimelock(config, { account: root, chainId, selector: sliceHex(callData, 0, 4) });
-  if (parameters.target === "core") {
-    const wrapper = encodeTimelockedCoreCall(account, callData);
-    const outer = await getSelectorTimelock(config, { account: root, chainId, selector: sliceHex(wrapper, 0, 4) });
-    if (!isAddressEqual(outer.unlocker, zeroAddress))
-      throw new SymmError(
-        "validation",
-        "TIMELOCK_OUTER_CALL_UNSUPPORTED",
-        "The outer _call selector is timelocked; it requires separate authorization.",
-      );
-  }
+  if (parameters.target === "core")
+    await assertCoreTimelockWrapperUnprotected(config, { account, rootAccount: root, chainId, callData });
   const owner = (await getSubAccount(config, { account: root, chainId })).owner;
   const wallet = await config.getWalletClient({ chainId, from: parameters.from ?? owner });
   const delegated = !isAddressEqual(wallet.account.address, owner);

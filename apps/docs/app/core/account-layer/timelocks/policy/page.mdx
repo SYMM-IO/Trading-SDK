@@ -175,6 +175,7 @@ await assertTimelockPolicyChangeReady(config, { chainId, change });
 | `INSTANT_OPEN_TIMELOCK_ACCOUNT_LAYER_FUNCTIONS` | The 9 pinned AccountLayer function names.                                                                                                                 |
 | `INSTANT_OPEN_TIMELOCK_SELECTORS`               | All 22 selectors derived from pinned ABIs; never `_call`.                                                                                                 |
 | `requiredTimelockDelay`                         | `(contractMinimum: bigint, providerMinimum: bigint \| number) → bigint`.                                                                                  |
+| `resolveTimelockFamilyAccount`                  | Pure helper resolving a live or deleted VA's retained `parentAccount`; otherwise returns the supplied account.                                            |
 | `resolveTimelockRootAccount`                    | `(config, { account, chainId? }) → Promise<Address>`.                                                                                                     |
 | `getMinTimelockDelay`                           | `(config, { chainId? }?) → Promise<bigint>`.                                                                                                              |
 | `getSelectorTimelock`                           | `(config, GetSelectorTimelockParameters) → Promise<SelectorTimelock>`. Root `account`, `selector: Hex`, optional `chainId`; output `{ unlocker, delay }`. |

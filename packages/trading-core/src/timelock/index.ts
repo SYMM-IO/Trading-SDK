@@ -1,4 +1,5 @@
 export * from "./approval";
+export * from "./attempt-outcome";
 export * from "./early-withdraw";
 export * from "./errors";
 export * from "./execute-protected-batch";
@@ -7,5 +8,6 @@ export * from "./execute-protected-function";
 export * from "./get-timelock-policy";
 export * from "./policy";
 export * from "./policy-change";
+export * from "./root-account";
 export * from "./scheduled-call-match";
 export * from "./setup-timelock-policy";

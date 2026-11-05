@@ -3,11 +3,9 @@ import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import type { ReadSolverParameter } from "../../shared/types/properties";
 import { getSolverInfo } from "../../solvers/get-solver-info";
-import {
-  getMinTimelockDelay,
-  getSelectorTimelock,
-  resolveTimelockRootAccount,
-} from "../../symmio-contracts/account-layer/actions/timelock";
+import { getMinTimelockDelay } from "../../symmio-contracts/account-layer/get-min-timelock-delay";
+import { getSelectorTimelock } from "../../symmio-contracts/account-layer/get-selector-timelock";
+import { resolveTimelockRootAccount } from "../../symmio-contracts/account-layer/resolve-timelock-root-account";
 import type { TimelockApprovalCapability } from "../approval";
 import { INSTANT_OPEN_TIMELOCK_SELECTORS, requiredTimelockDelay } from "../policy";
 import { assertTimelockSupported } from "../support";

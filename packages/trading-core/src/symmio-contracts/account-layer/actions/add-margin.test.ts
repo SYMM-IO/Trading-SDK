@@ -29,10 +29,16 @@ describe("addMargin", () => {
 
   it("classifies a decoded wallet submission revert when simulation is disabled", async () => {
     const { config, writeContract } = mockConfig();
-    const data = encodeErrorResult({ abi: accountLayerAbi, errorName: "TimelockOpNotApprovedOrScheduled", args: [VIRTUAL_ACCOUNT, `0x${"12".repeat(32)}`] });
+    const data = encodeErrorResult({
+      abi: accountLayerAbi,
+      errorName: "TimelockOpNotApprovedOrScheduled",
+      args: [VIRTUAL_ACCOUNT, `0x${"12".repeat(32)}`],
+    });
     const cause = new ContractFunctionRevertedError({ abi: accountLayerAbi, data, functionName: "addMargin" });
     writeContract.mockRejectedValueOnce(cause);
-    await expect(addMargin(config, { virtualAccount: VIRTUAL_ACCOUNT, amount: AMOUNT, simulateBeforeWrite: false })).rejects.toMatchObject({ code: "TIMELOCK_REQUIRED", cause });
+    await expect(
+      addMargin(config, { virtualAccount: VIRTUAL_ACCOUNT, amount: AMOUNT, simulateBeforeWrite: false }),
+    ).rejects.toMatchObject({ code: "TIMELOCK_REQUIRED", cause });
   });
   it("writes addMargin to the AccountLayer", async () => {
     const { config, writeContract } = mockConfig();

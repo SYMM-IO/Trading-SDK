@@ -371,6 +371,12 @@ For multi-call writes, each protected inner call receives a distinct authorizati
 
 Automatic hooks coordinate attempts for the same root account within their shared QueryClient. After an uncertain result, `useAutomaticTimelockRecovery({ rootAccount, chainId })` exposes `status: "reconciliation"`; call `clearAfterReconciliation()` only after independently determining the outcome. A pending operation cannot be cleared. A confirmed receipt releases the attempt automatically; a broadcast-only result requires reconciliation. This state is in memory and is not shared across browser tabs or reloads. Applications must maintain a durable journal and cross-tab lock when those guarantees are required, including while switching to app-owned routing.
 
+The React entry point also re-exports `getTimelockRecoveryTransactionHash`,
+`hasTimelockSubmissionEvidence`, `isDefiniteGaslessSimulationRejection`,
+`isDefiniteTimelockApprovalRejection`, and `isUnsubmittedTimelockWalletRejection` for application recovery glue. These are the
+same pure classifiers documented in the [Core errors and recovery reference](/core/account-layer/timelocks/errors);
+they do not submit, retry, or mutate React state.
+
 For fee allowance operations, `OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER` is also available from the React package; its value comes from core.
 
 `useTimelockRoute({ account, selector, chainId, solverId })` checks the solver's `timelockApproval` capability and the selected root-account policy. Pass `enabled: false` to skip discovery and policy reads. An explicit disabled capability retains the normal route. When the setting is unspecified, the hook discovers Enigma support from `/info` or accepts supplied provider metadata. If support is still unknown and discovery fails, it returns `error` instead of assuming the normal route. A protected selector with a matching online provider returns `approval`; an unavailable `/info` before a request returns `delayed` when support is already known; inconsistent metadata or a failed chain read returns `error`. A provider other than Enigma may supply `capability` and `provider` explicitly.

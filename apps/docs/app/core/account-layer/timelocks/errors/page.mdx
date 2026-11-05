@@ -73,3 +73,20 @@ transport. A transport error with status 0 is ambiguous, not proof of solver rej
 The SDK does not derive a safe recovery deadline from HTTP timeout plus
 `validitySeconds`. Issuance time may be unknown. There is no automatic retry, fallback
 switch, approval-status endpoint, or app-specific storage policy hidden in these APIs.
+
+## Classify an interrupted attempt
+
+The framework-neutral recovery classifiers are exported for React and other consumers
+that need to decide whether an attempt may safely be cleared. They do not retry,
+submit, or mutate storage:
+
+| Export                                        | Result                                                                                               |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `getTimelockRecoveryTransactionHash(error)`   | Returns a valid retained transaction hash, when present.                                             |
+| `hasTimelockSubmissionEvidence(error)`        | Detects a transaction hash, relay request ID, or idempotency key that requires reconciliation.       |
+| `isDefiniteGaslessSimulationRejection(error)` | Matches an HTTP 400 `SIMULATION_REVERTED` only when no relay or transaction submission is evidenced. |
+| `isDefiniteTimelockApprovalRejection(error)`  | Matches only documented provider rejection status/code pairs that did not issue a usable approval.   |
+| `isUnsubmittedTimelockWalletRejection(error)` | Matches an explicit wallet rejection only when there is no evidence of relay or transaction submit.  |
+
+Use these as conservative classification helpers. When submission evidence exists,
+preserve the attempt and reconcile it rather than creating a second approval or relay.

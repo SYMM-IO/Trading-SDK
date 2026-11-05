@@ -2,6 +2,9 @@
 
 import {
   createHttpTimelockApprovalProvider,
+  isDefiniteTimelockApprovalRejection,
+  isUnsubmittedTimelockWalletRejection,
+  resolveTimelockFamilyAccount,
   type ConfigParameter,
   type SolverId,
   type TimelockApprovalCapability,
@@ -12,7 +15,6 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { isAddressEqual, zeroAddress, type Address, type Hex } from "viem";
-import { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
 import { refreshTimelockInfoAfterUnavailable, useKnownTimelockCapability } from "../solvers/timelock-capability-cache";
@@ -98,11 +100,10 @@ export function useTimelockRoute(parameters: UseTimelockRouteParameters) {
     config,
     query: { enabled: supported && Boolean(parameters.account), retry: false },
   });
-  const rootAccount = virtual.isSuccess
-    ? virtual.data?.isExists
-      ? virtual.data.parentAccount
-      : parameters.account
-    : undefined;
+  const rootAccount =
+    virtual.isSuccess && virtual.data && parameters.account
+      ? resolveTimelockFamilyAccount(parameters.account, virtual.data)
+      : undefined;
   const selector = useSelectorTimelock({
     account: rootAccount ?? zeroAddress,
     selector: parameters.selector ?? "0x00000000",
@@ -225,11 +226,9 @@ export function useTimelockRoute(parameters: UseTimelockRouteParameters) {
       else attempts.current.set(attemptKey, "reconcile");
       return { kind: "submitted", result };
     } catch (error) {
-      const rejected =
-        error instanceof SymmioRequestError &&
-        error.kind === "api" &&
-        (error.timelock?.knownCode === 3703 || error.timelock?.knownCode === 3704);
-      if (!issued && rejected) attempts.current.delete(attemptKey);
+      const definitelyNotSubmitted =
+        !issued && (isDefiniteTimelockApprovalRejection(error) || isUnsubmittedTimelockWalletRejection(error));
+      if (definitelyNotSubmitted) attempts.current.delete(attemptKey);
       else attempts.current.set(attemptKey, "reconcile");
       throw error;
     } finally {

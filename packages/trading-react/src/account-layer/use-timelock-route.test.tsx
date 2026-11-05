@@ -169,6 +169,16 @@ describe("useTimelockRoute", () => {
     expect(stubs.selector.mock.lastCall?.[0].account).toBe(ROOT);
   });
 
+  it("uses a deleted virtual account's retained root policy", () => {
+    const { config, capability } = fixture();
+    stubs.virtual.mockReturnValue({ isSuccess: true, data: { isExists: false, parentAccount: ROOT } });
+    const { result } = renderHookWithProviders(() =>
+      useTimelockRoute({ config, account: ACCOUNT, selector: SELECTOR }),
+    );
+    expect(result.current.route).toEqual({ kind: "approval", rootAccount: ROOT, capability });
+    expect(stubs.selector.mock.lastCall?.[0].account).toBe(ROOT);
+  });
+
   it("runs only the protected callback and passes the selected provider metadata", async () => {
     const { config, capability } = fixture();
     const { result } = renderHookWithProviders(() =>
@@ -323,6 +333,29 @@ describe("useTimelockRoute", () => {
       message: "Pending open",
       timelock: { code: 3703, knownCode: 3703, errorCategory: "account_state", errorMessage: "Pending open" },
     });
+    const protectedWrite = vi
+      .fn()
+      .mockRejectedValueOnce(rejection)
+      .mockResolvedValueOnce({ receipt: { status: "success" } });
+    await act(async () => {
+      await expect(result.current.run({ normal: vi.fn(), protected: protectedWrite, deadline: 1n })).rejects.toBe(
+        rejection,
+      );
+    });
+    await act(async () => {
+      await expect(
+        result.current.run({ normal: vi.fn(), protected: protectedWrite, deadline: 1n }),
+      ).resolves.toMatchObject({ kind: "submitted" });
+    });
+    expect(protectedWrite).toHaveBeenCalledTimes(2);
+  });
+
+  it("allows a fresh attempt after the wallet rejects before anything is submitted", async () => {
+    const { config } = fixture();
+    const { result } = renderHookWithProviders(() =>
+      useTimelockRoute({ config, account: ACCOUNT, selector: SELECTOR }),
+    );
+    const rejection = new SymmioRequestError({ kind: "user-rejected", message: "Rejected" });
     const protectedWrite = vi
       .fn()
       .mockRejectedValueOnce(rejection)

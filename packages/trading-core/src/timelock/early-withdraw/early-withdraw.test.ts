@@ -187,4 +187,19 @@ describe("early withdrawal", () => {
     expect(provider.requestApproval).not.toHaveBeenCalled();
     expect(writeContract).not.toHaveBeenCalled();
   });
+  it("rejects a protected outer _call before spending an approval slot", async () => {
+    const { config, capability, provider, state, writeContract } = rig();
+    Object.assign(state, { outerUnlocker: UNLOCKER, outerDelay: 600n });
+    await expect(
+      earlyWithdraw(config, {
+        account: VA,
+        capability,
+        provider,
+        withdrawal: variants[0]!,
+        deadline: NOW + 300n,
+      }),
+    ).rejects.toMatchObject({ code: "TIMELOCK_OUTER_CALL_UNSUPPORTED" });
+    expect(provider.requestApproval).not.toHaveBeenCalled();
+    expect(writeContract).not.toHaveBeenCalled();
+  });
 });

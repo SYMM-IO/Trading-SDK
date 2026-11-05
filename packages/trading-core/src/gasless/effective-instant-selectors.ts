@@ -14,17 +14,19 @@ const EXECUTE_TIMELOCK_SELECTOR = toFunctionSelector(
  * @internal
  */
 export function getEffectiveInstantSelectors(callData: Hex): readonly Hex[] {
-  const outerSelector = sliceHex(callData, 0, 4).toLowerCase() as Hex;
-  if (outerSelector !== EXECUTE_TIMELOCK_SELECTOR) return [outerSelector];
-
-  try {
-    const outer = decodeFunctionData({ abi: accountLayerAbi, data: callData });
-    if (outer.functionName !== "executeTimelockOp") return [outerSelector];
-    return [sliceHex(outer.args[1], 0, 4).toLowerCase() as Hex];
-  } catch {
-    // Malformed calldata will be rejected later by normal encoding/simulation.
-    // Keeping the outer selector here avoids granting authority inferred from
-    // bytes that could not be decoded canonically.
-    return [outerSelector];
+  let current = callData;
+  for (;;) {
+    const selector = sliceHex(current, 0, 4).toLowerCase() as Hex;
+    if (selector !== EXECUTE_TIMELOCK_SELECTOR) return [selector];
+    try {
+      const decoded = decodeFunctionData({ abi: accountLayerAbi, data: current });
+      if (decoded.functionName !== "executeTimelockOp") return [selector];
+      current = decoded.args[1];
+    } catch {
+      // Malformed calldata will be rejected later by normal encoding/simulation.
+      // Keeping the current selector avoids granting authority inferred from
+      // bytes that could not be decoded canonically.
+      return [selector];
+    }
   }
 }

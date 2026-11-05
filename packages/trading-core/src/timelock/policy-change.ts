@@ -2,10 +2,8 @@ import { encodeFunctionData, isAddressEqual, zeroAddress, type Address, type Hex
 import type { Config } from "../core/config";
 import { SymmError } from "../shared/errors/symm-error";
 import { accountLayerAbi } from "../symmio-contracts/abi/v0.8.6/account-layer";
-import {
-  getTimelockSchedule,
-  getTimelockScheduleGracePeriod,
-} from "../symmio-contracts/account-layer/actions/timelock";
+import { getTimelockSchedule } from "../symmio-contracts/account-layer/get-timelock-schedule";
+import { getTimelockScheduleGracePeriod } from "../symmio-contracts/account-layer/get-timelock-schedule-grace-period";
 import type { TimelockPolicyReport } from "./get-timelock-policy/get-timelock-policy";
 
 /** Exact setup calldata and the existing locks that must authorize this change. */

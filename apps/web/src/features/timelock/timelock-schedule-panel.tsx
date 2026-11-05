@@ -5,7 +5,6 @@ import { ResultError, ResultNote, ResultSuccess, ResultWarning } from "@/compone
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import {
-  parseGaslessErrorDetail,
   useCancelTimelockOp,
   useExecuteTimelockOp,
   useScheduledCallMatch,
@@ -156,8 +155,7 @@ export function TimelockSchedulePanel({
         recovery,
       );
     } catch (error) {
-      const definiteSimulationRejection =
-        guidedPolicyClear && isDefiniteGaslessSimulationRejection(error, parseGaslessErrorDetail);
+      const definiteSimulationRejection = guidedPolicyClear && isDefiniteGaslessSimulationRejection(error);
       if (
         ownsRecord &&
         ((error && typeof error === "object" && "kind" in error && error.kind === "user-rejected") ||

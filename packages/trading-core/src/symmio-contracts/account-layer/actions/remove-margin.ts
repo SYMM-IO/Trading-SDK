@@ -128,12 +128,14 @@ export async function removeMargin(
     }).catch(rethrowTimelockRevert);
   }
 
-  return walletClient.writeContract({
-    address: addresses.accountLayerAddress,
-    abi: accountLayerAbi,
-    functionName: "removeMargin",
-    args: [virtualAccount, amount, upnlSig],
-    account: walletClient.account,
-    chain: walletClient.chain,
-  }).catch(rethrowTimelockRevert);
+  return walletClient
+    .writeContract({
+      address: addresses.accountLayerAddress,
+      abi: accountLayerAbi,
+      functionName: "removeMargin",
+      args: [virtualAccount, amount, upnlSig],
+      account: walletClient.account,
+      chain: walletClient.chain,
+    })
+    .catch(rethrowTimelockRevert);
 }

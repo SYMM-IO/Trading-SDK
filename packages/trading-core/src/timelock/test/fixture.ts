@@ -1,6 +1,7 @@
-import { zeroAddress, type Address } from "viem";
+import { getAbiItem, toFunctionSelector, zeroAddress, type Address } from "viem";
 import { vi, type Mock } from "vitest";
 import { mockConfig, TEST_TX_HASH, TEST_USER } from "../../shared/test/mock-config";
+import { accountLayerAbi } from "../../symmio-contracts/abi/v0.8.6/account-layer";
 import type { TimelockApprovalCapability } from "../approval";
 
 export const ROOT: Address = "0x2222222222222222222222222222222222222222";
@@ -9,13 +10,14 @@ export const UNLOCKER: Address = "0x4444444444444444444444444444444444444444";
 export const NOW = 1_900_000_000n;
 
 export function timelockRig(): ReturnType<typeof mockConfig> & {
-  state: { unlocker: Address; delay: bigint; minimum: bigint };
+  state: { unlocker: Address; delay: bigint; outerUnlocker: Address; outerDelay: bigint; minimum: bigint };
   capability: TimelockApprovalCapability;
   getBlock: Mock;
   waitForTransactionReceipt: Mock;
 } {
   const rig = mockConfig();
-  const state = { unlocker: zeroAddress, delay: 0n, minimum: 300n };
+  const state = { unlocker: zeroAddress, delay: 0n, outerUnlocker: zeroAddress, outerDelay: 0n, minimum: 300n };
+  const outerSelector = toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "_call" }));
   const getBlock = vi.fn().mockResolvedValue({ timestamp: NOW });
   const waitForTransactionReceipt = vi.fn().mockResolvedValue({ status: "success", transactionHash: TEST_TX_HASH });
   Object.assign(rig.config.getClient(), { getBlock, waitForTransactionReceipt });
@@ -23,7 +25,10 @@ export function timelockRig(): ReturnType<typeof mockConfig> & {
     if (functionName === "getVirtualAccount") return { isExists: args[0] === VA, parentAccount: ROOT };
     if (functionName === "getSubAccount") return { owner: TEST_USER, isExists: true };
     if (functionName === "minTimelockDelay") return state.minimum;
-    if (functionName === "getSelectorTimelock") return { unlocker: state.unlocker, delay: state.delay };
+    if (functionName === "getSelectorTimelock")
+      return args[1] === outerSelector
+        ? { unlocker: state.outerUnlocker, delay: state.outerDelay }
+        : { unlocker: state.unlocker, delay: state.delay };
     if (functionName === "getSchedule") return { scheduledAt: NOW, nonce: 1 };
     if (functionName === "scheduleGracePeriod") return 60n;
     throw new Error(`Unexpected read ${functionName}`);

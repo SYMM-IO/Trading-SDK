@@ -115,12 +115,14 @@ export async function deleteSubAccount(
     );
   }
 
-  return walletClient.writeContract({
-    address: addresses.accountLayerAddress,
-    abi: accountLayerAbi,
-    functionName: "deleteSubAccount",
-    args: [subAccount],
-    account: walletClient.account,
-    chain: walletClient.chain,
-  }).catch(rethrowTimelockRevert);
+  return walletClient
+    .writeContract({
+      address: addresses.accountLayerAddress,
+      abi: accountLayerAbi,
+      functionName: "deleteSubAccount",
+      args: [subAccount],
+      account: walletClient.account,
+      chain: walletClient.chain,
+    })
+    .catch(rethrowTimelockRevert);
 }

@@ -3,7 +3,8 @@ import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import { getSubAccount } from "../../symmio-contracts/account-layer/actions/get-sub-account";
-import { executeTimelockOp, type TimelockWriteParameters } from "../../symmio-contracts/account-layer/actions/timelock";
+import { executeTimelockOp } from "../../symmio-contracts/account-layer/execute-timelock-op";
+import type { TimelockWriteParameters } from "../../symmio-contracts/account-layer/timelock-types";
 import {
   encodeInitiateWithdrawCall,
   type InitiateWithdrawParameters,
@@ -16,6 +17,7 @@ import {
   type ValidatedTimelockApproval,
 } from "../approval";
 import { getTimelockPolicy, type GetTimelockPolicyParameters } from "../get-timelock-policy/get-timelock-policy";
+import { assertCoreTimelockWrapperUnprotected } from "../protected-call-preflight";
 
 /** Exact Core withdrawal variants. Amounts retain the deployed contract's raw units. */
 export type EarlyWithdrawalCall =
@@ -91,6 +93,12 @@ export async function earlyWithdraw(config: Config, parameters: EarlyWithdrawPar
       "TIMELOCK_POLICY_REQUIRED",
       "Configure the withdrawal selector and wait for provider indexing before requesting approval.",
     );
+  await assertCoreTimelockWrapperUnprotected(config, {
+    account: parameters.account,
+    rootAccount: policy.rootAccount,
+    chainId: parameters.chainId,
+    callData,
+  });
   // Verify the wallet route before spending an approval slot. Relay authorization
   // remains in the existing shared dispatcher; no automatic delayed fallback.
   const owner = (await getSubAccount(config, { chainId: parameters.chainId, account: policy.rootAccount })).owner;

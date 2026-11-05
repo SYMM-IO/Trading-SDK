@@ -1,6 +1,7 @@
 import type { Hash, TransactionReceipt } from "viem";
 import type { Config } from "../../core/config";
-import { setupTimelocks, type TimelockWriteParameters } from "../../symmio-contracts/account-layer/actions/timelock";
+import { setupTimelocks } from "../../symmio-contracts/account-layer/setup-timelocks";
+import type { TimelockWriteParameters } from "../../symmio-contracts/account-layer/timelock-types";
 import { confirmTimelockWrite } from "../confirm-write";
 import {
   getTimelockPolicy,

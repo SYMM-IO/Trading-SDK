@@ -12,6 +12,14 @@ function wrapped(account: typeof ACCOUNT | typeof OTHER, calls: readonly `0x${st
 
 describe("matchesScheduledCall", () => {
   it("accepts the exact direct call", () => expect(matchesScheduledCall(ACCOUNT, RAW, RAW)).toBe(true));
+  it("accepts a direct AccountLayer call for the selected account", () => {
+    const call = encodeFunctionData({ abi: accountLayerAbi, functionName: "deleteSubAccount", args: [ACCOUNT] });
+    expect(matchesScheduledCall(ACCOUNT, call, call)).toBe(true);
+  });
+  it("rejects a direct AccountLayer call for a different account", () => {
+    const call = encodeFunctionData({ abi: accountLayerAbi, functionName: "deleteSubAccount", args: [OTHER] });
+    expect(matchesScheduledCall(ACCOUNT, call, call)).toBe(false);
+  });
   it("accepts the original account and exact single Core call", () =>
     expect(matchesScheduledCall(ACCOUNT, RAW, wrapped(ACCOUNT, [RAW]))).toBe(true));
   it("rejects an altered account", () => expect(matchesScheduledCall(ACCOUNT, RAW, wrapped(OTHER, [RAW]))).toBe(false));

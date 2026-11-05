@@ -14,11 +14,9 @@ import { SymmError } from "../shared/errors/symm-error";
 import type { GaslessWriteParameter, WriteContractParameter } from "../shared/types/properties";
 import { accountLayerAbi } from "../symmio-contracts/abi/v0.8.6/account-layer";
 import { getSubAccount } from "../symmio-contracts/account-layer/actions/get-sub-account";
-import {
-  executeTimelockOp,
-  getSelectorTimelock,
-  resolveTimelockRootAccount,
-} from "../symmio-contracts/account-layer/actions/timelock";
+import { executeTimelockOp } from "../symmio-contracts/account-layer/execute-timelock-op";
+import { getSelectorTimelock } from "../symmio-contracts/account-layer/get-selector-timelock";
+import { resolveTimelockRootAccount } from "../symmio-contracts/account-layer/resolve-timelock-root-account";
 import type { SignedTimelockApproval } from "../symmio-contracts/account-layer/types";
 import { requestTimelockApproval } from "./approval";
 import {

@@ -102,12 +102,14 @@ export async function addMargin(config: Config, parameters: AddMarginParameters)
     );
   }
 
-  return walletClient.writeContract({
-    address: addresses.accountLayerAddress,
-    abi: accountLayerAbi,
-    functionName: "addMargin",
-    args: [virtualAccount, amount],
-    account: walletClient.account,
-    chain: walletClient.chain,
-  }).catch(rethrowTimelockRevert);
+  return walletClient
+    .writeContract({
+      address: addresses.accountLayerAddress,
+      abi: accountLayerAbi,
+      functionName: "addMargin",
+      args: [virtualAccount, amount],
+      account: walletClient.account,
+      chain: walletClient.chain,
+    })
+    .catch(rethrowTimelockRevert);
 }

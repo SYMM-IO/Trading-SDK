@@ -1,12 +1,4 @@
-import {
-  decodeFunctionData,
-  encodeFunctionData,
-  getAbiItem,
-  keccak256,
-  toFunctionSelector,
-  zeroAddress,
-  type Hex,
-} from "viem";
+import { decodeFunctionData, encodeFunctionData, keccak256, type Hex } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getGaslessAttemptStart, withGaslessAttemptStart } from "../gasless/dispatch/attempt-start";
 import { getDeallocateUpnlSig } from "../muon/deallocate-upnl-sig/get-deallocate-upnl-sig";
@@ -14,7 +6,7 @@ import { TEST_TYPED_SIGNATURE, TEST_USER } from "../shared/test/mock-config";
 import { accountLayerAbi } from "../symmio-contracts/abi/v0.8.6/account-layer";
 import { symmioAbi } from "../symmio-contracts/abi/v0.8.6/symmio";
 import { addMargin } from "../symmio-contracts/account-layer/actions/add-margin";
-import * as timelockActions from "../symmio-contracts/account-layer/actions/timelock";
+import * as timelockActions from "../symmio-contracts/account-layer/execute-timelock-op";
 import { allocate } from "../symmio-contracts/symmio/actions/allocate";
 import { deallocate } from "../symmio-contracts/symmio/actions/deallocate";
 import { executeAccountCalls } from "../symmio-contracts/symmio/execute-account-calls/execute-account-calls";
@@ -27,15 +19,7 @@ vi.mock("../muon/deallocate-upnl-sig/get-deallocate-upnl-sig", () => ({ getDeall
 function rig(lockOuter = false) {
   const result = timelockRig();
   Object.assign(result.state, { unlocker: UNLOCKER, delay: 600n });
-  if (!lockOuter) {
-    const previous = result.readContract.getMockImplementation()!;
-    const outer = toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "_call" }));
-    result.readContract.mockImplementation((request) =>
-      request.functionName === "getSelectorTimelock" && request.args[1] === outer
-        ? { unlocker: zeroAddress, delay: 0n }
-        : previous(request),
-    );
-  }
+  if (lockOuter) Object.assign(result.state, { outerUnlocker: UNLOCKER, outerDelay: 600n });
   const provider = {
     requestApproval: vi.fn(async (request: TimelockApprovalRequestPayload) => ({
       account: ROOT,
