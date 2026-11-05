@@ -55,7 +55,12 @@ export function mockConfig(options?: {
   const simulateContract = vi.fn().mockResolvedValue({ result: undefined, request: {} });
   const signTypedData = vi.fn().mockResolvedValue(TEST_TYPED_SIGNATURE);
 
-  const publicClient = { readContract, multicall, simulateContract } as unknown as PublicClient;
+  const publicClient = {
+    readContract,
+    multicall,
+    simulateContract,
+    getBlockNumber: vi.fn().mockResolvedValue(1n),
+  } as unknown as PublicClient;
   const account = { address: TEST_USER, type: "json-rpc" } as Account;
   const walletClient = {
     account,

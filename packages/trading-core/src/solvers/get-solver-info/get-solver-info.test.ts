@@ -26,6 +26,34 @@ const config = createConfig({
 });
 
 describe("getSolverInfo", () => {
+  it("exposes deployment-specific timelock metadata without changing fee fields", async () => {
+    genFn.mockResolvedValue({
+      data: {
+        static_solver_fee_open: "0.5",
+        timelock_approval: {
+          unlocker: "0x1111111111111111111111111111111111111111",
+          min_timelock_delay_seconds: 600,
+          validity_seconds: 60,
+          request_domain: {
+            name: "SymmioTimelockApprovalRequest",
+            version: "1",
+            chainId: "42161",
+            verifyingContract: config.getChainConfig(ARBITRUM).addresses.accountLayerAddress,
+          },
+        },
+      },
+    });
+    expect(await getSolverInfo(config, { chainId: ARBITRUM })).toMatchObject({
+      staticSolverFeeOpen: "0.5",
+      timelockApproval: { minTimelockDelaySeconds: 600, validitySeconds: 60, requestDomain: { chainId: "42161" } },
+    });
+  });
+  it("rejects explicitly malformed timelock metadata instead of reporting unsupported", async () => {
+    genFn.mockResolvedValue({ data: { timelock_approval: null } });
+    await expect(getSolverInfo(config, { chainId: ARBITRUM })).rejects.toMatchObject({
+      code: "INVALID_TIMELOCK_METADATA",
+    });
+  });
   it("fetches from the solver base URL and maps the wire fields to camelCase", async () => {
     genFn.mockResolvedValue({ data: { static_solver_fee_open: "0.5", static_solver_fee_close: "0.25" } });
 

@@ -150,7 +150,7 @@ export const STAGING_CHAIN_OVERRIDES = {
           protocol: "enigma",
           searchUrl: "https://notification-stage.rasa.capital",
         },
-        capabilities: { groupClose: true, listingService: true },
+        capabilities: { groupClose: true, listingService: true, timelockApproval: true },
       },
     },
     defaultSolverId: "enigma",

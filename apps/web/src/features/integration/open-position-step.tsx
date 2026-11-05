@@ -2,6 +2,7 @@
 
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { useTimelockContext } from "@/features/timelock/use-timelock-context";
 import { formatUsd, WEI_DECIMALS } from "@/lib/format";
 import type { FullBalanceFunding, MarketNotionalCap, SolverId } from "@symmio/trading-core";
 import {
@@ -56,6 +57,7 @@ interface Props {
   sessionKey: Address;
   /** Target solver. Defaults to the chain's default solver. */
   solverId?: SolverId;
+  timelockContext?: ReturnType<typeof useTimelockContext>;
   /** Test-id namespace; lets two mounts on the same page have distinct selectors. */
   idPrefix?: string;
 }
@@ -67,9 +69,17 @@ interface Props {
  * both the Integration wizard and the Solvers page card; both pass an already-
  * gated `subAccount` and `sessionKey`.
  */
-export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = "instant-open" }: Props) {
+export function OpenPositionStep({
+  subAccount,
+  sessionKey,
+  solverId,
+  timelockContext,
+  idPrefix = "instant-open",
+}: Props) {
   const config = useSymmioConfig();
   const resolvedSolverId = solverId ?? config.getDefaultSolverId();
+  const localTimelock = useTimelockContext(subAccount, resolvedSolverId);
+  const timelock = timelockContext ?? localTimelock;
   // The margin/execution model follows the SUB-ACCOUNT's isolation type, not the
   // solver: CUSTOM isolation trades cross-margin on the sub-account directly
   // (no VA, no TP/SL leg, allocated-balance funding); the VA isolations spend
@@ -345,6 +355,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
     inputsReady &&
     !exceedsAvailable &&
     quoteViolations.length === 0 &&
+    timelock.ready &&
     !submitting,
   );
 
@@ -421,6 +432,13 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
 
   return (
     <div className="flex flex-col gap-4">
+      {!timelockContext && !timelock.unsupported && timelock.policy.data && !timelock.ready ? (
+        <ResultError
+          code="TIMELOCK_REQUIRED"
+          timelockAccount={subAccount}
+          message="Review trading protection before opening a position."
+        />
+      ) : null}
       <Field label="market" htmlFor={`${idPrefix}-market`}>
         <MarketSelect
           idPrefix={`${idPrefix}-market`}
@@ -682,7 +700,14 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
         />
       ) : null}
 
-      {!isLimit && prepareError ? <ResultError kind={prepareError.kind} message={prepareError.message} /> : null}
+      {!isLimit && prepareError ? (
+        <ResultError
+          kind={prepareError.kind}
+          code={prepareError.code}
+          timelockAccount={subAccount}
+          message={prepareError.message}
+        />
+      ) : null}
 
       {quoteViolations.length > 0 ? <QuoteViolationsPanel violations={quoteViolations} idPrefix={idPrefix} /> : null}
 
@@ -713,7 +738,7 @@ export function OpenPositionStep({ subAccount, sessionKey, solverId, idPrefix = 
         </>
       ) : (
         <>
-          <SubmitStatus mutation={mutation} sessionKey={sessionKey} idPrefix={idPrefix} />
+          <SubmitStatus mutation={mutation} sessionKey={sessionKey} idPrefix={idPrefix} account={subAccount} />
 
           {mutation.data?.tpsl || mutation.data?.tpslError || mutation.phase === "attaching-tpsl" ? (
             <TpSlAttachmentStatus idPrefix={idPrefix} mutation={mutation} />
@@ -1070,7 +1095,9 @@ function SubmitStatus({
   mutation,
   sessionKey,
   idPrefix,
+  account,
 }: {
+  account: Address;
   mutation: UseInstantOpenWithTpSlReturnType;
   sessionKey: Address;
   idPrefix: string;
@@ -1089,6 +1116,8 @@ function SubmitStatus({
       <ResultError
         testId={`${idPrefix}-error`}
         kind={solver?.category ?? mutation.error.kind}
+        code={solver?.code ?? mutation.error.code}
+        timelockAccount={account}
         message={
           <span className="flex flex-col gap-0.5">
             <span>{solver?.message ?? mutation.error.message}</span>

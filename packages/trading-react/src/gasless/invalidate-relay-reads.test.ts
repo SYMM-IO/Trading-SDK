@@ -1,4 +1,6 @@
 import {
+  accountLayerAbi,
+  encodeInitiateWithdrawCall,
   getActiveDelegationsQueryKey,
   getCollateralBalanceQueryKey,
   getDelegationExpiryQueryKey,
@@ -7,21 +9,32 @@ import {
   getGaslessWalletNonceQueryKey,
   getInstantLayerNonceQueryKey,
   getIsDelegationActiveQueryKey,
+  getOperationalFeeAllowanceQueryKey,
   getPartyAPendingQuotesQueryKey,
   getPendingRevocationEtasQueryKey,
   getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
+  getSelectorTimelockQueryKey,
+  getSubAccountQueryKey,
+  getTimelockPolicyQueryKey,
+  getTimelockScheduleStateQueryKey,
   getUserSubAccountsQueryKey,
+  getVirtualAccountQueryKey,
+  getVirtualAccountsCountOfSubAccountQueryKey,
   getWithdrawableTimeQueryKey,
   getWithdrawCooldownOfQueryKey,
+  symmioAbi,
+  type GaslessBatchCall,
 } from "@symmio/trading-core";
 import { QueryClient, type QueryKey } from "@tanstack/react-query";
+import { encodeFunctionData, zeroAddress } from "viem";
 import { arbitrum } from "viem/chains";
 import { describe, expect, it } from "vitest";
 import {
   invalidateDepositSettlementReads,
   invalidateGaslessBatchReads,
   invalidateGaslessWalletExecuteReads,
+  invalidateTimelockExecutionReads,
 } from "./invalidate-relay-reads";
 
 const CHAIN = arbitrum.id;
@@ -42,6 +55,46 @@ function seeded(keys: readonly QueryKey[]): QueryClient {
 function isInvalidated(queryClient: QueryClient, key: QueryKey): boolean | undefined {
   return queryClient.getQueryState(key)?.isInvalidated;
 }
+
+describe("protected account writes", () => {
+  it.each(["approveOperationalFee", "approveOperationalFeeWithMultiplier"] as const)(
+    "refreshes the fee allowance after %s",
+    (name) => {
+      const key = getOperationalFeeAllowanceQueryKey({ payer: SUB_ACCOUNT, configKey: CONFIG_KEY });
+      const other = getOperationalFeeAllowanceQueryKey({ payer: SUB_ACCOUNT, configKey: "other" });
+      const client = seeded([key, other]);
+      const data =
+        name === "approveOperationalFee"
+          ? encodeFunctionData({ abi: symmioAbi, functionName: name, args: [[OWNER], [1n]] })
+          : encodeFunctionData({ abi: symmioAbi, functionName: name, args: [[OWNER], [1n], [1n]] });
+      invalidateTimelockExecutionReads(client, SCOPE, data);
+      expect(isInvalidated(client, key)).toBe(true);
+      expect(isInvalidated(client, other)).toBe(false);
+    },
+  );
+  it.each(["transferSubAccountOwnership", "setSingleVAMode", "createCustomVirtualAccount"] as const)(
+    "refreshes account and virtual-account reads after %s",
+    (name) => {
+      const account = getSubAccountQueryKey({ account: SUB_ACCOUNT, configKey: CONFIG_KEY });
+      const virtual = getVirtualAccountQueryKey({ account: SUB_ACCOUNT, configKey: CONFIG_KEY });
+      const count = getVirtualAccountsCountOfSubAccountQueryKey({ subAccount: SUB_ACCOUNT, configKey: CONFIG_KEY });
+      const other = getSubAccountQueryKey({ account: SUB_ACCOUNT, configKey: "other" });
+      const client = seeded([account, virtual, count, other]);
+      const args =
+        name === "transferSubAccountOwnership"
+          ? [SUB_ACCOUNT, OWNER]
+          : name === "setSingleVAMode"
+            ? [SUB_ACCOUNT, true]
+            : [SUB_ACCOUNT, "0x", 1, 1n];
+      const data = encodeFunctionData({ abi: accountLayerAbi, functionName: name, args } as never);
+      invalidateTimelockExecutionReads(client, SCOPE, data);
+      expect(isInvalidated(client, account)).toBe(true);
+      expect(isInvalidated(client, virtual)).toBe(true);
+      expect(isInvalidated(client, count)).toBe(true);
+      expect(isInvalidated(client, other)).toBe(false);
+    },
+  );
+});
 
 describe("invalidateGaslessWalletExecuteReads", () => {
   const wallet0Nonce = getGaslessWalletNonceQueryKey({
@@ -226,6 +279,101 @@ describe("invalidateGaslessBatchReads", () => {
   });
   const otherBatch = getPendingWithdrawRequestsBatchQueryKey({ users: [SUB_ACCOUNT], configKey: "other-deployment" });
   const ALL = [batches, otherBatch, nonce, withdrawals, pendingQuotes, subAccounts, delegation, walletNonce];
+
+  const policy = getTimelockPolicyQueryKey({ account: SUB_ACCOUNT, configKey: CONFIG_KEY });
+  const vaPolicy = getTimelockPolicyQueryKey({ account: VIRTUAL_ACCOUNT, configKey: CONFIG_KEY });
+  const selectorPolicy = getSelectorTimelockQueryKey({
+    account: SUB_ACCOUNT,
+    selector: "0xb48c2317",
+    configKey: CONFIG_KEY,
+  });
+  const schedule = getTimelockScheduleStateQueryKey({
+    account: SUB_ACCOUNT,
+    callData: "0xb48c2317",
+    configKey: CONFIG_KEY,
+  });
+  const foreignPolicy = getTimelockPolicyQueryKey({ account: SUB_ACCOUNT, configKey: "other-deployment" });
+
+  it.each(["setupTimelocks", "clearTimelocks"] as const)(
+    "refreshes root and inherited policy after %s",
+    (functionName) => {
+      const queryClient = seeded([policy, vaPolicy, selectorPolicy, schedule, foreignPolicy, withdrawals]);
+      invalidateGaslessBatchReads(queryClient, SCOPE, {
+        account: SUB_ACCOUNT,
+        calls: [
+          {
+            functionName,
+            args:
+              functionName === "setupTimelocks"
+                ? [SUB_ACCOUNT, OWNER, 600n, ["0xb48c2317"]]
+                : [SUB_ACCOUNT, ["0xb48c2317"]],
+          },
+        ],
+      });
+      for (const key of [policy, vaPolicy, selectorPolicy, schedule])
+        expect(isInvalidated(queryClient, key)).toBe(true);
+      expect(isInvalidated(queryClient, foreignPolicy)).toBe(false);
+      expect(isInvalidated(queryClient, withdrawals)).toBe(false);
+    },
+  );
+
+  it.each(["scheduleTimelockOp", "cancelTimelockOp"] as const)(
+    "refreshes only schedule data after %s",
+    (functionName) => {
+      const queryClient = seeded([policy, schedule, withdrawals]);
+      invalidateGaslessBatchReads(queryClient, SCOPE, {
+        account: SUB_ACCOUNT,
+        calls: [{ functionName, args: [SUB_ACCOUNT, `0x${"11".repeat(32)}`] }],
+      });
+      expect(isInvalidated(queryClient, schedule)).toBe(true);
+      expect(isInvalidated(queryClient, policy)).toBe(false);
+      expect(isInvalidated(queryClient, withdrawals)).toBe(false);
+    },
+  );
+
+  it.each(["named", "raw"] as const)("refreshes withdrawal reads inside a %s timelock wrapper", (form) => {
+    const inner = encodeFunctionData({
+      abi: accountLayerAbi,
+      functionName: "_call",
+      args: [
+        SUB_ACCOUNT,
+        [
+          encodeInitiateWithdrawCall({
+            parts: [
+              {
+                id: 0n,
+                amount: 5n,
+                chainId: BigInt(CHAIN),
+                receiver: OWNER,
+                virtualProvider: zeroAddress,
+                expressProvider: zeroAddress,
+              },
+            ],
+          }),
+        ],
+      ],
+    });
+    const call: GaslessBatchCall =
+      form === "named"
+        ? { functionName: "executeTimelockOp", args: [[], inner] }
+        : { data: encodeFunctionData({ abi: accountLayerAbi, functionName: "executeTimelockOp", args: [[], inner] }) };
+    const queryClient = seeded([...ALL, schedule]);
+    invalidateGaslessBatchReads(queryClient, SCOPE, { account: SUB_ACCOUNT, calls: [call] });
+    for (const key of [withdrawals, batches, schedule]) expect(isInvalidated(queryClient, key)).toBe(true);
+    for (const key of [otherBatch, subAccounts, pendingQuotes]) expect(isInvalidated(queryClient, key)).toBe(false);
+  });
+
+  it("refreshes sub-account reads for a direct AccountLayer call inside the wrapper", () => {
+    const inner = encodeFunctionData({ abi: accountLayerAbi, functionName: "deleteSubAccount", args: [SUB_ACCOUNT] });
+    const queryClient = seeded([...ALL, schedule]);
+    invalidateGaslessBatchReads(queryClient, SCOPE, {
+      account: SUB_ACCOUNT,
+      calls: [{ functionName: "executeTimelockOp", args: [[], inner] }],
+    });
+    expect(isInvalidated(queryClient, subAccounts)).toBe(true);
+    expect(isInvalidated(queryClient, schedule)).toBe(true);
+    expect(isInvalidated(queryClient, withdrawals)).toBe(false);
+  });
 
   it("refreshes the account's nonce and the domains its calls touched — and only those", () => {
     const queryClient = seeded(ALL);

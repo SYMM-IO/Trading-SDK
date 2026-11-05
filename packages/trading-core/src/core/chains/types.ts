@@ -85,6 +85,8 @@ export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
  * to `false` — a solver must **declare** a capability to enable it.
  */
 export interface SolverCapabilitiesConfig {
+  /** Whether this solver deployment offers timelock approval. Unset means unspecified; consumers may discover support. */
+  timelockApproval?: boolean;
   /**
    * Whether the solver supports closing a whole market + side group of quotes in
    * one flow. Enigma (Virtual-Account isolation, one VA per market + side)
@@ -592,6 +594,8 @@ export interface SymmioChainConfig {
   chainId: number;
   /** Contracts generation deployed on this chain. See {@link SymmioContractsVersion}. */
   contractsVersion: SymmioContractsVersion;
+  /** Explicit deployment capability. `false` disables timelock calls; omitted means unknown. */
+  timelockSupported?: boolean;
   /** Contract addresses */
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */

@@ -2,6 +2,10 @@ import { Callout } from "nextra/components";
 
 # deallocate
 
+For a locked selector, pass the optional `timelock` authorization described in
+the [timelock execution reference](/core/account-layer/timelocks/execution). A retry
+with an issued approval must retain the original Muon signature and calldata.
+
 Move a subaccount's **classic-pool** allocated balance back into its available balance — the reverse of [`allocate`](/core/account-layer/allocate). (The instant flow never allocates in the first place — see [Balance Model](/core/concepts/balance-model).) Routed through the AccountLayer `_call` proxy; the connected wallet must be the subaccount's on-chain `owner`. Requires a fresh Muon uPnL attestation so the contract can verify the subaccount stays solvent, and is subject to the on-chain **deallocate debounce**.
 
 ```ts

@@ -13,6 +13,8 @@ interface Props {
   error: SymmioRequestError | null;
   /** Prefix for the rendered result test ids (`{testId}-pending` / `-error` / `-success`). */
   testId: string;
+  /** Account used by the timelock settings link, when available. */
+  timelockAccount?: string;
   /** Decoded return value shown under the "passed" message (e.g. predicted addresses). */
   children?: ReactNode;
 }
@@ -23,7 +25,7 @@ interface Props {
  * "simulation passed" panel — with an optional decoded return value — on success.
  * Renders nothing while idle so it sits quietly above the Send result panel.
  */
-export function SimulateResult({ isPending, isSuccess, error, testId, children }: Props) {
+export function SimulateResult({ isPending, isSuccess, error, testId, timelockAccount, children }: Props) {
   if (isPending) {
     return (
       <ResultNote testId={`${testId}-pending`} loading>
@@ -32,7 +34,15 @@ export function SimulateResult({ isPending, isSuccess, error, testId, children }
     );
   }
   if (error) {
-    return <ResultError testId={`${testId}-error`} kind={error.kind} message={error.message} />;
+    return (
+      <ResultError
+        testId={`${testId}-error`}
+        kind={error.kind}
+        code={error.code}
+        timelockAccount={timelockAccount}
+        message={error.message}
+      />
+    );
   }
   if (isSuccess) {
     return (

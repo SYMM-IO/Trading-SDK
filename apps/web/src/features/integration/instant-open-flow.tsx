@@ -3,6 +3,8 @@
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
+import { TimelockPolicyPanel } from "@/features/timelock/timelock-policy-panel";
+import { useTimelockContext } from "@/features/timelock/use-timelock-context";
 import { formatUsd } from "@/lib/format";
 import type { SolverId } from "@symmio/trading-core";
 import {
@@ -70,6 +72,7 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
   useEffect(() => {
     setSolverId(config.getDefaultSolverId(chainId));
   }, [config, chainId]);
+  const timelock = useTimelockContext(subAccount, solverId, owner);
   // ---- Margin model: follows the SELECTED SUB-ACCOUNT's isolation type. ----
   // `CUSTOM` isolation trades cross-margin on the sub-account directly (funds
   // live in the ALLOCATED balance, no addMargin/VA leg); the VA isolations
@@ -140,7 +143,22 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
   // 0: connect → 1: subaccount → 2: fund → 3: session key → 4: delegation → 5: open.
   // Fund step is gated by balance > 0; balance loading keeps `maxStep` at 2 so
   // the user sees the spinner instead of being bounced past the gate.
-  const maxStep = !ready ? 0 : !subAccount ? 1 : !balanceFunded ? 2 : !sessionKey ? 3 : !allDelegationsActive ? 4 : 5;
+  const hasTimelockStep = !timelock.unsupported;
+  const maxStep = !ready
+    ? 0
+    : !subAccount
+      ? 1
+      : !balanceFunded
+        ? 2
+        : !sessionKey
+          ? 3
+          : !allDelegationsActive
+            ? 4
+            : hasTimelockStep && !timelock.ready
+              ? 5
+              : hasTimelockStep
+                ? 6
+                : 5;
 
   const [step, setStep] = useState(0);
   const current = Math.min(step, maxStep);
@@ -187,6 +205,15 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
       hint: allDelegationsActive ? "Granted" : delegationsLoading ? "Checking…" : "Grant session-key access",
       done: allDelegationsActive,
     },
+    ...(hasTimelockStep
+      ? [
+          {
+            label: "Setup timelock",
+            hint: timelock.ready ? "Configured" : "Configure trading protection",
+            done: timelock.ready,
+          },
+        ]
+      : []),
     {
       label: "Open position",
       hint: "Configure and submit",
@@ -266,8 +293,15 @@ export function InstantOpenFlow({ owner, subAccount, subAccountName, onSelectSub
             grant={grantDelegation}
             onGrant={onGrantDelegation}
           />
+        ) : current === 5 && hasTimelockStep ? (
+          <TimelockPolicyPanel key={timelock.scope} context={timelock} compact />
         ) : (
-          <OpenPositionStep subAccount={subAccount!} sessionKey={sessionKey!} solverId={solverId} />
+          <OpenPositionStep
+            subAccount={subAccount!}
+            sessionKey={sessionKey!}
+            solverId={solverId}
+            timelockContext={timelock}
+          />
         )}
       </FlowLayout>
     </div>

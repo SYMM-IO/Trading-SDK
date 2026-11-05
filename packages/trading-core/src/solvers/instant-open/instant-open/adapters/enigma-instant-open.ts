@@ -1,4 +1,3 @@
-import { SymmError } from "../../../../shared/errors/symm-error";
 import { assertInstantSignerDelegated } from "../../../shared/instant-delegation-preflight";
 import {
   encodeAddMarginToNextVA,
@@ -7,9 +6,10 @@ import {
   getFakeSendQuoteMuonSignature,
   sendQuoteUpnlSigFlexRange,
 } from "../../shared/calldata";
-import { sendInstantOpen } from "../../shared/hedger-api";
 import { buildSignedOperation, signAndFormatInstantOperation } from "../../shared/operations";
 import { ORDER_TYPE_MARKET, isolationTypeForSide } from "../../shared/types";
+import { submitPreparedInstantOpen } from "../prepared/submit-prepared-instant-open";
+import type { PreparedInstantOpen } from "../prepared/types";
 import type { EnigmaInstantOpenResult, InstantOpenParameters } from "../types";
 import type { InstantOpenAdapterContext } from "./context";
 import { assertEnigmaMarginTimelockFresh, prepareEnigmaMarginTimelock } from "./enigma-margin-timelock";
@@ -17,8 +17,8 @@ import { assertEnigmaMarginTimelockFresh, prepareEnigmaMarginTimelock } from "./
 /**
  * Submit an instant open to an **Enigma** (lowcap) hedger.
  *
- * Signs two operations — `addMarginToNextVA` on the AccountLayer and
- * `sendQuote` on the diamond — and posts both to `/instant_trade/instant_open`.
+ * Always signs `sendQuote`; when `margin` is present it also signs
+ * `addMarginToNextVA` and posts both to `/instant_trade/instant_open`.
  *
  * The quote carries a **placeholder** Muon signature: lowcap bypasses Muon
  * verification, but the contract still reads `upnlSig.price`, and the encoded
@@ -27,9 +27,6 @@ import { assertEnigmaMarginTimelockFresh, prepareEnigmaMarginTimelock } from "./
  * field. Solvers advertising timelock approval metadata receive a wrapped
  * margin operation with only the approval signature bytes delegated to the solver.
  *
- * @throws {SymmError} `INSTANT_OPEN_MARGIN_REQUIRED` when `margin` is absent —
- *   reachable when the caller omitted `solverId` and the chain's default solver
- *   turned out to be Enigma.
  * @throws {SymmError} `INSTANT_SIGNER_NOT_DELEGATED` when the signer lacks the
  *   delegation for either operation, before anything is signed.
  * @throws {SymmApiError} when the hedger request fails.
@@ -39,23 +36,25 @@ export async function submitEnigmaInstantOpen(
   context: InstantOpenAdapterContext,
   parameters: InstantOpenParameters,
 ): Promise<EnigmaInstantOpenResult> {
-  if (!parameters.margin) {
-    throw new SymmError(
-      "validation",
-      "INSTANT_OPEN_MARGIN_REQUIRED",
-      "instantOpen: the Enigma (lowcap) flow funds a new virtual account, so `margin.amount` is required.",
-    );
-  }
+  return submitPreparedInstantOpen(context.config, { prepared: await prepareEnigmaInstantOpen(context, parameters) });
+}
 
+/** Sign without submitting, allowing the consumer to persist the exact payload first. @internal */
+export async function prepareEnigmaInstantOpen(
+  context: InstantOpenAdapterContext,
+  parameters: InstantOpenParameters,
+): Promise<PreparedInstantOpen> {
   const { config, solver, chainConfig, walletClient, signerAddress, deadline, symbolId, metadata } = context;
   const { accountLayerAddress, symmioAddress, affiliatesAddress } = chainConfig.addresses;
 
-  const addMarginCallData = encodeAddMarginToNextVA({
-    subAccount: parameters.subAccountAddress,
-    isolationType: isolationTypeForSide(parameters.positionType),
-    symbolId,
-    amount: parameters.margin.amount,
-  });
+  const addMarginCallData = parameters.margin
+    ? encodeAddMarginToNextVA({
+        subAccount: parameters.subAccountAddress,
+        isolationType: isolationTypeForSide(parameters.positionType),
+        symbolId,
+        amount: parameters.margin.amount,
+      })
+    : undefined;
 
   const quoteArgs = {
     partyBsWhiteList: [solver.address],
@@ -84,16 +83,25 @@ export async function submitEnigmaInstantOpen(
       ? encodeSendQuoteWithAffiliateAndData(quoteArgs)
       : encodeSendQuote({ ...quoteArgs, solverFeeCaps: parameters.solverFeeCaps });
 
-  const margin = await prepareEnigmaMarginTimelock(context, parameters.subAccountAddress, addMarginCallData);
-  const addMarginOp = buildSignedOperation({
-    signer: signerAddress,
-    target: accountLayerAddress,
-    callData: margin.callData,
-    flexFields: margin.flexFields,
-    signerAccount: parameters.subAccountAddress,
-    deadline: parameters.operationDeadline ?? deadline,
-    salt: parameters.addMarginSalt,
-  });
+  const margin = addMarginCallData
+    ? await prepareEnigmaMarginTimelock(
+        context,
+        parameters.subAccountAddress,
+        addMarginCallData,
+        parameters.marginApprovalDeadline ?? parameters.operationDeadline ?? deadline,
+      )
+    : undefined;
+  const addMarginOp = margin
+    ? buildSignedOperation({
+        signer: signerAddress,
+        target: accountLayerAddress,
+        callData: margin.callData,
+        flexFields: margin.flexFields,
+        signerAccount: parameters.subAccountAddress,
+        deadline: parameters.operationDeadline ?? deadline,
+        salt: parameters.addMarginSalt,
+      })
+    : undefined;
 
   const sendQuoteOp = buildSignedOperation({
     signer: signerAddress,
@@ -110,32 +118,26 @@ export async function submitEnigmaInstantOpen(
     action: "instantOpen",
     // InstantLayer unwraps executeTimelockOp before checking delegation. The
     // inner call is immutable, so validate exactly that selector here as well.
-    operations: [{ ...addMarginOp, callData: addMarginCallData }, sendQuoteOp],
+    operations:
+      addMarginOp && addMarginCallData ? [{ ...addMarginOp, callData: addMarginCallData }, sendQuoteOp] : [sendQuoteOp],
     enabled: parameters.preflightDelegation,
   });
 
   const [addMargin, sendQuote] = await Promise.all([
-    signAndFormatInstantOperation(config, { operation: addMarginOp, chainId: context.chainId, walletClient }),
+    addMarginOp
+      ? signAndFormatInstantOperation(config, { operation: addMarginOp, chainId: context.chainId, walletClient })
+      : undefined,
     signAndFormatInstantOperation(config, { operation: sendQuoteOp, chainId: context.chainId, walletClient }),
   ]);
 
-  await assertEnigmaMarginTimelockFresh(context, margin.approvalDeadline);
-
-  const response = await sendInstantOpen(config, {
-    chainId: context.chainId,
-    // The resolved solver's own id — never a hardcoded kind, so a differently-id'd
-    // solver of the same kind can never be re-resolved onto the wrong endpoint.
-    solverId: solver.id,
-    request: { addMargin, sendQuote },
-  });
+  await assertEnigmaMarginTimelockFresh(context, margin?.approvalDeadline);
 
   return {
     kind: "enigma",
-    success: true,
-    tempQuoteId:
-      response.temp_quote_id !== undefined && response.temp_quote_id !== null
-        ? String(response.temp_quote_id)
-        : undefined,
-    partyBmm: response.partyBmm,
+    chainId: chainConfig.chainId,
+    deploymentKey: config.getChainConfigKey(chainConfig.chainId),
+    solverId: solver.id,
+    request: addMargin ? { addMargin, sendQuote } : { sendQuote },
+    timelock: margin?.approvalDeadline !== undefined,
   };
 }

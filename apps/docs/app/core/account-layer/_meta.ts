@@ -18,6 +18,7 @@ export default {
   "create-sub-accounts": "createSubAccounts",
   "delete-sub-account": "deleteSubAccount",
   "edit-account-name": "editAccountName",
+  timelocks: "Account timelocks",
   "-- helpers": { type: "separator", title: "Helpers" },
   "encode-sub-account-hook-metadata": "encodeSubAccountHookMetadata",
   "-- types": { type: "separator", title: "Types" },
