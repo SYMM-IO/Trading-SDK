@@ -90,6 +90,8 @@ interface CandleSource {
 
 Anything that can answer the three questions plugs in: a solver mark-price stream folded into bars (`priceBasis: "solver-mark"`), a DEX pool OHLCV API (`"dex-pool"`), another exchange. Declare honest `supportedResolutions`, keep `time` in unix milliseconds aligned to the resolution boundary, report `volume: 0` when the venue cannot supply it, and give the source a stable `id` — it scopes the query cache.
 
+Use `getSymbol` to report `volumeUnit` and `volumeCurrency` whenever known. USD volume uses `volumeUnit: "quote"` and `volumeCurrency: "USD"`; it must not be labeled as base-asset volume. See [`CandleSymbol`](/core/candles/candle-type#candlesymbol).
+
 ## Related
 
 - [`createBinanceCandleSource`](/core/candles/create-source) — the reference implementation.

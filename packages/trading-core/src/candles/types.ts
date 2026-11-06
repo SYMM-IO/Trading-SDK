@@ -16,6 +16,7 @@ export type CandleResolution =
   | "1m"
   | "3m"
   | "5m"
+  | "10m"
   | "15m"
   | "30m"
   | "1h"
@@ -62,8 +63,10 @@ export interface Candle {
   /** Closing price — the latest price while the bar is still in progress. */
   close: number;
   /**
-   * Base-asset volume over the bar. `0` when the source cannot report volume,
-   * which is the case for any source that folds a price-tick stream into bars.
+   * Volume over the bar, in the unit reported by {@link CandleSymbol.volumeUnit}
+   * and {@link CandleSymbol.volumeCurrency}. Sources may report base-asset or
+   * quote-currency volume (for example USD). `0` can mean no traded volume or
+   * no volume data; it does not identify the unit.
    */
   volume: number;
 }
@@ -83,6 +86,10 @@ export interface CandleSymbol {
   pricePrecision: number;
   /** Decimal places volume should be rendered at. */
   volumePrecision: number;
+  /** Whether volume measures the base asset or quote currency. Absent means unspecified. */
+  volumeUnit?: "base" | "quote";
+  /** Currency of the volume values (e.g. `"BTC"` or `"USD"`), when known. */
+  volumeCurrency?: string;
 }
 
 /**
