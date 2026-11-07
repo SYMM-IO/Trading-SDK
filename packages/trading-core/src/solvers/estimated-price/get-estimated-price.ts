@@ -38,8 +38,10 @@ export type GetEstimatedPriceParameters = Compute<
  * Return type of {@link getEstimatedPrice}.
  */
 export interface GetEstimatedPriceReturnType {
-  /** Estimated execution price (decimal string); `"0"` when the solver omits it. */
+  /** Shadow-inclusive execution price (decimal string); `"0"` when the solver omits it. Use for all trading calculations. */
   estimatedPrice: string;
+  /** Execution price without shadow, when supplied by the solver. Diagnostic only; never a trading-price fallback. */
+  estimatedPriceWithoutShadow?: string;
 }
 
 /** Solver wire value for a position side (`"long"` / `"short"`). */
