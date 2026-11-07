@@ -194,6 +194,18 @@ export function useInstantOpenInputs(
     parameters.estimatedOpenPrice !== undefined ? parameters.estimatedOpenPrice : estimateQuery.data?.estimatedPrice;
   const estimatedOpenPrice =
     !isLowcap || !estimateSettled ? undefined : resolvedEstimate && resolvedEstimate !== "0" ? resolvedEstimate : null;
+  // Only pair diagnostics with the settled SDK-managed estimate, never a
+  // caller override or a cached response for inputs that are still changing.
+  const estimatedOpenPriceWithoutShadow =
+    enabled &&
+    isLowcap &&
+    parameters.estimatedOpenPrice === undefined &&
+    estimatedOpenPrice != null &&
+    !estimateUpdating &&
+    !estimateQuery.isPlaceholderData &&
+    !estimateQuery.isError
+      ? estimateQuery.data?.estimatedPriceWithoutShadow
+      : undefined;
 
   // Every prefill present → the query function is pure, zero fetches.
   const ready =
@@ -215,6 +227,7 @@ export function useInstantOpenInputs(
     validationError,
     ready,
     refetchEstimatedPrice: estimateQuery.refetch,
+    estimatedOpenPriceWithoutShadow,
     estimatedOpenPriceTimestamp: estimateQuery.isPlaceholderData ? undefined : estimateQuery.dataUpdatedAt || undefined,
     prefills: {
       chainId,

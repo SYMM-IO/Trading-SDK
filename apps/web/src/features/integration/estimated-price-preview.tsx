@@ -1,7 +1,13 @@
 "use client";
 
-import { calculatePriceImpact, PositionType, type EstimatedPriceEntry, type SolverId } from "@symmio/trading-core";
-import { supportsEstimatedPrice, useEstimatedPrice, useSymmioConfig } from "@symmio/trading-react";
+import type { EstimatedPriceEntry, SolverId } from "@symmio/trading-core";
+import {
+  calculatePriceImpact,
+  PositionType,
+  supportsEstimatedPrice,
+  useEstimatedPrice,
+  useSymmioConfig,
+} from "@symmio/trading-react";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@symmio/ui/components/tooltip";
 import { formatPercentage, formatWithCommas } from "@symmio/utils";
@@ -61,7 +67,8 @@ export function EstimatedPricePreview({
   // quantity and a request price.
   if (!enabled) return null;
 
-  const estimated = query.data?.estimatedPrice;
+  const isUpdating = query.isFetching || query.isDebouncing;
+  const estimated = isUpdating ? undefined : query.data?.estimatedPrice;
   const impact =
     estimated && estimated !== "0" && markPrice
       ? calculatePriceImpact({ estimatedPrice: estimated, referencePrice: markPrice })
@@ -74,7 +81,7 @@ export function EstimatedPricePreview({
     >
       <span className="text-muted-foreground text-xs">Estimated {entry} price</span>
       <span className="flex items-baseline gap-2 font-mono tabular-nums">
-        {query.isFetching && !estimated ? (
+        {isUpdating ? (
           <Spinner className="size-4" />
         ) : estimated && estimated !== "0" ? (
           <>
