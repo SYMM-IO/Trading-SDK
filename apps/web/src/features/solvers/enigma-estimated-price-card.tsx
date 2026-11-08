@@ -89,44 +89,50 @@ export function EnigmaEstimatedPriceCard() {
         </div>
       </div>
 
-      <div className="border-border/60 bg-muted/30 flex items-center justify-between rounded-xl border px-4 py-3">
-        <span className="text-muted-foreground text-xs">Estimated price</span>
-        {isUpdating ? (
-          <Spinner className="size-4" />
-        ) : estimated && estimated !== "0" ? (
-          <span className="flex items-baseline gap-2 font-mono text-sm tabular-nums">
-            {estimated}
-            {impact !== undefined ? (
-              <span className={impact >= 0 ? "text-warning text-xs" : "text-positive text-xs"}>
-                ({formatPercentage(impact, { maxDecimals: 3, withSign: true })})
-              </span>
-            ) : null}
-          </span>
-        ) : (
-          <span className="text-muted-foreground font-mono text-sm">—</span>
-        )}
-      </div>
+      <div
+        role="group"
+        aria-label="Estimated price result"
+        className="border-border/60 bg-muted/30 rounded-xl border px-4 py-3"
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-muted-foreground text-xs">Estimated price</span>
+          {isUpdating ? (
+            <Spinner className="size-4" />
+          ) : estimated && estimated !== "0" ? (
+            <span className="flex items-baseline gap-2 font-mono text-sm tabular-nums">
+              {estimated}
+              {impact !== undefined ? (
+                <span className={impact >= 0 ? "text-warning text-xs" : "text-positive text-xs"}>
+                  ({formatPercentage(impact, { maxDecimals: 3, withSign: true })})
+                </span>
+              ) : null}
+            </span>
+          ) : (
+            <span className="text-muted-foreground font-mono text-sm">—</span>
+          )}
+        </div>
 
-      <dl className="border-border/60 bg-muted/20 grid grid-cols-2 gap-2 rounded-xl border px-4 py-3 text-sm">
-        <dt className="text-muted-foreground text-xs">Price without shadow</dt>
-        <dd className="text-right font-mono text-xs tabular-nums" data-testid="estimated-price-without-shadow">
-          {isUpdating ? (
-            <Spinner className="ml-auto size-4" />
-          ) : (
-            (withoutShadow ?? (query.data ? "Not provided by solver" : "—"))
-          )}
-        </dd>
-        <dt className="text-muted-foreground text-xs">Shadow gap</dt>
-        <dd className="text-right font-mono text-xs tabular-nums" data-testid="estimated-price-shadow-gap">
-          {isUpdating ? (
-            <Spinner className="ml-auto size-4" />
-          ) : shadowGap !== undefined ? (
-            formatPercentage(shadowGap, { maxDecimals: 3, withSign: true })
-          ) : (
-            "—"
-          )}
-        </dd>
-      </dl>
+        <dl className="text-muted-foreground mt-3 grid grid-cols-2 gap-2 text-sm">
+          <dt className="text-muted-foreground text-xs">Price without shadow</dt>
+          <dd className="text-right font-mono text-xs tabular-nums" data-testid="estimated-price-without-shadow">
+            {isUpdating ? (
+              <Spinner className="ml-auto size-4" />
+            ) : (
+              (withoutShadow ?? (query.data ? "Not provided by solver" : "—"))
+            )}
+          </dd>
+          <dt className="text-muted-foreground text-xs">Shadow gap</dt>
+          <dd className="text-right font-mono text-xs tabular-nums" data-testid="estimated-price-shadow-gap">
+            {isUpdating ? (
+              <Spinner className="ml-auto size-4" />
+            ) : shadowGap !== undefined ? (
+              formatPercentage(shadowGap, { maxDecimals: 3, withSign: true })
+            ) : (
+              "—"
+            )}
+          </dd>
+        </dl>
+      </div>
 
       {query.error ? (
         <ResultError testId="result-getEstimatedPrice" kind={query.error.kind} message={query.error.message} />

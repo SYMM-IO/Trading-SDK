@@ -32,6 +32,14 @@ test("inspector shows the primary price, optional no-shadow price and their rela
   expect(screen.getByTestId("estimated-price-shadow-gap").textContent).toBe("+10%");
 });
 
+test("inspector groups the execution price and diagnostics in one result section", () => {
+  render(<EnigmaEstimatedPriceCard />);
+  const result = screen.getByRole("group", { name: "Estimated price result" });
+  expect(result.contains(screen.getByText("110"))).toBe(true);
+  expect(result.contains(screen.getByTestId("estimated-price-without-shadow"))).toBe(true);
+  expect(result.contains(screen.getByTestId("estimated-price-shadow-gap"))).toBe(true);
+});
+
 test("inspector does not invent the optional price or gap for an older response", () => {
   mock.data = { estimatedPrice: "110" };
   render(<EnigmaEstimatedPriceCard />);
