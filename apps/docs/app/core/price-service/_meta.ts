@@ -1,6 +1,5 @@
 export default {
   index: "Overview",
-  presets: "getEnigmaPriceServicePreset",
   "-- live-prices": { type: "separator", title: "Live prices" },
   "watch-enigma-prices": "watchEnigmaPrices",
   "-- rest-reads": { type: "separator", title: "REST reads" },

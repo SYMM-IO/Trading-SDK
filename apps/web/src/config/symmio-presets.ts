@@ -1,6 +1,5 @@
 import {
   getChainConfig,
-  getEnigmaPriceServicePreset,
   listSupportedChains,
   SymmioSupportedChainId,
   type CreateConfigParameters,
@@ -161,7 +160,11 @@ export const STAGING_CHAIN_OVERRIDES = {
       events:
         "https://api.goldsky.com/api/public/project_cm1hfr4527p0f01u85mz499u8/subgraphs/arbitrum-vibe-events/latest/gn",
     },
-    priceService: getEnigmaPriceServicePreset({ environment: "staging" }),
+    priceService: {
+      type: "enigma",
+      url: "https://lowcap-price-staging.enigma.bz",
+      wsUrl: "wss://lowcap-price-staging.enigma.bz/ws",
+    },
     muon: {
       urls: [
         "https://muon-oracle1.rasa.capital/v1/",
