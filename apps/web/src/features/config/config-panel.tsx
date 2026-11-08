@@ -70,7 +70,7 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
     if (open) setDraft(draftFromOverrides(overrides));
   }, [open, overrides]);
 
-  const pending = useMemo(() => buildChainOverrides(draft), [draft]);
+  const pending = useMemo(() => buildChainOverrides(draft, overrides), [draft, overrides]);
   const appliedDraft = useMemo(() => draftFromOverrides(overrides), [overrides]);
   const isStaging = overrideCount > 0 && sameOverrides(overrides, STAGING_OVERRIDES);
 
