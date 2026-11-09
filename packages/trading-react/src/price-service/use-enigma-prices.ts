@@ -1,6 +1,12 @@
 "use client";
 
-import { watchEnigmaPrices, type ConfigParameter, type EnigmaPriceTick, type SocketStatus } from "@symmio/trading-core";
+import {
+  watchEnigmaPrices,
+  type Config,
+  type ConfigParameter,
+  type EnigmaPriceTick,
+  type SocketStatus,
+} from "@symmio/trading-core";
 import { useEffect, useRef, useState } from "react";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -39,6 +45,10 @@ export interface UseEnigmaPricesReturnType {
  * non-stateful sink). The subscription is shared across hook instances via the
  * SDK socket pool — multiple `useEnigmaPrices()` mounts cost one connection.
  *
+ * Prices, status and errors reset when the Config instance or resolved chain
+ * changes. Reconnects and stopping/restarting the same target retain prices.
+ * Callbacks from a disposed subscription are ignored.
+ *
  * @example
  * ```tsx
  * const { prices, status } = useEnigmaPrices();
@@ -51,49 +61,70 @@ export function useEnigmaPrices(parameters: UseEnigmaPricesParameters = {}): Use
   const defaultChainId = useSymmioChainId();
   const resolvedChainId = chainId ?? defaultChainId;
 
-  const [prices, setPrices] = useState<Record<string, string>>({});
-  const [status, setStatus] = useState<SocketStatus>("closed");
-  const [error, setError] = useState<SymmioRequestError | null>(null);
+  const [state, setState] = useState<PriceState>(() => emptyPriceState(config, resolvedChainId));
+  // Reset during render so consumers never commit a previous deployment's prices.
+  const current =
+    state.config === config && state.chainId === resolvedChainId ? state : emptyPriceState(config, resolvedChainId);
+  if (current !== state) setState(current);
 
   const onTickRef = useRef(onTick);
   onTickRef.current = onTick;
 
   useEffect(() => {
+    let active = true;
+    function update(updater: (previous: PriceState) => PriceState) {
+      if (!active) return;
+      setState((previous) =>
+        previous.config === config && previous.chainId === resolvedChainId ? updater(previous) : previous,
+      );
+    }
+
     if (!enabled) {
-      setStatus("closed");
+      update((previous) => ({ ...previous, status: "closed" }));
       return;
     }
 
-    setError(null);
-
+    update((previous) => ({ ...previous, error: null }));
     let unwatch: (() => void) | undefined;
     try {
       unwatch = watchEnigmaPrices(config, {
         chainId: resolvedChainId,
         onPrices: (ticks) => {
-          setPrices((prev) => {
+          if (!active) return;
+          update((previous) => {
             let mutated = false;
-            const next = { ...prev };
+            const prices = { ...previous.prices };
             for (const tick of ticks) {
-              if (next[tick.name] !== tick.markPrice) {
-                next[tick.name] = tick.markPrice;
+              if (prices[tick.name] !== tick.markPrice) {
+                prices[tick.name] = tick.markPrice;
                 mutated = true;
               }
             }
-            return mutated ? next : prev;
+            return mutated ? { ...previous, prices } : previous;
           });
           onTickRef.current?.(ticks);
         },
-        onStatusChange: setStatus,
-        onError: (err) => setError(normalizeSymmError(err)),
+        onStatusChange: (status) => update((previous) => ({ ...previous, status })),
+        onError: (error) => update((previous) => ({ ...previous, error: normalizeSymmError(error) })),
       });
-    } catch (err) {
-      setError(normalizeSymmError(err));
-      setStatus("closed");
+    } catch (error) {
+      update((previous) => ({ ...previous, error: normalizeSymmError(error), status: "closed" }));
     }
 
-    return () => unwatch?.();
+    return () => {
+      active = false;
+      unwatch?.();
+    };
   }, [enabled, config, resolvedChainId]);
 
-  return { prices, status, error };
+  return { prices: current.prices, status: current.status, error: current.error };
+}
+
+interface PriceState extends UseEnigmaPricesReturnType {
+  config: Config;
+  chainId: number;
+}
+
+function emptyPriceState(config: Config, chainId: number): PriceState {
+  return { config, chainId, prices: {}, status: "closed", error: null };
 }

@@ -36,7 +36,8 @@ import {
   useBinancePremiumIndex,
   useBinanceSymbolsInfo,
   useBinanceHealth,
-  // Enigma-only REST
+  // Enigma-only stream and REST
+  useEnigmaPrices,
   useEnigmaPriceServicePricesByAddresses,
   useEnigmaPriceServiceMetadata,
   useEnigmaPriceServiceSymbolsInfo,
@@ -259,6 +260,31 @@ const { data: reachable } = useBinanceHealth({ solverId: "rasa" });
 #### Return type
 
 `UseBinanceHealthReturnType` — `UseQueryResult<GetBinanceHealthData, SymmioRequestError>` (the data is a `boolean` reachability flag).
+
+## Enigma-only live prices
+
+### `useEnigmaPrices`
+
+Subscribe to the chain's Enigma price stream and accumulate decimal-string mark prices by symbol name.
+
+```tsx
+import { useEnigmaPrices } from "@symmio/trading-react";
+
+const { prices, status, error } = useEnigmaPrices({ chainId: 42161 });
+```
+
+The hook accepts an optional `config`, `chainId`, `enabled` (default `true`), and
+`onTick` callback. It returns `prices`, socket `status` and a normalized `error`.
+
+Changing the SDK Config instance or resolved chain clears the previous target's
+prices, status and errors before consumers render the new target. Keep Config
+instances stable while their settings are unchanged. Reconnecting, or stopping
+and restarting the same target with `enabled`, retains its last prices. Callbacks
+from a disposed subscription cannot update the map or invoke `onTick`.
+
+Multiple hooks on the same Config share the underlying connection through the SDK
+socket pool. For raw subscription parameters and wire-independent tick fields,
+see [watchEnigmaPrices](/core/price-service/watch-enigma-prices).
 
 ## Enigma-only REST hooks
 
