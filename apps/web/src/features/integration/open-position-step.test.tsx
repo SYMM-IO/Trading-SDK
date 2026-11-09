@@ -16,11 +16,21 @@ const mock = vi.hoisted(() => ({
   feedbackStatus: "pending" as TpSlSubmissionStatus,
   feedbackBegin: vi.fn(),
   feedbackAccepted: vi.fn(),
+  preview: vi.fn(),
+  prepared: {
+    estimatedOpenPrice: undefined as string | null | undefined,
+    estimatedOpenPriceWithoutShadow: undefined as string | undefined,
+  },
 }));
 vi.mock("./use-tp-sl-submission-feedback", () => ({
   useTpSlSubmissionFeedback: () => ({ status: mock.feedbackStatus, begin: mock.feedbackBegin }),
 }));
-vi.mock("./estimated-price-preview", () => ({ EstimatedPricePreview: () => null }));
+vi.mock("./estimated-price-preview", () => ({
+  EstimatedPricePreview: (props: unknown) => {
+    mock.preview(props);
+    return null;
+  },
+}));
 vi.mock("./instant-open-fees-preview", () => ({ InstantOpenFeesPreview: () => null }));
 vi.mock("@symmio/trading-react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@symmio/trading-react")>();
@@ -59,7 +69,7 @@ vi.mock("@symmio/trading-react", async (importOriginal) => {
     useFeeForUser: emptyRead,
     useNotionalCapBySymbolId: emptyRead,
     useAvailableInstantOpenMargin: emptyRead,
-    usePrepareInstantOpenParams: emptyRead,
+    usePrepareInstantOpenParams: () => mock.prepared,
     usePredictedNextVirtualAccount: emptyRead,
   };
 });
@@ -92,6 +102,8 @@ beforeEach(() => {
   mock.feedbackStatus = "pending";
   mock.feedbackBegin.mockReset().mockReturnValue(mock.feedbackAccepted);
   mock.feedbackAccepted.mockReset();
+  mock.preview.mockReset();
+  mock.prepared = { estimatedOpenPrice: undefined, estimatedOpenPriceWithoutShadow: undefined };
   mock.nextData = {
     instantOpen: { kind: "enigma", success: true, tempQuoteId: "-123" },
     tpslParameters: parameters,
@@ -105,6 +117,12 @@ beforeEach(() => {
   };
 });
 afterEach(cleanup);
+
+test("open form forwards the preparation hook's paired estimate to its preview", () => {
+  mock.prepared = { estimatedOpenPrice: "105", estimatedOpenPriceWithoutShadow: "104" };
+  render(<OpenPositionStep {...props} />);
+  expect(mock.preview.mock.lastCall?.[0].preparedEstimate).toEqual({ price: "105", priceWithoutShadow: "104" });
+});
 
 test("accepted at-open attachment renders its notification feedback instead of HTTP success", () => {
   mock.nextData = { ...mock.nextData!, tpslError: undefined, tpsl: { success: true } };

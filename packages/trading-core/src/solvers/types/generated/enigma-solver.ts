@@ -83,6 +83,7 @@ export interface ApiFundingInfoResponse {
 
 export interface ApiGetEstimatedPriceResponse {
   price?: string;
+  price_without_shadow?: string;
 }
 
 export interface ApiGetInstantCloseResponse {
