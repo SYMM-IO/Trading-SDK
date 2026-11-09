@@ -40,8 +40,9 @@ export type CandleResolution =
  * - `reference-exchange` — mark price of a third-party perp venue (e.g. Binance USD-M).
  * - `dex-pool` — spot price of an on-chain liquidity pool, USD-denominated.
  * - `solver-mark` — the SYMMIO solver's own mark price, the basis execution settles against.
+ * - `price-service` — the configured price service's OHLCV series and provisional live prices.
  */
-export type CandlePriceBasis = "reference-exchange" | "dex-pool" | "solver-mark";
+export type CandlePriceBasis = "reference-exchange" | "dex-pool" | "solver-mark" | "price-service";
 
 /**
  * A single OHLCV bar.
@@ -120,9 +121,11 @@ export interface GetCandlesReturnType {
   /** Bars in ascending time order, de-duplicated and clipped to the requested range. */
   candles: Candle[];
   /**
-   * `true` when the source has nothing at or before `from` — typically because
-   * the request predates the instrument's listing. A chart paging backwards
-   * should stop when it sees this instead of issuing requests that return empty.
+   * `true` when the source confirms there is no earlier history to page into.
+   * A chart paging backwards should stop when it sees this. The result can
+   * still contain candles, including the instrument's earliest available bar.
+   * `false` also covers unknown exhaustion when a provider supplies no boundary
+   * metadata. An empty window alone is not proof that older history is absent.
    */
   noMoreData: boolean;
 }
@@ -132,10 +135,18 @@ export interface GetCandlesReturnType {
  */
 export interface CandleUpdateMeta {
   /**
-   * `true` when this bar has finalized and the next update starts a new bar.
-   * `false` while it is still forming.
+   * `true` when the bar's interval has ended; `false` while it is forming.
+   * A provider may still correct a completed bar later.
    */
   closed: boolean;
+}
+
+/** A candle-start range in Unix milliseconds, inclusive at `from` and exclusive at `to`. */
+export interface CandleHistoryRange {
+  /** Inclusive start of the requested or corrected window. */
+  from: number;
+  /** Exclusive end of the requested or corrected window. */
+  to: number;
 }
 
 /**
@@ -152,11 +163,12 @@ export interface WatchCandlesParameters {
    */
   onCandle: (candle: Candle, meta: CandleUpdateMeta) => void;
   /**
-   * Called after a reconnect, when bars may have been missed while the socket
-   * was down. A chart should drop its cached bars and refetch history rather
-   * than splice a live bar onto a stale series.
+   * Called after a reconnect or historical correction. When supplied, `range`
+   * identifies corrected candle starts; refresh loaded windows intersecting it.
+   * Without a range, refresh all retained history. Handlers may ignore the range
+   * and perform a full reset, including adapters that cannot refresh a subset.
    */
-  onReset?: () => void;
+  onReset?: (range?: CandleHistoryRange) => void;
   /** Called whenever the underlying connection status changes. */
   onStatusChange?: (status: SocketStatus) => void;
   /** Called on a transport or parse error; does not stop the subscription. */
@@ -172,9 +184,8 @@ export interface WatchCandlesParameters {
  * (`toTradingViewDatafeed`) and framework hooks (`useCandles`) are written
  * against this interface, never against a specific venue.
  *
- * Unlike most SDK actions, a source is **not** derived from {@link Config}: a
- * reference exchange is not a SYMMIO chain deployment, and which venue to chart
- * is the consumer's choice. Construct one and pass it in explicitly.
+ * Construct a source explicitly. Reference exchanges have their own endpoints;
+ * deployment-specific sources can resolve their endpoints from {@link Config}.
  *
  * @example
  * ```ts

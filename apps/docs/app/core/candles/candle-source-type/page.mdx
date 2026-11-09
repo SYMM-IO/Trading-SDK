@@ -17,8 +17,8 @@ interface CandleSource {
 ```
 
 <Callout type="info">
-  Unlike most SDK actions, a source is **not** derived from `Config`: a reference exchange is not a SYMMIO chain
-  deployment, and which venue to chart is the consumer's choice. Construct one and pass it in explicitly.
+  Construct a source explicitly. Reference exchanges use their own endpoints; deployment-specific sources such as
+  `createLowcapCandleSource` resolve endpoints from `Config`.
 </Callout>
 
 - `getSymbol` resolves to `undefined` when the source does not carry the market — the check to run before rendering.
@@ -55,8 +55,9 @@ interface CandleSource {
     Bars in ascending time order, de-duplicated and clipped to the requested range.
   </Property>
   <Property name="noMoreData" type="boolean">
-    `true` when the source has nothing at or before `from` — typically because the request predates the instrument's
-    listing. A chart paging backwards should stop when it sees this.
+    `true` when the source confirms there is no earlier history to page into. A chart paging backwards should stop when
+    it sees this; the result can still contain the earliest available candles. `false` also covers unknown exhaustion
+    when a provider supplies no boundary metadata; an empty window alone is not proof that history has ended.
   </Property>
 </Properties>
 
@@ -72,9 +73,11 @@ interface CandleSource {
   <Property name="onCandle" type="(candle: Candle, meta: CandleUpdateMeta) => void">
     Called on every update to the in-progress bar, and once more with `closed: true` when that bar finalizes.
   </Property>
-  <Property name="onReset" type="() => void" optional>
-    Called after a reconnect, when bars may have been missed while the socket was down. Drop cached bars and refetch
-    history rather than splicing a live bar onto a stale series.
+  <Property name="onReset" type="(range?: CandleHistoryRange) => void" optional>
+    Called after a reconnect or historical correction. When a range is supplied, revalidate retained windows that
+    intersect it; otherwise revalidate all retained history. Existing handlers may ignore the range and reload all
+    history. Use [`refreshCandleHistory`](/core/candles/get-candles#refreshcandlehistory) or React's
+    [`history.refresh(range)`](/react/candles#usecandlehistory).
   </Property>
   <Property name="onStatusChange" type="(status: SocketStatus) => void" optional>
     Called whenever the underlying connection status changes.
@@ -84,7 +87,9 @@ interface CandleSource {
   </Property>
 </Properties>
 
-`CandleUpdateMeta` is `{ closed: boolean }` — `true` when the bar has finalized and the next update starts a new one.
+`CandleUpdateMeta` is `{ closed: boolean }` — `true` when the interval has ended. Completed bars may still be corrected by the provider.
+
+`CandleHistoryRange` is `{ from: number; to: number }`, measured in Unix milliseconds with an inclusive start and exclusive end. In `onReset`, it identifies corrected candle start times. An omitted range means the source cannot bound the correction; it does not mean there is nothing to refresh.
 
 ## Implementing your own source
 

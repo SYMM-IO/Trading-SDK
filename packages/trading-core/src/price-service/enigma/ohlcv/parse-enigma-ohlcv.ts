@@ -1,6 +1,23 @@
 import type { Candle } from "../../../candles/types";
 import { SymmError } from "../../../shared/errors/symm-error";
 
+/** A history window and the backend's optional continuation signal. @internal */
+export interface EnigmaOhlcvPage {
+  candles: Candle[];
+  /** Missing on deployments that cannot yet report history exhaustion. */
+  hasOlder?: boolean;
+}
+
+/** Validate candle data and preserve a continuation signal when available. @internal */
+export function parseEnigmaOhlcvPage(data: unknown): EnigmaOhlcvPage {
+  const candles = parseEnigmaOhlcv(data);
+  const hasOlder = (data as Record<string, unknown>).hasOlder;
+  if (hasOlder !== undefined && typeof hasOlder !== "boolean") {
+    throw new SymmError("api", "INVALID_ENIGMA_OHLCV_RESPONSE", "OHLCV hasOlder must be a boolean when present.");
+  }
+  return hasOlder === undefined ? { candles } : { candles, hasOlder };
+}
+
 function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }

@@ -52,7 +52,7 @@ Symbol metadata a chart needs before it can render a series: how to label the in
   </Property>
 </Properties>
 
-Binance sources report `volumeUnit: "base"` and the exchange's base asset as `volumeCurrency`, when supplied by the exchange. A source returning dollar volume should report `volumeUnit: "quote"` and `volumeCurrency: "USD"`.
+Binance sources report `volumeUnit: "base"` and the exchange's base asset as `volumeCurrency`, when supplied by the exchange. The lowcap price-service source reports `volumeUnit: "quote"` and `volumeCurrency: "USD"`. Its live price ticks carry no volume, so volume changes arrive through HTTP reconciliation.
 
 ```ts
 const symbol = await source.getSymbol(marketName);
@@ -63,11 +63,12 @@ const volumeLabel = symbol?.volumeCurrency ? `Volume (${symbol.volumeCurrency})`
 
 What the prices in a candle series actually represent. Surfaced deliberately rather than hidden: a chart drawn from a reference exchange is not the price a SYMMIO trade settles at, and a UI that lets a user place orders off that chart should be able to tell them so.
 
-| Value                  | The bars are                                                              | Matches execution? |
-| ---------------------- | ------------------------------------------------------------------------- | ------------------ |
-| `"reference-exchange"` | Mark price of a third-party perp venue (e.g. Binance USD-M).              | No                 |
-| `"dex-pool"`           | Spot price of an on-chain liquidity pool, USD-denominated.                | No                 |
-| `"solver-mark"`        | The SYMMIO solver's own mark price — the basis execution settles against. | Yes                |
+| Value                  | The bars are                                                                  | Matches execution? |
+| ---------------------- | ----------------------------------------------------------------------------- | ------------------ |
+| `"reference-exchange"` | Mark price of a third-party perp venue (e.g. Binance USD-M).                  | No                 |
+| `"dex-pool"`           | Spot price of an on-chain liquidity pool, USD-denominated.                    | No                 |
+| `"solver-mark"`        | The SYMMIO solver's own mark price — the basis execution settles against.     | Yes                |
+| `"price-service"`      | OHLCV from the configured price service, with provisional live-price updates. | Not guaranteed     |
 
 Price basis and volume denomination are independent. USD volume alone does not establish that a source's prices match the solver's mark price.
 

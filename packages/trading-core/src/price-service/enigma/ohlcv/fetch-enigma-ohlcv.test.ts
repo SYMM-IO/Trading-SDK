@@ -20,20 +20,21 @@ describe("fetchEnigmaOhlcv", () => {
     get.mockResolvedValue({ data: { result: [BAR] } });
   });
 
-  it("calls the public OHLCV route with version 2 and flat candles included by default", async () => {
+  it("calls the public OHLCV route with version 2 and flat candles filtered by default", async () => {
     const controller = new AbortController();
     const candles = await fetchEnigmaOhlcv({ ...PARAMETERS, signal: controller.signal });
 
     expect(get).toHaveBeenCalledExactlyOnceWith("/api/v1/prices/AbCdEf123/ohlcv", {
       baseURL: "https://prices.example",
       signal: controller.signal,
+      timeout: 30_000,
       params: {
         timeframe: "1m",
         from_date: 1_700_000_000,
         to_date: 1_700_003_600,
         limit: 200,
         version: 2,
-        flat_enable: true,
+        flat_enable: false,
       },
     });
     expect(candles).toEqual([{ time: 1_700_000_040_000, open: 2, high: 4, low: 1, close: 3, volume: 12.75 }]);
@@ -60,7 +61,7 @@ describe("fetchEnigmaOhlcv", () => {
     },
   );
 
-  it.each([undefined, null, 0, -1, 201, 1.5, Number.NaN, Number.POSITIVE_INFINITY, "2"])(
+  it.each([null, 0, -1, 201, 1.5, Number.NaN, Number.POSITIVE_INFINITY, "2"])(
     "rejects an invalid interval limit %j before HTTP",
     async (limit) => {
       await expect(fetchEnigmaOhlcv({ ...PARAMETERS, limit } as FetchEnigmaOhlcvParameters)).rejects.toMatchObject({
@@ -69,6 +70,11 @@ describe("fetchEnigmaOhlcv", () => {
       expect(get).not.toHaveBeenCalled();
     },
   );
+
+  it("omits the unreliable vendor limit when the caller supplies only a date window", async () => {
+    await fetchEnigmaOhlcv({ ...PARAMETERS, limit: undefined });
+    expect(get.mock.calls[0]?.[1]?.params).not.toHaveProperty("limit");
+  });
 
   it("preserves inclusive ISO boundaries without truncating or changing the request", async () => {
     const fromDate = "2026-11-01T00:00:00.123Z";

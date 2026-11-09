@@ -6,7 +6,7 @@ import {
   PriceHistoryVersion,
   PriceTimeframe,
 } from "./generated/enigma-price-service-ohlcv";
-import { parseEnigmaOhlcv } from "./parse-enigma-ohlcv";
+import { parseEnigmaOhlcvPage, type EnigmaOhlcvPage } from "./parse-enigma-ohlcv";
 
 /** Parameters for a single bounded request, in the service's inclusive date units. @internal */
 export interface FetchEnigmaOhlcvParameters {
@@ -20,9 +20,9 @@ export interface FetchEnigmaOhlcvParameters {
   fromDate: number | string;
   /** Inclusive end: integer Unix seconds or an ISO-8601 datetime with a timezone. */
   toDate: number | string;
-  /** 1–200 time intervals, including the bucket containing toDate; not a returned-bar count. */
-  limit: number;
-  /** Include flat candles. Defaults to true; only booleans are accepted. */
+  /** Optional vendor limit. Sources omit it and bound their date windows instead. */
+  limit?: number;
+  /** Include flat candles. Defaults to false; only booleans are accepted. */
   includeFlat?: boolean;
   /** Aborts the request. */
   signal?: AbortSignal;
@@ -57,13 +57,18 @@ function dateToMs(value: number | string): number {
  * @internal
  */
 export async function fetchEnigmaOhlcv(parameters: FetchEnigmaOhlcvParameters): Promise<Candle[]> {
+  return (await fetchEnigmaOhlcvPage(parameters)).candles;
+}
+
+/** Fetch a public OHLCV window, preserving optional backend pagination metadata. @internal */
+export async function fetchEnigmaOhlcvPage(parameters: FetchEnigmaOhlcvParameters): Promise<EnigmaOhlcvPage> {
   const { baseURL, symbolAddress, timeframe, fromDate, toDate, limit, signal } = parameters;
-  const includeFlat = parameters.includeFlat === undefined ? true : parameters.includeFlat;
+  const includeFlat = parameters.includeFlat === undefined ? false : parameters.includeFlat;
 
   if (typeof includeFlat !== "boolean") {
     throw new SymmError("validation", "INVALID_ENIGMA_OHLCV_FLAT_ENABLE", "includeFlat must be true or false.");
   }
-  if (!Number.isInteger(limit) || limit < 1 || limit > 200) {
+  if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 200)) {
     throw new SymmError("validation", "INVALID_ENIGMA_OHLCV_LIMIT", "OHLCV limit must be an integer from 1 to 200.");
   }
   if (!Object.values(PriceTimeframe).includes(timeframe)) {
@@ -83,13 +88,13 @@ export async function fetchEnigmaOhlcv(parameters: FetchEnigmaOhlcvParameters): 
         timeframe,
         from_date: fromDate,
         to_date: toDate,
-        limit,
+        ...(limit === undefined ? {} : { limit }),
         version: PriceHistoryVersion.NUMBER_2,
         flat_enable: includeFlat,
       },
-      { baseURL, signal },
+      { baseURL, signal, timeout: 30_000 },
     );
-    return parseEnigmaOhlcv(response.data);
+    return parseEnigmaOhlcvPage(response.data);
   } catch (err) {
     if (err instanceof SymmError || isCancel(err)) throw err;
     if (isAxiosError(err)) {

@@ -53,6 +53,14 @@ new TradingView.widget({ datafeed, symbol: "BTCUSDT", interval: "60" });
   in React, use [`useTradingViewDatafeed`](/react/candles), which memoizes it.
 </Callout>
 
+## Lowcap history and corrections
+
+Pass [`createLowcapCandleSource`](/core/candles/lowcap-source) to the same adapter. Market names containing `::` are preserved. Sparse windows do not indicate exhaustion: on deployments without `hasOlder`, the adapter forwards `noData: false` and TradingView may request additional empty windows.
+
+`onResetCacheNeededCallback` is forwarded when the source reconnects or signals a correction. The widget integration must also call its chart's `resetData()` when reloading corrected history; the adapter does not own the widget. See [TradingView's reset guidance](https://www.tradingview.com/charting-library-docs/latest/connecting_data/Datafeed-Issues/#internet-connection-issues).
+
+The adapter does not use the source's optional correction range: TradingView still receives its normal full cache-reset notification. Incremental SDK consumers can forward that range to [`refreshCandleHistory`](/core/candles/get-candles#refreshcandlehistory) or [`useCandleHistory.refresh`](/react/candles#usecandlehistory) to limit which windows are fetched.
+
 ## Resolution mapping
 
 TradingView encodes intraday resolutions as bare minute counts (`"60"` is one hour), seconds with an `S` suffix, and days/weeks/months with a letter. Two helpers translate:

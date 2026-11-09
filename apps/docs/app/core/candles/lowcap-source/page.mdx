@@ -1,0 +1,155 @@
+import { Callout } from "nextra/components";
+
+# createLowcapCandleSource
+
+`createLowcapCandleSource` supplies lowcap OHLCV history and live candle updates from the configured price service. Use it with [`getCandlesQueryOptions`](/core/candles/get-candles), [`toTradingViewDatafeed`](/core/candles/tradingview-datafeed), or the [React candle hooks](/react/candles).
+
+The source calls the public `/api/v1/prices/{symbol_address}/ohlcv` route directly, with `version=2`. It needs no API key or proxy and never calls the deprecated `/ohlc` route.
+
+<Callout type="warning">
+  This route is currently available on staging. Use matching price-service REST and WebSocket endpoints in your SDK
+  config. Deployments without `hasOlder` can serve history, but cannot confirm that older history is exhausted.
+</Callout>
+
+In the web inspector, open **SDK config** in the header and choose **Use staging**. This applies the staging preset to
+the inspector's Arbitrum configuration. The default production price service does not currently publish `/ohlcv` and
+returns HTTP 404; this response does not establish that the selected market has no history.
+
+```ts
+import { createLowcapCandleSource, SymmioSupportedChainId } from "@symmio/trading-core";
+
+const source = createLowcapCandleSource(config, {
+  chainId: SymmioSupportedChainId.ARBITRUM,
+  solverId: "enigma",
+  includeFlat: false,
+});
+
+const symbol = await source.getSymbol(marketName);
+const history = await source.getCandles({
+  marketName,
+  resolution: "1h",
+  from: Date.UTC(2026, 10, 1),
+  to: Date.UTC(2026, 10, 3),
+});
+```
+
+Use the **complete market name** from the price-service listings, including its `::` suffix. Tickers are not unique. The SDK resolves the symbol address without changing its case. Each source reuses successful listings for 60 seconds and shares concurrent lookups. Changing timeframe reuses this metadata; OHLCV remains fresh. A failed lookup is not cached, and cancellation by one caller does not cancel another caller’s lookup. The inspector’s market-picker query is independent of the source’s metadata lookup.
+
+## Signature
+
+```ts
+function createLowcapCandleSource(config: Config, parameters?: LowcapCandleSourceParameters): CandleSource;
+
+interface LowcapCandleSourceParameters {
+  chainId?: number;
+  solverId?: SolverId;
+  includeFlat?: boolean;
+  refreshIntervalMs?: number;
+}
+```
+
+| Parameter           | Default              | Meaning                                                                                   |
+| ------------------- | -------------------- | ----------------------------------------------------------------------------------------- |
+| `config`            | Required             | Supplies the price-service URLs and optional WebSocket implementation.                    |
+| `chainId`           | Config default chain | Deployment whose price service to use.                                                    |
+| `solverId`          | Chain default solver | Uses the solver's price-service override, falling back to the chain config.               |
+| `includeFlat`       | `false`              | Explicitly sends `flat_enable=true` or `flat_enable=false`. Other values are rejected.    |
+| `refreshIntervalMs` | `30_000`             | Recent HTTP reconciliation while subscribed; integer between `1_000` and `2_147_483_647`. |
+
+## Returned source
+
+The result implements [`CandleSource`](/core/candles/candle-source-type). Its identity includes the endpoints and flat-candle policy so different configurations do not share history query entries. It declares `priceBasis: "price-service"`, `maxCandlesPerRequest: 200`, and these resolutions:
+
+`1m`, `5m`, `10m`, `15m`, `30m`, `1h`, `4h`, `6h`, `12h`, `1d`, `1w`, `1M`.
+
+Symbol metadata declares `volumeUnit: "quote"`, `volumeCurrency: "USD"`, and `volumePrecision: 2`. Display price precision defaults to eight decimals; the numeric OHLC values are not rounded. The price basis identifies the service's series without asserting that it is identical to execution or settlement prices.
+
+## Ranges and pagination
+
+SDK ranges are `[from, to)` in Unix **milliseconds**, selecting candles by their UTC start time. A start halfway through an interval excludes that interval's candle; an end halfway through an interval includes it. Returned OHLCV describes the complete available bucket, including any samples after a historical range end inside that bucket. A current bucket contains only samples available so far.
+
+The service aggregates samples inside its requested dates. The source therefore requests aligned bucket boundaries. Its inclusive end can return an extra candle; the SDK discards that boundary candle. Each HTTP request spans 199 intervals plus the possible boundary candle, keeping responses within 200 buckets without truncating the preceding interval's last samples.
+
+Weeks start Monday at 00:00 UTC. Months start on the first day at 00:00 UTC and use calendar arithmetic, including leap years. These alignments have been observed on staging; the backend guarantee is tracked in the internal integration handoff.
+
+The SDK omits the service's currently unreliable `limit` parameter. `getCandles({ limit })` still limits the returned result to its newest requested bars. Paging advances by **time window**, including across empty windows; it never stops because a page is short or sparse.
+
+### Knowing when older history ends
+
+When the service supplies a valid `hasOlder: false`, and the SDK has not trimmed away older bars to satisfy a consumer limit, the result has `noMoreData: true`. A malformed continuation flag is an API error.
+
+Current staging responses omit `hasOlder`. Such responses still work, including `{ result: [] }`, but return `noMoreData: false`: exhaustion is unknown. The source only scans the finite range requested by the caller; it does not search arbitrarily far back or invent a listing date.
+
+<Callout type="warning">
+  An empty result can be a gap or a market with no stored history. Until the service provides a history boundary,
+  automatic chart pagination cannot reliably stop at the beginning. TradingView may request further empty windows. Full
+  automatic exhaustion requires the backend continuation flag.
+</Callout>
+
+In the web inspector, pan toward older dates or zoom out near the left edge to request another history window. The
+chart uses [`useCandleHistory`](/react/candles#usecandlehistory) to keep your position and zoom and retain its candles while loading only the preceding window. Recent stream corrections refresh only intersecting history windows. **Refresh**, reconnects, and hourly resets revalidate all loaded windows. Returning to the browser tab does not refetch the inspector's candle history. The inspector retries a failed history request once before showing an error. Requests are tied to chart interaction;
+an empty response does not start an automatic search through all earlier history. Continue panning to cross a gap.
+When the chart is entirely empty, drag right or zoom out to request the preceding window. Confirmed exhaustion stops
+older requests; after a request error, use **Refresh** to retry.
+
+## Flat candles
+
+Flat candles are **filtered by default** (`includeFlat: false`). The SDK explicitly sends `flat_enable=false` rather than relying on the service default.
+
+With `includeFlat: false`, a candle is omitted when all four prices equal the previous close and USD volume is zero. The following are retained:
+
+- The first available candle in the requested range.
+- Candles with nonzero volume.
+- Candles that move to a new price level or vary within the interval.
+
+Within one `getCandles` call, the SDK removes redundant flat candles introduced by the service retaining the first candle of each HTTP page. Separate requests, including windows retained by `useCandleHistory` or a chart adapter, each preserve their first-candle exception. A flat stretch does not stop pagination. The explicit consumer bar limit is applied after filtering.
+
+To include flat candles, pass `includeFlat: true` when creating the source. Each interval with stored samples is then returned. Intervals with no samples remain gaps; the SDK does not invent candles.
+
+```ts
+const source = createLowcapCandleSource(config, { includeFlat: true });
+```
+
+## Live candles and corrections
+
+`watchCandles` seeds the current candle through HTTP, then uses timestamped price-service WebSocket ticks to update its high, low, and close. A tick in a new interval opens the next candle. It does not fill intervals without ticks or stored samples.
+
+Price ticks carry **no volume**. Live candles retain their most recently fetched USD volume; a new candle starts at zero until OHLCV supplies its volume. These live updates are provisional. Recent OHLCV is fetched every 30 seconds by default to reconcile prices and volume, with one request in flight per subscription.
+
+The source calls `onReset(range)` when recent HTTP reconciliation changes a previously emitted historical candle, including its USD volume. The range identifies corrected candle starts in milliseconds, with an exclusive end. Forward it to [`refreshCandleHistory`](/core/candles/get-candles#refreshcandlehistory) or React's `history.refresh(range)` to revalidate only intersecting retained windows. A rollover alone does not reset history when HTTP agrees with the completed candle already emitted.
+
+Reconnects and hourly checks call `onReset()` without a range because older data can be backfilled. Revalidate all retained history in that case. Handlers that ignore the optional range remain compatible and perform full refreshes; the TradingView adapter uses this behavior. Recent corrections do not postpone the hourly check. Completed candles are not immutable.
+
+Tick ordering uses service timestamps, not the computer’s clock. No candle-history response or exhaustion result is cached inside the source. Repeated history calls contact the service again.
+
+```ts
+const unwatch = source.watchCandles!({
+  marketName,
+  resolution: "1h",
+  onCandle: (candle, { closed }) => updateChart(candle, closed),
+  onReset: (range) => reloadHistory(range),
+  onError: (error) => showError(error.message),
+});
+
+// On teardown or when changing market/resolution:
+unwatch();
+```
+
+## Errors
+
+- `UNMAPPED_CANDLE_MARKET`: the complete market name was not found in the configured service's listings.
+- `UNSUPPORTED_CANDLE_RESOLUTION`: the service does not support the requested interval.
+- `INVALID_CANDLE_RANGE` / `INVALID_CANDLE_LIMIT`: invalid millisecond bounds or consumer bar limit.
+- `INVALID_ENIGMA_OHLCV_FLAT_ENABLE` / `INVALID_CANDLE_REFRESH_INTERVAL`: invalid source options.
+- `INVALID_ENIGMA_OHLCV_RESPONSE`: malformed candles or continuation metadata.
+- `FETCH_ENIGMA_OHLCV_FAILED`: history request failure, including HTTP status and retry information when available.
+
+Invalid source options throw at construction. An unsupported chain or provider fails through `getSymbol`, `getCandles`, or `watchCandles`; the React history and stream hooks expose these failures through `error`, so switching wallet chains does not throw during source-hook rendering. Pin `chainId` when the chart should follow a fixed deployment.
+
+An empty successful response is not an error. Abort signals cancel obsolete history requests and teardown cancels active polling.
+
+## Related
+
+- [`useLowcapCandleSource`](/react/candles#uselowcapcandlesource) — memoized React factory.
+- [Candle units and price basis](/core/candles/candle-type).
+- [TradingView adapter](/core/candles/tradingview-datafeed).

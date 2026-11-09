@@ -60,6 +60,10 @@ Each venue integration ships its own mapping in and out of this vocabulary:
 - [`toBinanceInterval` / `getBinanceSupportedResolutions`](/core/candles/create-source) — Binance interval strings.
 - [`toTradingViewResolution` / `fromTradingViewResolution`](/core/candles/tradingview-datafeed) — TradingView's resolution codes (`"1h"` ↔ `"60"`).
 
+## Lowcap price-service resolutions
+
+[`createLowcapCandleSource`](/core/candles/lowcap-source) serves `1m`, `5m`, `10m`, `15m`, `30m`, `1h`, `4h`, `6h`, `12h`, `1d`, `1w`, and `1M`. The final three map to service timeframes `1D`, `1W`, and `1M`. Weekly buckets start Monday at 00:00 UTC; monthly buckets start on the first day of the calendar month. The source uses calendar arithmetic for paging, not the nominal millisecond duration of a month.
+
 ## Related
 
 - [`CandleSource`](/core/candles/candle-source-type) — where `supportedResolutions` is declared.

@@ -11,7 +11,12 @@ React bindings over the [candles slice](../../core/candles). The hooks own the s
 ```ts
 import {
   useBinanceCandleSource,
+  useLowcapCandleSource,
+  type UseLowcapCandleSourceParameters,
   useCandles,
+  useCandleHistory,
+  type UseCandleHistoryParameters,
+  type UseCandleHistoryReturnType,
   useCandleStream,
   useTradingViewDatafeed,
   type UseBinanceCandleSourceParameters,
@@ -29,11 +34,12 @@ The same hooks are also available from the `@symmio/trading-react/candles` subpa
 
 | You want                                                        | Use                      |
 | --------------------------------------------------------------- | ------------------------ |
+| Incremental history for panning or zooming                      | `useCandleHistory`       |
 | Historical bars through TanStack Query                          | `useCandles`             |
 | The live bar — a price header, a sparkline, an imperative chart | `useCandleStream`        |
 | A full TradingView Charting Library widget                      | `useTradingViewDatafeed` |
 
-All three need a source. Build it once with `useBinanceCandleSource`.
+All these hooks need a source. Build it with `useBinanceCandleSource` for major markets or `useLowcapCandleSource` for price-service lowcaps.
 
 ## `useBinanceCandleSource`
 
@@ -60,6 +66,97 @@ Takes the same options as [`createBinanceCandleSource`](../../core/candles/creat
 ### Return type
 
 A `CandleSource`, stable for as long as its options are unchanged.
+
+## `useLowcapCandleSource`
+
+Creates a memoized [`createLowcapCandleSource`](/core/candles/lowcap-source). The hook resolves SDK context and active chain; the core source owns all fetching, pagination, and live-candle behavior.
+
+```ts
+function useLowcapCandleSource(parameters?: UseLowcapCandleSourceParameters): CandleSource;
+
+type UseLowcapCandleSourceParameters = LowcapCandleSourceParameters & ConfigParameter;
+```
+
+| Parameter           | Default             | Meaning                                                         |
+| ------------------- | ------------------- | --------------------------------------------------------------- |
+| `config`            | SDK provider        | Explicit config override.                                       |
+| `chainId`           | Active wallet chain | Deployment whose price service to use.                          |
+| `solverId`          | Chain default       | Price-service owner.                                            |
+| `includeFlat`       | `false`             | Include flat candles; sent explicitly to the service.           |
+| `refreshIntervalMs` | `30_000`            | Recent OHLCV reconciliation while subscribed; minimum 1,000 ms. |
+
+Returns a `CandleSource` stable while the config and option values remain unchanged. Unsupported deployments report errors through the history and stream hooks; invalid construction options throw. Pin `chainId` if the chart should not follow wallet chain changes. It declares USD quote volume and `priceBasis: "price-service"`.
+
+```tsx
+import { SymmioSupportedChainId } from "@symmio/trading-core";
+import { useState } from "react";
+
+const source = useLowcapCandleSource({ chainId: SymmioSupportedChainId.ARBITRUM });
+const [initialRange] = useState(() => {
+  const to = Date.now();
+  return { from: to - 300 * 3_600_000, to };
+});
+const history = useCandleHistory({
+  source,
+  marketName,
+  resolution: "1h",
+  ...initialRange,
+  followLatest: true,
+  query: { staleTime: 0, refetchOnWindowFocus: false, retry: 1 },
+});
+const stream = useCandleStream({
+  source,
+  marketName,
+  resolution: "1h",
+  onReset: (range) => {
+    void history.refresh(range);
+  },
+});
+```
+
+Flat candles are filtered by default; pass `includeFlat: true` to include them. Use the full market name from price-service listings. `followLatest: true` advances the newest window’s end on refresh, including newly completed intervals without changing the initial query key. Connect `history.loadOlder` to your chart’s older-edge gesture. Changing market, resolution, or source releases the old subscription and clears its live candle.
+
+Forward the optional `onReset` range to `history.refresh(range)`. Recent corrections then fetch only intersecting windows; reconnects and hourly checks omit the range and refresh all retained history. The example disables focus refetching and retries failed history once. Provide a Refresh control for recovery or for use while streaming is disabled.
+
+An empty range is a normal result. On deployments without `hasOlder`, `noMoreData` stays false because exhaustion is unknown. See [paging, flat candles, and provisional volume](/core/candles/lowcap-source) before enabling automatic history loading.
+
+## `useCandleHistory`
+
+Use this hook when the chart retains loaded candles while the user pans into older dates. It works with any `CandleSource`. Paging and merging are implemented by [`getCandleHistoryQueryOptions`](/core/candles/get-candles#getcandlehistoryqueryoptions) in core; the hook adds React lifecycle and normalized errors.
+
+```ts
+function useCandleHistory(parameters: UseCandleHistoryParameters): UseCandleHistoryReturnType;
+
+type UseCandleHistoryParameters = GetCandleHistoryOptions & { source: CandleSource };
+```
+
+| Parameter                  | Meaning                                                                                                                                          |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `source`                   | Source from `useBinanceCandleSource`, `useLowcapCandleSource`, or your own implementation.                                                       |
+| `marketName`, `resolution` | Market and supported bar size.                                                                                                                   |
+| `from`, `to`               | Stable initial window in milliseconds, `[from, to)`. Each older window spans `to - from` milliseconds; the source aligns its own candle buckets. |
+| `followLatest?`            | Defaults to `false`. When true, fetching or refreshing the newest window extends its end through the current time.                               |
+| `query?`                   | TanStack enabled, retry, stale-time, and refetch settings. Query identity, selection, and paging are owned by the SDK.                           |
+
+The return type extends `UseInfiniteQueryResult<CandleHistoryData, SymmioRequestError>`:
+
+| Field                           | Meaning                                                                                                                                                                                                                   |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data.candles`                  | All retained candles, ascending and unique by start time.                                                                                                                                                                 |
+| `data.noMoreData`               | The oldest requested window has confirmed exhaustion. Empty data alone never sets this.                                                                                                                                   |
+| `data.pages`, `data.pageParams` | Retained responses and requested windows, newest window first.                                                                                                                                                            |
+| `loadOlder()`                   | Fetch only the preceding window. Concurrent calls are deduplicated; calls during fetching, after an error, or after confirmed exhaustion do nothing.                                                                      |
+| `refresh(range?)`               | Revalidate all windows when omitted, cancelling active work. With a `CandleHistoryRange`, wait for active paging and refresh only intersecting windows. Displayed data remains available during refresh and after errors. |
+| `isFetchingNextPage`            | An older window is loading. “Next page” means older history in this query.                                                                                                                                                |
+| `isFetching`, `error`           | Overall request state and normalized error.                                                                                                                                                                               |
+
+Wire `loadOlder` to a deliberate chart interaction. No page is fetched automatically after an empty response; another interaction can traverse the next window. Use `refresh()` to recover from an error, then retry older navigation. Full refetches revalidate every retained window. Bounded refreshes fetch whole intersecting windows; a source may split each window internally to respect its request cap. Range selection and coordination live in core's [`refreshCandleHistory`](/core/candles/get-candles#refreshcandlehistory).
+
+`refresh` resolves after the operation; request failures are exposed through `error`. A scheduled correction is discarded when the hook unmounts, its query identity changes, or a full refresh supersedes it. Other consumers of the same query keep their shared requests.
+
+TanStack's focus and reconnect policies remain consumer-configurable. The hook does not globally disable them. Set `query.refetchOnWindowFocus: false` when using explicit refresh and stream corrections to avoid reloading all retained history on tab focus; keep `staleTime: 0` for mutable candle data.
+
+Keep the initial range stable while paging. Changing it, the market, resolution, source identity, or follow policy creates a separate query. An obsolete request is aborted when it has no remaining observers. Use `useCandles` for an explicit, independently selected range; use `useCandleHistory` for incremental navigation.
 
 ## `useCandles`
 
@@ -114,23 +211,23 @@ const { candle, closed, status, error } = useCandleStream({
 
 ### Parameters
 
-| Name         | Type                                               | Default | Notes                                                                                           |
-| ------------ | -------------------------------------------------- | ------- | ----------------------------------------------------------------------------------------------- |
-| `source`     | `CandleSource`                                     | —       | Must implement `watchCandles`; the hook stays `closed` otherwise.                               |
-| `marketName` | `string`                                           | —       | Changing it tears down the old subscription.                                                    |
-| `resolution` | `CandleResolution`                                 | —       | Bar size to stream.                                                                             |
-| `enabled?`   | `boolean`                                          | `true`  | Subscribe only when `true`.                                                                     |
-| `onCandle?`  | `(candle: Candle, meta: CandleUpdateMeta) => void` | —       | Called ahead of the state update. Read through a ref, so an inline arrow does not re-subscribe. |
-| `onReset?`   | `() => void`                                       | —       | Bars were missed during a reconnect — refetch history. Also read through a ref.                 |
+| Name         | Type                                               | Default | Notes                                                                                                                                      |
+| ------------ | -------------------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `source`     | `CandleSource`                                     | —       | Must implement `watchCandles`; the hook stays `closed` otherwise.                                                                          |
+| `marketName` | `string`                                           | —       | Changing it tears down the old subscription.                                                                                               |
+| `resolution` | `CandleResolution`                                 | —       | Bar size to stream.                                                                                                                        |
+| `enabled?`   | `boolean`                                          | `true`  | Subscribe only when `true`.                                                                                                                |
+| `onCandle?`  | `(candle: Candle, meta: CandleUpdateMeta) => void` | —       | Called ahead of the state update. Read through a ref, so an inline arrow does not re-subscribe.                                            |
+| `onReset?`   | `(range?: CandleHistoryRange) => void`             | —       | Forward to `history.refresh(range)`. Known corrections bound the refresh; an omitted range requests full revalidation. Read through a ref. |
 
 ### Return type
 
-| Field    | Type                         | Notes                                               |
-| -------- | ---------------------------- | --------------------------------------------------- |
-| `candle` | `Candle \| null`             | The most recent bar, `null` until the first update. |
-| `closed` | `boolean`                    | `true` when `candle` has finalized.                 |
-| `status` | `SocketStatus`               | Live socket status.                                 |
-| `error`  | `SymmioRequestError \| null` | Last transport or parse error, normalized.          |
+| Field    | Type                         | Notes                                                                              |
+| -------- | ---------------------------- | ---------------------------------------------------------------------------------- |
+| `candle` | `Candle \| null`             | The most recent bar, `null` until the first update.                                |
+| `closed` | `boolean`                    | `true` when the candle interval has ended; historical corrections remain possible. |
+| `status` | `SocketStatus`               | Live socket status.                                                                |
+| `error`  | `SymmioRequestError \| null` | Last transport or parse error, normalized.                                         |
 
 Returns the latest bar as state for simple cases (a price header, a sparkline). For a full chart, prefer the `onCandle` callback and let the charting library own the series — re-rendering a React tree on every tick is wasted work when the chart mutates its own canvas.
 
