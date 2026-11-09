@@ -12,7 +12,8 @@ import { formatListingUsd } from "./format-listing-value";
  * Listing config — the public client configuration a user must see **before**
  * creating a pool: the recommended and minimum initial deposits, the listing
  * fee, the protocol reward share, the per-day rate limits, and the deposit
- * chains new listings may use.
+ * chains new listings may use, including their USD quote-token addresses and
+ * native decimals when the service supplies them.
  *
  * Emphasized on the page because it drives the create-pool form: the
  * recommended initial deposit is the figure the user seeds the pool with, and
@@ -79,9 +80,24 @@ export function ListingConfigCard() {
                 <span className="text-muted-foreground text-sm">—</span>
               ) : (
                 data.supportedDepositChains.map((chain) => (
-                  <Badge key={chain.chainId} variant="info" data-testid={`listing-config-chain-${chain.chainId}`}>
-                    {chain.chainName} ({chain.chainId})
-                  </Badge>
+                  <div key={chain.chainId} className="flex max-w-full min-w-0 flex-col gap-1.5">
+                    <Badge variant="info" data-testid={`listing-config-chain-${chain.chainId}`}>
+                      {chain.chainName} ({chain.chainId})
+                    </Badge>
+                    <div
+                      className="text-muted-foreground text-xs"
+                      data-testid={`listing-config-usd-token-${chain.chainId}`}
+                    >
+                      {chain.usdToken ? (
+                        <>
+                          <span className="block font-mono break-all">USD token: {chain.usdToken.address}</span>
+                          <span>Native decimals: {chain.usdToken.decimals}</span>
+                        </>
+                      ) : (
+                        <span>USD token: Unknown</span>
+                      )}
+                    </div>
+                  </div>
                 ))
               )}
             </div>

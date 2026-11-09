@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ListingDepositChainId } from "../types";
-import type { ClientConfigResponse } from "../types/generated/listing-backend";
 import { toListingConfig } from "./to-listing-config";
 
 /** A representative `/v2/configs` response, trimmed to the fields under test. */
-function makeConfig(overrides: Partial<ClientConfigResponse> = {}): ClientConfigResponse {
+function makeConfig(overrides: Parameters<typeof toListingConfig>[0] = {}) {
   return {
     recommended_deposit_usdc: "500000000000000000000",
     minimum_deposit_usdc: "450000000000000000000",
@@ -24,6 +23,45 @@ function makeConfig(overrides: Partial<ClientConfigResponse> = {}): ClientConfig
 }
 
 describe("toListingConfig", () => {
+  it("preserves each chain's USD token address and native decimals", () => {
+    const chains = [
+      {
+        chain_id: 0,
+        chain_name: "solana",
+        usd_token: { address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
+      },
+      {
+        chain_id: 56,
+        chain_name: "bsc",
+        usd_token: { address: "0x55d398326f99059fF775485246999027B3197955", decimals: 18 },
+      },
+      {
+        chain_id: 4663,
+        chain_name: "robinhood",
+        usd_token: { address: "0x5fc5360D0400a0Fd4f2af552ADD042D716F1d168", decimals: 6 },
+      },
+      { chain_id: 8453, chain_name: "base", usd_token: { address: "zero-decimal-token", decimals: 0 } },
+    ];
+    const cfg = toListingConfig({ supported_deposit_chains: chains });
+
+    expect(cfg.supportedDepositChains).toEqual(
+      chains.map((chain) => ({ chainId: chain.chain_id, chainName: chain.chain_name, usdToken: chain.usd_token })),
+    );
+  });
+
+  it("accepts mixed legacy, null and current USD-token metadata", () => {
+    const chains = [
+      { chain_id: 0, chain_name: "solana" },
+      { chain_id: 56, chain_name: "bsc", usd_token: null },
+      { chain_id: 4663, chain_name: "robinhood", usd_token: { address: "quote-token", decimals: 6 } },
+    ];
+    const cfg = toListingConfig({ supported_deposit_chains: chains });
+
+    expect(cfg.supportedDepositChains[0]?.usdToken).toBeUndefined();
+    expect(cfg.supportedDepositChains[1]?.usdToken).toBeUndefined();
+    expect(cfg.supportedDepositChains[2]?.usdToken).toEqual({ address: "quote-token", decimals: 6 });
+  });
+
   it("preserves the separate legacy universal floor", () => {
     const value = toListingConfig({
       minimum_initial_deposit_usdc: "3750000000000000000",
