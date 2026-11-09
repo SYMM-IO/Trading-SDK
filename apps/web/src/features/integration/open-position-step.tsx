@@ -697,6 +697,14 @@ function OpenPositionForm({ subAccount, sessionKey, solverId, idPrefix = "instan
         quantity={tradeParams?.quantity}
         positionType={positionTypeForSide}
         entry="open"
+        preparedEstimate={
+          !isLimit
+            ? {
+                price: prepareQuery.estimatedOpenPrice,
+                priceWithoutShadow: prepareQuery.estimatedOpenPriceWithoutShadow,
+              }
+            : undefined
+        }
         requestPrice={tradeParams?.requestedOpenPrice}
         markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
         pricePrecision={Number(selectedMarket?.pricePrecision ?? 2)}
