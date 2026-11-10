@@ -8,6 +8,7 @@ import { SessionKeySignerNote } from "@/features/gasless/session-key-signer-note
 import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
 import { TimelockPolicyPanel } from "@/features/timelock/timelock-policy-panel";
 import { readScheduledRecovery } from "@/features/timelock/timelock-recovery";
+import { useRecoveryNoticeRegistry } from "@/features/timelock/timelock-recovery-notices";
 import { TimelockSchedulePanel } from "@/features/timelock/timelock-schedule-panel";
 import { useTimelockAttempt } from "@/features/timelock/use-timelock-attempt";
 import { useTimelockContext } from "@/features/timelock/use-timelock-context";
@@ -86,6 +87,12 @@ export function WithdrawFlow({
   const [receiver, setReceiver] = useState<string>("");
   const timelock = useTimelockContext(subAccount, undefined, owner);
   const journal = useTimelockAttempt(timelock, owner);
+  const registry = useRecoveryNoticeRegistry();
+  const [activeAttempt, setActiveAttempt] = useState<{ key?: string }>();
+  const inProgress = Boolean(
+    (activeAttempt && activeAttempt.key === journal.storageKey) ||
+    (journal.storageKey && registry?.active.has(journal.storageKey)),
+  );
   const [timelockError, setTimelockError] = useState<string>();
   const [confirmedUnavailableScope, setConfirmedUnavailableScope] = useState<string>();
 
@@ -197,6 +204,7 @@ export function WithdrawFlow({
   }
   const canInitiate = Boolean(
     !fallbackBusy &&
+    !activeAttempt &&
     !withdrawalSigner.checking &&
     (!timelock.checkRecovery || (journal.loaded && !journal.recovery && !journal.error)) &&
     (timelock.unsupported ||
@@ -224,50 +232,60 @@ export function WithdrawFlow({
       setTimelockError("An earlier protected operation needs reconciliation.");
       return;
     }
-    // `account`/`chainId` are bound on the hook (which resolves the subaccount's
-    // isolation via useSubAccount); `parsed` is in the collateral token's decimals
-    // and the hook builds the part + scales the deallocate amount.
-    let writeFailed = false;
-    const submitWithdrawal = async (input: Parameters<typeof withdraw.mutateAsync>[0]) => {
-      try {
-        return await withdraw.mutateAsync(input);
-      } catch (error) {
-        writeFailed = true;
-        if (error && typeof error === "object" && "code" in error && error.code === "GASLESS_SIGNER_NOT_DELEGATED")
-          await withdrawalSigner.refresh();
-        throw error;
+    const activeKey = journal.storageKey;
+    setActiveAttempt({ key: activeKey });
+    if (activeKey) registry?.begin(activeKey);
+    try {
+      // `account`/`chainId` are bound on the hook (which resolves the subaccount's
+      // isolation via useSubAccount); `parsed` is in the collateral token's decimals
+      // and the hook builds the part + scales the deallocate amount.
+      let writeFailed = false;
+      const submitWithdrawal = async (input: Parameters<typeof withdraw.mutateAsync>[0]) => {
+        try {
+          return await withdraw.mutateAsync(input);
+        } catch (error) {
+          writeFailed = true;
+          if (error && typeof error === "object" && "code" in error && error.code === "GASLESS_SIGNER_NOT_DELEGATED")
+            await withdrawalSigner.refresh();
+          throw error;
+        }
+      };
+      if (timelock.unsupported || lockedPolicies.length === 0) {
+        try {
+          await journal.runNormal(() =>
+            submitWithdrawal({ amount: parsed, receiver: validReceiver, ...initiateWrite }),
+          );
+        } catch (error) {
+          if (!writeFailed) setTimelockError(error instanceof Error ? error.message : String(error));
+        }
+        return;
       }
-    };
-    if (timelock.unsupported || lockedPolicies.length === 0) {
       try {
-        await journal.runNormal(() => submitWithdrawal({ amount: parsed, receiver: validReceiver, ...initiateWrite }));
+        setTimelockError(undefined);
+        await journal.run(async () => {
+          const authorizations = (await journal.begin(lockedPolicies.length)).map((item) =>
+            withSelectedApprovalSigner(item, initiateWrite),
+          );
+          let next = 0;
+          const authorization = isCustom
+            ? { calls: neededPolicies.map((item) => (item?.status === "missing" ? undefined : authorizations[next++])) }
+            : authorizations[0]!;
+          const result = await submitWithdrawal({
+            amount: parsed,
+            receiver: validReceiver,
+            ...initiateWrite,
+            timelock: authorization,
+          });
+          if (result.receipt?.status === "success") journal.clear();
+          else journal.submitted(result.hash);
+        });
       } catch (error) {
+        await journal.failed(error);
         if (!writeFailed) setTimelockError(error instanceof Error ? error.message : String(error));
       }
-      return;
-    }
-    try {
-      setTimelockError(undefined);
-      await journal.run(async () => {
-        const authorizations = (await journal.begin(lockedPolicies.length)).map((item) =>
-          withSelectedApprovalSigner(item, initiateWrite),
-        );
-        let next = 0;
-        const authorization = isCustom
-          ? { calls: neededPolicies.map((item) => (item?.status === "missing" ? undefined : authorizations[next++])) }
-          : authorizations[0]!;
-        const result = await submitWithdrawal({
-          amount: parsed,
-          receiver: validReceiver,
-          ...initiateWrite,
-          timelock: authorization,
-        });
-        if (result.receipt?.status === "success") journal.clear();
-        else journal.submitted(result.hash);
-      });
-    } catch (error) {
-      await journal.failed(error);
-      if (!writeFailed) setTimelockError(error instanceof Error ? error.message : String(error));
+    } finally {
+      if (activeKey) registry?.end(activeKey);
+      setActiveAttempt(undefined);
     }
   }
 
@@ -327,7 +345,10 @@ export function WithdrawFlow({
         <>
           <WithdrawableReadout query={withdrawableTime} />
           {journal.error || timelockError ? <ResultError message={journal.error ?? timelockError ?? ""} /> : null}
-          {journal.recovery && !savedWithdrawal ? (
+          {journal.recovery && !savedWithdrawal && inProgress ? (
+            <ResultNote loading>Operation in progress for this account.</ResultNote>
+          ) : null}
+          {journal.recovery && !savedWithdrawal && !inProgress ? (
             <ResultWarning>
               An earlier protected operation needs reconciliation before a new attempt.
               <details>
@@ -438,7 +459,7 @@ export function WithdrawFlow({
             data-testid="button-initiate-withdraw"
             className="w-full"
           >
-            {withdraw.isPending ? <Spinner className="size-4" /> : null}
+            {activeAttempt || withdraw.isPending ? <Spinner className="size-4" /> : null}
             {parsed === undefined ? "Enter an amount" : "Initiate withdrawal"}
           </Button>
 

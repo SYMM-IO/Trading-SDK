@@ -1739,6 +1739,89 @@ test("a normal withdrawal is not blocked by another normal shared lock", async (
   await second.close();
 });
 
+for (const stage of ["preparation", "approval"] as const) {
+  for (const outcome of ["success", "unknown"] as const) {
+    test(`withdrawal shows progress during ${stage} until ${outcome} settles`, async ({ page }) => {
+      await enableTimelockSolver(page);
+      const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
+      await openTimelock(page, ROOT, false);
+      await openWithdrawal(page);
+      await continueToWithdrawal(page);
+      await page.getByRole("textbox", { name: "Amount to withdraw" }).fill("1");
+      await page.getByRole("textbox", { name: "Receiver", exact: true }).fill(OWNER);
+      let received = false;
+      let approvalRequests = 0;
+      let release!: () => void;
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route("https://**/*", async (route) => {
+        const request = route.request();
+        const approval = request.url().includes("timelock-approval");
+        if (approval) approvalRequests++;
+        const body: unknown = request.postDataJSON();
+        const entries = Array.isArray(body) ? body : [body];
+        const preparing =
+          stage === "preparation" &&
+          entries.some(
+            (entry) =>
+              entry && typeof entry === "object" && "method" in entry && entry.method === "eth_getBlockByNumber",
+          ) &&
+          (await page.evaluate(() =>
+            Object.keys(localStorage).some(
+              (key) =>
+                key.startsWith("symm:timelock-attempt:") &&
+                localStorage.getItem(key)?.startsWith("A protected operation is being prepared."),
+            ),
+          ));
+        if (!received && (preparing || (stage === "approval" && approval))) {
+          received = true;
+          await gate;
+        }
+        if (approval && outcome === "unknown") await route.abort();
+        else await route.fallback();
+      });
+      try {
+        await page.getByRole("button", { name: /Initiate withdrawal$/ }).click();
+        await expect.poll(() => received).toBe(true);
+        await expect(page.getByText("Operation in progress for this account.", { exact: true })).toBeVisible();
+        await expect(
+          page
+            .getByRole("status")
+            .filter({ hasText: "An earlier protected operation needs reconciliation before a new attempt." }),
+        ).toHaveCount(0);
+        await expect(page.getByRole("button", { name: "Clear after reconciliation", exact: true })).toHaveCount(0);
+        await expect(page.getByRole("button", { name: /Initiate withdrawal$/ })).toBeDisabled();
+        // The journal is already saved, but the SDK mutation has not started in this stage.
+        if (stage === "preparation") await expect(page.getByTestId("integration-withdraw-status")).toHaveCount(0);
+        release();
+        if (outcome === "success") {
+          await expect(
+            page.getByText("Withdrawal initiated. Finalize it below after the cooldown.", { exact: true }),
+          ).toBeVisible();
+          await expect(page.getByText("Operation in progress for this account.", { exact: true })).toHaveCount(0);
+          await expect(page.getByRole("button", { name: "Clear after reconciliation", exact: true })).toHaveCount(0);
+          expect(mock.writes.filter((method) => method === "approval")).toHaveLength(1);
+          expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toHaveLength(1);
+        } else {
+          await expect(
+            page
+              .getByRole("status")
+              .filter({ hasText: "An earlier protected operation needs reconciliation before a new attempt." }),
+          ).toBeVisible();
+          await expect(page.getByRole("button", { name: "Clear after reconciliation", exact: true })).toBeVisible();
+          await expect(page.getByText("Operation in progress for this account.", { exact: true })).toHaveCount(0);
+          await expect(page.getByRole("button", { name: /Initiate withdrawal$/ })).toBeDisabled();
+          expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toHaveLength(0);
+        }
+        expect(approvalRequests).toBe(1);
+      } finally {
+        release();
+      }
+    });
+  }
+}
+
 for (const configured of [false, true]) {
   test(`withdrawal uses the owner when session authority is missing (timelock=${configured})`, async ({ page }) => {
     await enableTimelockSolver(page);
@@ -1894,14 +1977,13 @@ test("an issued approval remains recoverable when delegation fails later", async
   await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
   await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
   await page.getByTestId("button-initiate-withdraw").click();
-  await expect(
-    page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
-  ).toBeVisible();
-  await expect(page.getByTestId("button-initiate-withdraw")).toBeDisabled();
   await expect.poll(() => mock.writes, { timeout: 15_000 }).toEqual(["approval"]);
   await expect(page.getByTestId("integration-withdraw-status")).toContainText(
     "holds no active InstantLayer delegation",
   );
+  await expect(
+    page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+  ).toBeVisible();
   const sessionSigner = await page.evaluate((owner) => {
     const stored = localStorage.getItem(`session-key:${owner.toLowerCase()}`);
     if (!stored) throw new Error("Session key was not persisted");
