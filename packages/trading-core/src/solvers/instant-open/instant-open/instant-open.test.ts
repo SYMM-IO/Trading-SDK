@@ -132,6 +132,29 @@ describe("instantOpen — Enigma timelock margin", () => {
     return { ...mocks, config, getBlock, info };
   }
 
+  it("submits plain margin when the solver explicitly disables timelocks with null metadata", async () => {
+    const { config, readContract, signTypedData, getBlock } = setup();
+    getInfo.mockResolvedValue({ data: { timelock_enabled: false, timelock_approval: null } });
+    await expect(instantOpen(config, params({ preflightDelegation: false }))).resolves.toMatchObject({ success: true });
+    const request = postInstantTradeInstantOpen.mock.calls[0]![0];
+    expect(request.addMargin.signedOperation.callData.startsWith(ADD_MARGIN_TO_NEXT_VA_SELECTOR)).toBe(true);
+    expect(request.addMargin.signedOperation.flexFields).toEqual([]);
+    expect(signTypedData).toHaveBeenCalledTimes(2);
+    expect(postInstantTradeInstantOpen).toHaveBeenCalledTimes(1);
+    expect(readContract).not.toHaveBeenCalled();
+    expect(getBlock).not.toHaveBeenCalled();
+  });
+
+  it("rejects enabled timelocks with null metadata before signing or posting", async () => {
+    const { config, signTypedData } = setup();
+    getInfo.mockResolvedValue({ data: { timelock_enabled: true, timelock_approval: null } });
+    await expect(instantOpen(config, params({ preflightDelegation: false }))).rejects.toMatchObject({
+      code: "INVALID_INSTANT_OPEN_TIMELOCK_METADATA",
+    });
+    expect(signTypedData).not.toHaveBeenCalled();
+    expect(postInstantTradeInstantOpen).not.toHaveBeenCalled();
+  });
+
   it("allows an independent margin deadline beyond public validity", async () => {
     const { config, info } = setup();
     info.timelock_approval.validity_seconds = 10;

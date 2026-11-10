@@ -48,8 +48,26 @@ describe("getSolverInfo", () => {
       timelockApproval: { minTimelockDelaySeconds: 600, validitySeconds: 60, requestDomain: { chainId: "42161" } },
     });
   });
-  it("rejects explicitly malformed timelock metadata instead of reporting unsupported", async () => {
-    genFn.mockResolvedValue({ data: { timelock_approval: null } });
+  it("preserves fees when the solver explicitly disables timelocks with null metadata", async () => {
+    genFn.mockResolvedValue({
+      data: {
+        timelock_enabled: false,
+        timelock_approval: null,
+        static_solver_fee_open: "0.1",
+        static_solver_fee_close: "0.2",
+      },
+    });
+    expect(await getSolverInfo(config, { chainId: ARBITRUM })).toEqual({
+      staticSolverFeeOpen: "0.1",
+      staticSolverFeeClose: "0.2",
+    });
+  });
+  it.each([
+    { timelock_approval: null },
+    { timelock_enabled: true, timelock_approval: null },
+    { timelock_enabled: false, timelock_approval: {} },
+  ])("rejects explicitly malformed timelock metadata %j instead of reporting unsupported", async (data) => {
+    genFn.mockResolvedValue({ data });
     await expect(getSolverInfo(config, { chainId: ARBITRUM })).rejects.toMatchObject({
       code: "INVALID_TIMELOCK_METADATA",
     });

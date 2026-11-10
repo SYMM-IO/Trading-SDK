@@ -354,7 +354,8 @@ The delegation check still authorizes the fixed inner `addMarginToNextVA` select
 not the wrapper. `preflightDelegation: false` skips only delegation reads; it never
 bypasses the timelock policy check. No extra wrapper delegation is needed.
 
-Solvers that do not advertise this metadata keep their plain margin operation;
+Solvers that do not advertise this metadata, or explicitly return `timelock_enabled: false`
+with `timelock_approval: null`, keep their plain margin operation;
 metadata fetch failures and malformed metadata never trigger that legacy path.
 Enigma v0.8.5 and Rasa retain their existing encoding. See the
 [staging solver specification](https://arb-staging.enigma.bz/api/swagger/doc.json)

@@ -12,6 +12,7 @@ function record(value: unknown): Record<string, unknown> | undefined {
 /** Normalize optional Enigma metadata; an explicitly malformed capability never selects a legacy path. @internal */
 export function parseTimelockInfo(value: unknown, chain: SymmioChainConfig): TimelockApprovalCapability | undefined {
   const info = record(value);
+  if (info?.timelock_enabled === false && info.timelock_approval === null) return undefined;
   if (info && !("timelock_approval" in info)) return undefined;
   const metadata = record(info?.timelock_approval);
   const domain = record(metadata?.request_domain);
