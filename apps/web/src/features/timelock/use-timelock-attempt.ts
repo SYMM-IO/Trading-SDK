@@ -2,7 +2,7 @@
 
 import { STAGING_CHAIN_OVERRIDES } from "@/config/symmio-presets";
 import type { TimelockAuthorization, ValidatedTimelockApproval } from "@symmio/trading-core";
-import { useTimelockApprovalProvider } from "@symmio/trading-react";
+import { hasTimelockSubmissionEvidence, SymmioRequestError, useTimelockApprovalProvider } from "@symmio/trading-react";
 import { useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 import {
@@ -204,6 +204,11 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
         } catch (failure) {
           const marker = PREPARING;
           const current = saved.current.get(key);
+          const unsubmittedDelegationFailure =
+            failure instanceof SymmioRequestError &&
+            failure.kind === "sdk" &&
+            failure.code === "GASLESS_SIGNER_NOT_DELEGATED" &&
+            !hasTimelockSubmissionEvidence(failure);
           let issuedOnly = false;
           if (current && current !== marker) {
             try {
@@ -216,7 +221,7 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
           if (
             current &&
             readTimelockRecovery(key) === current &&
-            ((current === marker && isDefiniteApprovalRejection(failure)) ||
+            ((current === marker && (isDefiniteApprovalRejection(failure) || unsubmittedDelegationFailure)) ||
               ((current === marker || issuedOnly) && isUnsubmittedWalletRejection(failure)))
           )
             save(null);

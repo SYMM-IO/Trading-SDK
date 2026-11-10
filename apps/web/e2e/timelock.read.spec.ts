@@ -123,10 +123,22 @@ async function mockDeployment(
     approvalUnavailable?: boolean;
     locked?: readonly string[];
     isolationType?: number;
+    delegatedSelectors?: "all" | readonly Hex[];
+    rejectDelegation?: boolean | "after-approval";
+    failDelegationRead?: boolean;
+    independentAccounts?: boolean;
+    delegationAccount?: string;
+    delegationExpiry?: bigint;
   } = {},
 ) {
-  const { accountLayerAbi, getChainConfig, INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS, INSTANT_OPEN_TIMELOCK_SELECTORS } =
-    await import("@symmio/trading-core");
+  const {
+    accountLayerAbi,
+    instantLayerAbi,
+    gaslessLayerAbi,
+    getChainConfig,
+    INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS,
+    INSTANT_OPEN_TIMELOCK_SELECTORS,
+  } = await import("@symmio/trading-core");
   const lockedSelectors = options.locked?.map(
     (name) => INSTANT_OPEN_TIMELOCK_SELECTORS[INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS.findIndex((item) => item === name)],
   );
@@ -134,8 +146,9 @@ async function mockDeployment(
   const reads: string[] = [];
   const writes: string[] = [];
   const writeData: Hex[] = [];
+  const approvalSigners: string[] = [];
   let infoReads = 0;
-  const state = { minimum: 300, now: 1_800_000_000n, scheduledAt: 0n };
+  const state = { minimum: 300, now: 1_800_000_000n, scheduledAt: 0n, delegationRevoked: false };
   function empty(parameter: AbiParameter): unknown {
     if (parameter.type.endsWith("[]")) return [];
     if (parameter.type === "tuple" && "components" in parameter)
@@ -148,7 +161,7 @@ async function mockDeployment(
     return 0n;
   }
   function call(data: Hex): Hex {
-    const abi = [...accountLayerAbi, ...multicall3Abi] as Abi;
+    const abi = [...accountLayerAbi, ...instantLayerAbi, ...gaslessLayerAbi, ...multicall3Abi] as Abi;
     const decoded = decodeFunctionData({ abi, data });
     const name = decoded.functionName;
     const item = abi.find((entry) => entry.type === "function" && entry.name === name);
@@ -173,15 +186,42 @@ async function mockDeployment(
       }));
     }
     if (name === "getVirtualAccount")
-      result = { ...(result as object), accountAddress: VA, parentAccount: ROOT, isExists: decoded.args![0] === VA };
+      result = {
+        ...(result as object),
+        accountAddress: VA,
+        parentAccount: options.independentAccounts ? zeroAddress : ROOT,
+        isExists: !options.independentAccounts && decoded.args![0] === VA,
+      };
     if (name === "getSubAccount")
       result = {
         ...(result as object),
-        accountAddress: ROOT,
+        accountAddress: options.independentAccounts ? decoded.args![0] : ROOT,
         owner: OWNER,
         isExists: true,
         isolationType: options.isolationType ?? 1,
       };
+    if (name === "getActiveDelegations") {
+      if (options.failDelegationRead) throw new Error("Delegation read unavailable");
+      const delegates = decoded.args![1] as readonly string[];
+      const wanted = decoded.args![2] as readonly (readonly Hex[])[];
+      result = delegates.map((delegate, index) => ({
+        account: decoded.args![0],
+        delegatedSigner: delegate,
+        selectors: wanted[index]!.filter(
+          (selector) =>
+            !state.delegationRevoked &&
+            (!options.delegationAccount ||
+              (decoded.args![0] as { addr: string }).addr.toLowerCase() === options.delegationAccount.toLowerCase()) &&
+            (options.delegatedSelectors === "all" || options.delegatedSelectors?.includes(selector)),
+        ),
+        expiryTimestamp: options.delegationExpiry ?? 2_000_000_000n,
+      }));
+    }
+    if (name === "isDelegationActive") {
+      result = options.rejectDelegation === "after-approval" ? !writes.includes("approval") : !options.rejectDelegation;
+      if (!result) state.delegationRevoked = true;
+    }
+    if (name === "instantLayer") result = getChainConfig(42161).addresses.instantLayerAddress;
     if (name === "minTimelockDelay") result = 120n;
     if (name === "getSelectorTimelock") {
       reads.push(String(decoded.args![0]));
@@ -221,6 +261,7 @@ async function mockDeployment(
     }
     if (request.url().includes("timelock-approval")) {
       writes.push("approval");
+      approvalSigners.push(request.postDataJSON().signedOperation.signer);
       if (options.approvalUnavailable) {
         await route.fulfill({ status: 503, json: {} });
         return;
@@ -355,6 +396,7 @@ async function mockDeployment(
     reads,
     writes,
     writeData,
+    approvalSigners,
     state,
     get infoReads() {
       return infoReads;
@@ -401,7 +443,8 @@ async function continueToWithdrawal(page: Page) {
   await expect(button.or(amount)).toBeVisible();
   if (await button.isVisible()) {
     try {
-      await button.click();
+      // Setup can auto-advance between the visibility read and the click.
+      await button.click({ timeout: 1000 });
     } catch (error) {
       if (!(await amount.isVisible())) throw error;
     }
@@ -1694,6 +1737,221 @@ test("a normal withdrawal is not blocked by another normal shared lock", async (
   ).toHaveCount(0);
   await second.evaluate(() => (window as Window & { releaseTestLock?: () => void }).releaseTestLock?.());
   await second.close();
+});
+
+for (const configured of [false, true]) {
+  test(`withdrawal uses the owner when session authority is missing (timelock=${configured})`, async ({ page }) => {
+    await enableTimelockSolver(page);
+    await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+    const mock = await mockDeployment(page, { configured, mockSignature: true, mockWriteSuccess: true });
+    await openTimelock(page);
+    await openWithdrawal(page);
+    await continueToWithdrawal(page);
+    await page.getByTestId("integration-withdraw-amount").fill("1");
+    await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+    await expect(page.getByTestId("withdrawal-owner-signer-note")).toBeVisible();
+    await expect(page.getByTestId("session-key-signer-note")).toHaveCount(0);
+    await page.getByTestId("button-initiate-withdraw").click();
+    await expect.poll(() => mock.writes.filter((method) => method.startsWith("eth_send")).length).toBe(1);
+    expect(mock.writes.filter((method) => method === "approval")).toHaveLength(configured ? 1 : 0);
+    await expect(
+      page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+    ).toHaveCount(0);
+  });
+
+  test(`withdrawal retains a fully delegated session signer (timelock=${configured})`, async ({ page }) => {
+    await enableTimelockSolver(page);
+    await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+    await mockDeployment(page, { configured, delegatedSelectors: "all" });
+    await openTimelock(page);
+    await openWithdrawal(page);
+    await continueToWithdrawal(page);
+    await page.getByTestId("integration-withdraw-amount").fill("1");
+    await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+    await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
+    await expect(page.getByTestId("withdrawal-owner-signer-note")).toHaveCount(0);
+    await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+  });
+}
+
+test("withdrawal owner fallback preserves configured gasless dispatch", async ({ page }) => {
+  await enableTimelockSolver(page);
+  await page.addInitScript(() => {
+    localStorage.setItem("symm:gasless:session-key-default", "on");
+    const overrides = JSON.parse(localStorage.getItem("symmio.config.overrides.v4")!);
+    overrides[42161].gasless = { execution: { mode: "gasless" } };
+    localStorage.setItem("symmio.config.overrides.v4", JSON.stringify(overrides));
+  });
+  const mock = await mockDeployment(page, { configured: true, mockSignature: true, mockWriteSuccess: true });
+  const relayPayloads: string[] = [];
+  await page.route("**/operations/**", async (route) => {
+    relayPayloads.push(route.request().postData() ?? "");
+    await route.fulfill({ status: 400, json: { detail: { code: "SIMULATION_REVERTED", message: "Mock rejection" } } });
+  });
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await expect(page.getByTestId("withdrawal-owner-signer-note")).toBeVisible();
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await page.getByTestId("button-initiate-withdraw").click();
+  await expect.poll(() => relayPayloads.length).toBe(1);
+  expect(relayPayloads[0]!.toLowerCase()).toContain(OWNER.toLowerCase());
+  expect(mock.approvalSigners.map((signer) => signer.toLowerCase())).toEqual([OWNER.toLowerCase()]);
+  expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toEqual([]);
+});
+
+for (const granted of ["initiateWithdraw", "deallocate", "both"] as const) {
+  test(`normal CUSTOM withdrawal requires both session permissions (granted=${granted})`, async ({ page }) => {
+    const { symmioAbi } = await import("@symmio/trading-core");
+    const selectors = (granted === "both" ? ["initiateWithdraw", "deallocate"] : [granted]).map((name) =>
+      toFunctionSelector(getAbiItem({ abi: symmioAbi, name: name as "initiateWithdraw" | "deallocate" })),
+    );
+    await enableTimelockSolver(page);
+    await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+    const mock = await mockDeployment(page, { isolationType: 3, delegatedSelectors: selectors });
+    await openTimelock(page);
+    await openWithdrawal(page);
+    await continueToWithdrawal(page);
+    if (granted === "both") {
+      await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
+      await expect(page.getByTestId("withdrawal-owner-signer-note")).toHaveCount(0);
+    } else {
+      await expect(page.getByTestId("withdrawal-owner-signer-note")).toBeVisible();
+      await expect(page.getByTestId("session-key-signer-note")).toHaveCount(0);
+    }
+    expect(mock.writes).toEqual([]);
+  });
+}
+
+test("withdrawal stops using a locally expired key even while delegation remains active", async ({ page }) => {
+  await page.clock.install();
+  await enableTimelockSolver(page);
+  await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+  await mockDeployment(page, { delegatedSelectors: "all" });
+  await openTimelock(page);
+  const storageKey = `session-key:${OWNER.toLowerCase()}`;
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), storageKey)).not.toBeNull();
+  await page.evaluate((key) => {
+    const stored = JSON.parse(localStorage.getItem(key)!);
+    stored.expiresAt = Date.now() + 90_000;
+    localStorage.setItem(key, JSON.stringify(stored));
+  }, storageKey);
+  // A new document loads the same encrypted key with its shorter local lifetime.
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
+  await page.clock.fastForward(91_000);
+  await expect(page.getByTestId("session-key-signer-note")).toHaveCount(0);
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+});
+
+for (const configured of [false, true]) {
+  test(`withdrawal does not retain a recovery record when delegation is revoked before submission (timelock=${configured})`, async ({
+    page,
+  }) => {
+    await enableTimelockSolver(page);
+    await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+    const mock = await mockDeployment(page, { configured, delegatedSelectors: "all", rejectDelegation: true });
+    await openTimelock(page);
+    await openWithdrawal(page);
+    await continueToWithdrawal(page);
+    await page.getByTestId("integration-withdraw-amount").fill("1");
+    await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+    await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
+    await page.getByTestId("button-initiate-withdraw").click();
+    await expect(page.getByTestId("integration-withdraw-status")).toContainText(
+      configured ? "lacks delegation" : "holds no active InstantLayer delegation",
+    );
+    await expect(
+      page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+    expect(mock.writes).toEqual([]);
+    const records = await page.evaluate(() =>
+      Object.keys(localStorage).filter((key) => key.startsWith("symm:timelock-attempt:")),
+    );
+    expect(records).toEqual([]);
+    await expect(page.getByTestId("withdrawal-owner-signer-note")).toBeVisible();
+  });
+}
+
+test("an issued approval remains recoverable when delegation fails later", async ({ page }) => {
+  await enableTimelockSolver(page);
+  await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+  const mock = await mockDeployment(page, {
+    configured: true,
+    delegatedSelectors: "all",
+    rejectDelegation: "after-approval",
+    mockWriteSuccess: true,
+  });
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
+  await page.getByTestId("button-initiate-withdraw").click();
+  await expect(
+    page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+  ).toBeVisible();
+  await expect(page.getByTestId("button-initiate-withdraw")).toBeDisabled();
+  await expect.poll(() => mock.writes, { timeout: 15_000 }).toEqual(["approval"]);
+  await expect(page.getByTestId("integration-withdraw-status")).toContainText(
+    "holds no active InstantLayer delegation",
+  );
+  const sessionSigner = await page.evaluate((owner) => {
+    const stored = localStorage.getItem(`session-key:${owner.toLowerCase()}`);
+    if (!stored) throw new Error("Session key was not persisted");
+    return JSON.parse(stored).publicAddress as string;
+  }, OWNER);
+  expect(mock.approvalSigners.map((signer) => signer.toLowerCase())).toEqual([sessionSigner.toLowerCase()]);
+  await expect(page.getByTestId("button-initiate-withdraw")).toBeDisabled();
+});
+
+test("an idle withdrawal switches to the owner when its delegation expires", async ({ page }) => {
+  await page.clock.install();
+  await enableTimelockSolver(page);
+  await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+  await mockDeployment(page, {
+    delegatedSelectors: "all",
+    delegationExpiry: BigInt(Math.floor(Date.now() / 1000) + 90),
+  });
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
+  await page.clock.fastForward(91_000);
+  await expect(page.getByTestId("withdrawal-owner-signer-note")).toBeVisible();
+  await expect(page.getByTestId("session-key-signer-note")).toHaveCount(0);
+});
+
+test("withdrawal does not reuse delegation from another root account", async ({ page }) => {
+  await enableTimelockSolver(page);
+  await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+  await mockDeployment(page, { delegatedSelectors: "all", independentAccounts: true, delegationAccount: ROOT });
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
+  await page.getByTestId("step-1").click();
+  await page.getByTestId(`subaccount-${VA}`).click();
+  await continueToWithdrawal(page);
+  await expect(page.getByTestId("withdrawal-owner-signer-note")).toBeVisible();
+  await expect(page.getByTestId("session-key-signer-note")).toHaveCount(0);
+});
+
+test("a withdrawal permission read failure selects the owner before submission", async ({ page }) => {
+  await enableTimelockSolver(page);
+  await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+  const mock = await mockDeployment(page, { failDelegationRead: true });
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await expect(page.getByTestId("withdrawal-owner-signer-note")).toContainText("could not be verified");
+  expect(mock.writes).toEqual([]);
 });
 
 test("a solver outage prepares the exact delayed withdrawal without sending an approval", async ({ page }) => {

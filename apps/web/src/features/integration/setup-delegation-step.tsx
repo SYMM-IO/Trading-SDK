@@ -72,7 +72,9 @@ export function SetupDelegationStep({ delegation, withdraw, onWithdrawChange, ha
             <span className="text-muted-foreground text-xs leading-5 font-normal">
               Adds <code className="font-mono">initiateWithdraw</code>, which lets this key send the sub-account’s
               collateral to any address it picks. Leave it off unless the key must run withdrawals unattended — the
-              Integration console’s withdraw flow prompts the wallet instead when it is off.
+              Integration console’s withdraw flow prompts the wallet instead when its required permissions are missing.
+              Timelock-protected withdrawals also require separate wrapper authority, which this standard grant does not
+              add.
             </span>
           </span>
         </Label>

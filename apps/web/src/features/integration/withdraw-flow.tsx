@@ -41,6 +41,7 @@ import { FlowLayout } from "./flow-layout";
 import type { FlowStep } from "./flow-rail";
 import { parseAmount } from "./parse-amount";
 import { SubaccountStep } from "./subaccount-step";
+import { useWithdrawalWriteOption } from "./use-withdrawal-write-option";
 
 /**
  * Relay outcomes that mean "submitted, status unknown" rather than "failed":
@@ -67,7 +68,8 @@ interface Props {
  * Withdraw wizard: Connect → Select subaccount → Withdraw. Navigable via the rail.
  * The withdraw step initiates a classic same-chain request, shows the cooldown
  * timing, and lists pending requests with inline finalize / cancel actions. All
- * three writes follow the wallet menu's session-key default.
+ * writes follow the wallet menu's session-key preference; initiation verifies
+ * its required delegations before selecting the session key.
  */
 export function WithdrawFlow({
   owner,
@@ -89,9 +91,6 @@ export function WithdrawFlow({
 
   const withdrawableTime = useWithdrawableTime({ user: subAccount });
   const withdraw = useWithdraw({ account: subAccount, chainId, automaticTimelock: false });
-
-  /** The session key when the wallet menu's default is on; the CUSTOM path's deallocate leg rides along. */
-  const initiateWrite = useFlowWriteOption("initiateWithdraw");
 
   // The subaccount's isolation strategy selects the withdraw path: CUSTOM
   // (cross-margin) funds sit in the ALLOCATED balance and must be deallocated
@@ -127,6 +126,18 @@ export function WithdrawFlow({
     policiesKnown &&
     lockedPolicies.every((item) => item?.status === "ok") &&
     (!lockedPolicies.length || (journal.loaded && !journal.recovery && !journal.error));
+
+  const withdrawalSigner = useWithdrawalWriteOption({
+    account: timelock.rootAccount ?? subAccount,
+    chainId,
+    policyKnown: isolationType !== undefined && (timelock.unsupported || policiesKnown),
+    selectors: lockedPolicies.length
+      ? [sliceHex(encodeCoreCall(subAccount ?? zeroAddress, "0x"), 0, 4)]
+      : [initiateSelector, ...(isCustom ? [deallocateSelector] : [])].filter(
+          (selector): selector is `0x${string}` => selector !== undefined,
+        ),
+  });
+  const initiateWrite = withdrawalSigner.write;
 
   // Balance shown on the withdraw step, per isolation: CUSTOM reads the allocated
   // balance (funds live in margin); the VA modes read the available balance.
@@ -186,6 +197,7 @@ export function WithdrawFlow({
   }
   const canInitiate = Boolean(
     !fallbackBusy &&
+    !withdrawalSigner.checking &&
     (!timelock.checkRecovery || (journal.loaded && !journal.recovery && !journal.error)) &&
     (timelock.unsupported ||
       (timelock.capability && !timelock.policy.error && protectedReady && isolationType !== undefined)) &&
@@ -221,6 +233,8 @@ export function WithdrawFlow({
         return await withdraw.mutateAsync(input);
       } catch (error) {
         writeFailed = true;
+        if (error && typeof error === "object" && "code" in error && error.code === "GASLESS_SIGNER_NOT_DELEGATED")
+          await withdrawalSigner.refresh();
         throw error;
       }
     };
@@ -428,9 +442,16 @@ export function WithdrawFlow({
             {parsed === undefined ? "Enter an amount" : "Initiate withdrawal"}
           </Button>
 
-          <SessionKeySignerNote signer={initiateWrite.from}>
-            Initiating also needs “Also allow withdrawals” ticked in the key’s grant on Session Keys.
-          </SessionKeySignerNote>
+          {withdrawalSigner.checking ? (
+            <ResultNote loading>Checking session-key withdrawal permissions…</ResultNote>
+          ) : withdrawalSigner.ownerFallback ? (
+            <ResultNote testId="withdrawal-owner-signer-note">
+              {withdrawalSigner.readFailed
+                ? "Session-key permissions could not be verified. Your wallet will sign this withdrawal."
+                : "This session key is not authorized for this withdrawal. Your wallet will sign instead."}
+            </ResultNote>
+          ) : null}
+          <SessionKeySignerNote signer={initiateWrite.from} />
 
           <InitiateStatus withdraw={withdraw} bySessionKey={initiateWrite.from !== undefined} account={subAccount} />
 
