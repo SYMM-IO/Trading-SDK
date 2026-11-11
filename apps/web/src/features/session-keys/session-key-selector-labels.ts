@@ -11,10 +11,10 @@ import {
 import { keccak256, slice, toBytes, toFunctionSelector, type Hex } from "viem";
 
 /**
- * The three authority groups a session-key grant is built from, matching the
- * `trade` / `account` / `withdraw` flags of `getSessionKeySelectors`.
+ * The SDK authority groups plus this app’s explicit protected-withdrawal scope.
+ * The generic `getSessionKeySelectors` flags do not add protected Core-call authority.
  */
-export type SessionKeyScopeName = "trade" | "account" | "withdraw";
+export type SessionKeyScopeName = "trade" | "account" | "withdraw" | "protected";
 
 /** What one delegable selector is called on-chain, and what holding it lets a key do. */
 interface SelectorLabel {
@@ -102,6 +102,8 @@ const SELECTOR_LABELS: ReadonlyMap<string, SelectorLabel> = new Map([
     "initiateWithdraw((uint256,uint256,int256,bytes,address,address)[],bool,bytes)",
     "grants collateral exit",
   ),
+  /** Explicit protected-withdrawal opt-in; never part of the timelock policy itself. */
+  bySignature("_call(address,bytes[])", "allows protected withdrawals and other Core operations on this account"),
   /** Gasless wallet execution. */
   [
     slice(keccak256(toBytes(WALLET_EXECUTION_SENTINEL)), 0, 4),
@@ -139,6 +141,7 @@ export function describeSelectorPurpose(selector: Hex): string | undefined {
  */
 export function getSelectorScope(selector: Hex): SessionKeyScopeName {
   const normalized = selector.toLowerCase();
+  if (normalized === toFunctionSelector("_call(address,bytes[])")) return "protected";
   if (WITHDRAW_SELECTORS.has(normalized)) return "withdraw";
   if (ACCOUNT_SELECTORS.has(normalized)) return "account";
   return "trade";

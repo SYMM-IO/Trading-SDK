@@ -9,6 +9,7 @@ import {
   clearReviewedTimelockRecovery,
   hasTimelockHistory,
   isDefiniteApprovalRejection,
+  isDefiniteGaslessSimulationRejection,
   isUnsubmittedWalletRejection,
   mayHaveTimelockRecovery,
   notifyTimelockRecoveryChanged,
@@ -222,7 +223,8 @@ export function useTimelockAttempt(context: TimelockContext, owner?: Address) {
             current &&
             readTimelockRecovery(key) === current &&
             ((current === marker && (isDefiniteApprovalRejection(failure) || unsubmittedDelegationFailure)) ||
-              ((current === marker || issuedOnly) && isUnsubmittedWalletRejection(failure)))
+              ((current === marker || issuedOnly) &&
+                (isUnsubmittedWalletRejection(failure) || isDefiniteGaslessSimulationRejection(failure))))
           )
             save(null);
           else if (isUnavailableApproval(failure)) {

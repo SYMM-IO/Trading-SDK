@@ -3,6 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess, ResultWarning } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
+import { GaslessFailureNote } from "@/features/gasless/gasless-failure-note";
 import { useFlowWriteOption, type GaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
 import { SessionKeySignerNote } from "@/features/gasless/session-key-signer-note";
 import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
@@ -15,6 +16,7 @@ import { useTimelockContext } from "@/features/timelock/use-timelock-context";
 import { formatUsd } from "@/lib/format";
 import { SubAccountIsolationType, WithdrawStatus, type WithdrawRequest } from "@symmio/trading-core";
 import {
+  classifyGaslessFailure,
   useAccountBalanceInfo,
   useAccountBalanceOf,
   useFinalizeWithdrawRequest,
@@ -34,6 +36,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { shortenAddress } from "@symmio/utils";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { isAddress, isAddressEqual, sliceHex, zeroAddress, type Address } from "viem";
 import { WalletPanel } from "../inspector/wallet-panel";
@@ -469,7 +472,10 @@ export function WithdrawFlow({
             <ResultNote testId="withdrawal-owner-signer-note">
               {withdrawalSigner.readFailed
                 ? "Session-key permissions could not be verified. Your wallet will sign this withdrawal."
-                : "This session key is not authorized for this withdrawal. Your wallet will sign instead."}
+                : "This session key is not authorized for this withdrawal. Your wallet will sign instead."}{" "}
+              <Link href="/session-keys#card-session-key-delegation" className="underline underline-offset-4">
+                Review delegation
+              </Link>
             </ResultNote>
           ) : null}
           <SessionKeySignerNote signer={initiateWrite.from} />
@@ -535,6 +541,9 @@ function InitiateStatus({
           relayer — check the request on the Gasless page before submitting again; do not re-sign.
         </ResultNote>
       );
+    }
+    if (classifyGaslessFailure(withdraw.error) === "payer-balance") {
+      return <GaslessFailureNote error={withdraw.error} testId="integration-withdraw-status" />;
     }
     return (
       <ResultError

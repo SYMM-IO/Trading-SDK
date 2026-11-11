@@ -129,12 +129,15 @@ async function mockDeployment(
     independentAccounts?: boolean;
     delegationAccount?: string;
     delegationExpiry?: bigint;
+    sessionSetup?: boolean;
+    legacyDelegation?: boolean;
   } = {},
 ) {
   const {
     accountLayerAbi,
     instantLayerAbi,
     gaslessLayerAbi,
+    symmioAbi,
     getChainConfig,
     INSTANT_OPEN_TIMELOCK_CORE_FUNCTIONS,
     INSTANT_OPEN_TIMELOCK_SELECTORS,
@@ -147,8 +150,25 @@ async function mockDeployment(
   const writes: string[] = [];
   const writeData: Hex[] = [];
   const approvalSigners: string[] = [];
+  const relayPayloads: {
+    operationType: string;
+    signedOps: { signer: string; callData: Hex; signerAccount: { addr: string } }[];
+  }[] = [];
+  const grants = new Map<string, Set<Hex>>();
+  const grantExpiries = new Map<string, bigint>();
+  const revocationEtas = new Map<string, bigint>();
+  function grantKey(account: string, signer: string) {
+    const root = !options.independentAccounts && account.toLowerCase() === VA.toLowerCase() ? ROOT : account;
+    return `${root.toLowerCase()}:${signer.toLowerCase()}`;
+  }
   let infoReads = 0;
-  const state = { minimum: 300, now: 1_800_000_000n, scheduledAt: 0n, delegationRevoked: false };
+  const state = {
+    minimum: 300,
+    policyConfigured: options.configured ?? false,
+    now: options.sessionSetup ? BigInt(Math.floor(Date.now() / 1000)) : 1_800_000_000n,
+    scheduledAt: 0n,
+    delegationRevoked: false,
+  };
   function empty(parameter: AbiParameter): unknown {
     if (parameter.type.endsWith("[]")) return [];
     if (parameter.type === "tuple" && "components" in parameter)
@@ -161,7 +181,13 @@ async function mockDeployment(
     return 0n;
   }
   function call(data: Hex): Hex {
-    const abi = [...accountLayerAbi, ...instantLayerAbi, ...gaslessLayerAbi, ...multicall3Abi] as Abi;
+    const abi = [
+      ...accountLayerAbi,
+      ...instantLayerAbi,
+      ...gaslessLayerAbi,
+      ...(symmioAbi as Abi),
+      ...multicall3Abi,
+    ] as Abi;
     const decoded = decodeFunctionData({ abi, data });
     const name = decoded.functionName;
     const item = abi.find((entry) => entry.type === "function" && entry.name === name);
@@ -204,30 +230,67 @@ async function mockDeployment(
       if (options.failDelegationRead) throw new Error("Delegation read unavailable");
       const delegates = decoded.args![1] as readonly string[];
       const wanted = decoded.args![2] as readonly (readonly Hex[])[];
+      if (options.legacyDelegation)
+        delegates.forEach((delegate, index) => {
+          const key = grantKey((decoded.args![0] as { addr: string }).addr, delegate);
+          if (!grants.has(key))
+            grants.set(key, new Set(wanted[index]!.filter((selector) => selector !== outerSelector)));
+        });
       result = delegates.map((delegate, index) => ({
         account: decoded.args![0],
         delegatedSigner: delegate,
         selectors: wanted[index]!.filter(
           (selector) =>
             !state.delegationRevoked &&
+            !(
+              revocationEtas.get(`${grantKey((decoded.args![0] as { addr: string }).addr, delegate)}:${selector}`) !==
+                undefined &&
+              revocationEtas.get(`${grantKey((decoded.args![0] as { addr: string }).addr, delegate)}:${selector}`)! <=
+                state.now
+            ) &&
             (!options.delegationAccount ||
               (decoded.args![0] as { addr: string }).addr.toLowerCase() === options.delegationAccount.toLowerCase()) &&
-            (options.delegatedSelectors === "all" || options.delegatedSelectors?.includes(selector)),
+            (options.delegatedSelectors === "all" ||
+              options.delegatedSelectors?.includes(selector) ||
+              grants.get(grantKey((decoded.args![0] as { addr: string }).addr, delegate))?.has(selector)),
         ),
-        expiryTimestamp: options.delegationExpiry ?? 2_000_000_000n,
+        expiryTimestamp:
+          options.delegationExpiry ??
+          grantExpiries.get(grantKey((decoded.args![0] as { addr: string }).addr, delegate)) ??
+          2_000_000_000n,
       }));
     }
     if (name === "isDelegationActive") {
       result = options.rejectDelegation === "after-approval" ? !writes.includes("approval") : !options.rejectDelegation;
+      if (options.sessionSetup)
+        result =
+          grants.get(grantKey(decoded.args![0] as string, decoded.args![1] as string))?.has(decoded.args![2] as Hex) ??
+          false;
       if (!result) state.delegationRevoked = true;
     }
+    if (options.sessionSetup && name === "previewFeeQuote")
+      result = {
+        ...(result as object),
+        collateralToken: getChainConfig(42161).addresses.collateralAddress,
+        collateralDecimals: 6,
+        exact: true,
+        nativeSponsored: true,
+      };
+    if (options.sessionSetup && name === "balanceOf") result = 100n * 10n ** 18n;
+    if (options.sessionSetup && name === "balanceInfoOfPartyA")
+      result = (result as unknown[]).map((entry, index) => (index === 0 ? 100n * 10n ** 18n : entry));
+    if (options.sessionSetup && name === "getOperationalFeeAllowance") result = [100n * 10n ** 18n, 0n, 0n, 1_000_000n];
     if (name === "instantLayer") result = getChainConfig(42161).addresses.instantLayerAddress;
+    if (options.sessionSetup && name === "pendingRevocationEta")
+      result =
+        revocationEtas.get(`${grantKey(decoded.args![0] as string, decoded.args![1] as string)}:${decoded.args![2]}`) ??
+        0n;
     if (name === "minTimelockDelay") result = 120n;
     if (name === "getSelectorTimelock") {
       reads.push(String(decoded.args![0]));
       const locked =
         decoded.args![1] !== outerSelector &&
-        (options.configured || lockedSelectors?.includes(decoded.args![1] as Hex));
+        (state.policyConfigured || lockedSelectors?.includes(decoded.args![1] as Hex));
       result = { unlocker: locked ? UNLOCKER : zeroAddress, delay: locked ? 300n : 0n };
     }
     if (name === "getSchedule") result = { scheduledAt: state.scheduledAt, nonce: 0 };
@@ -303,6 +366,48 @@ async function mockDeployment(
       await route.abort();
       return;
     }
+    if (options.sessionSetup && new URL(request.url()).pathname.endsWith("/gateway/relay-instant")) {
+      const body = request.postDataJSON() as (typeof relayPayloads)[number];
+      relayPayloads.push(body);
+      for (const operation of body.signedOps) {
+        try {
+          const decoded = decodeFunctionData({ abi: instantLayerAbi, data: operation.callData });
+          if (decoded.functionName === "grantDelegation") {
+            const grant = decoded.args[0];
+            const key = grantKey(grant.account.addr, grant.delegatedSigner);
+            grants.set(key, new Set([...(grants.get(key) ?? []), ...grant.selectors]));
+            grantExpiries.set(key, BigInt(grant.expiryTimestamp));
+            state.delegationRevoked = false;
+          }
+        } catch {
+          /* Non-grant relays do not change delegation state. */
+        }
+      }
+      await route.fulfill({
+        status: 202,
+        headers: {
+          "x-gaslessq-protocol-instance": new URL(request.url()).pathname.match(/\/instances\/([^/]+)/)![1]!,
+          "access-control-expose-headers": "x-gaslessq-protocol-instance",
+        },
+        json: { request_id: `test-relay-${relayPayloads.length}`, status: "queued" },
+      });
+      return;
+    }
+    if (options.sessionSetup && request.method() === "GET" && request.url().includes("/operations/test-relay-")) {
+      await route.fulfill({
+        headers: {
+          "x-gaslessq-protocol-instance": new URL(request.url()).pathname.match(/\/instances\/([^/]+)/)![1]!,
+          "access-control-expose-headers": "x-gaslessq-protocol-instance",
+        },
+        json: {
+          id: new URL(request.url()).pathname.split("/").at(-1),
+          status: "succeeded",
+          tx_hash: `0x${"ab".repeat(32)}`,
+          user_address: OWNER,
+        },
+      });
+      return;
+    }
     let body;
     try {
       body = request.postDataJSON();
@@ -331,7 +436,36 @@ async function mockDeployment(
         }
         if (entry.method.startsWith("eth_send") && options.mockWriteSuccess) {
           writes.push(entry.method);
-          if (entry.params?.[0]?.data) writeData.push(entry.params[0].data);
+          if (entry.params?.[0]?.data) {
+            writeData.push(entry.params[0].data);
+            if (options.sessionSetup) {
+              if (
+                entry.params[0].data.startsWith(
+                  toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "setupTimelocks" })),
+                )
+              )
+                state.policyConfigured = true;
+              try {
+                const decoded = decodeFunctionData({ abi: instantLayerAbi, data: entry.params[0].data });
+                if (
+                  decoded.functionName === "initiateRevokeDelegation" ||
+                  decoded.functionName === "finalizeRevokeDelegation"
+                ) {
+                  const key = grantKey(decoded.args[0].addr, decoded.args[1]);
+                  for (const selector of decoded.args[2]) {
+                    if (decoded.functionName === "initiateRevokeDelegation")
+                      revocationEtas.set(`${key}:${selector}`, state.now + 60n);
+                    else {
+                      revocationEtas.delete(`${key}:${selector}`);
+                      grants.get(key)?.delete(selector);
+                    }
+                  }
+                }
+              } catch {
+                /* Other test writes do not alter delegation state. */
+              }
+            }
+          }
           return { jsonrpc: "2.0", id: entry.id, result: `0x${"ab".repeat(32)}` };
         }
         if (entry.method.startsWith("eth_send") || entry.method.startsWith("eth_sign")) {
@@ -397,6 +531,7 @@ async function mockDeployment(
     writes,
     writeData,
     approvalSigners,
+    relayPayloads,
     state,
     get infoReads() {
       return infoReads;
@@ -1739,6 +1874,173 @@ test("a normal withdrawal is not blocked by another normal shared lock", async (
   await second.close();
 });
 
+for (const protectedWithdrawal of [false, true]) {
+  test(`fresh setup grants real withdrawal authority before session signing (protected=${protectedWithdrawal})`, async ({
+    page,
+  }) => {
+    const { accountLayerAbi, instantLayerAbi } = await import("@symmio/trading-core");
+    await enableTimelockSolver(page);
+    await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+    const mock = await mockDeployment(page, {
+      sessionSetup: true,
+      configured: false,
+      unsupported: !protectedWithdrawal,
+      mockSignature: true,
+      mockWriteSuccess: true,
+    });
+    await openTimelock(page, ROOT, false);
+    await page.goto("/integration", { waitUntil: "domcontentloaded" });
+    await connectMockWallet(page);
+    await page.getByTestId(`subaccount-${ROOT}`).click();
+    const optIn = page.getByRole("checkbox", { name: /Also allow withdrawals/ });
+    await expect(optIn).toBeVisible();
+    await expect(optIn).not.toBeChecked();
+    await optIn.check();
+    if (protectedWithdrawal)
+      await expect(page.getByText(/Includes _call authority for protected withdrawals/)).toBeVisible();
+    await page.getByRole("button", { name: /Grant authority/ }).click();
+    if (protectedWithdrawal)
+      await page.getByRole("button", { name: "Configure trading protection", exact: true }).click();
+    else await page.getByRole("button", { name: "Skip for now", exact: true }).click();
+    await expect(page.getByTestId("button-setup-start-trading")).toBeEnabled();
+    const grantRelay = mock.relayPayloads[0]!;
+    expect(grantRelay.signedOps[0]!.signer.toLowerCase()).toBe(OWNER.toLowerCase());
+    const decoded = decodeFunctionData({ abi: instantLayerAbi, data: grantRelay.signedOps[0]!.callData });
+    if (decoded.functionName !== "grantDelegation") throw new Error("Setup did not grant delegation");
+    expect(decoded.args[0].account.addr.toLowerCase()).toBe(ROOT.toLowerCase());
+    const wrapper = toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "_call" }));
+    expect(decoded.args[0].selectors.includes(wrapper)).toBe(protectedWithdrawal);
+    const key = decoded.args[0].delegatedSigner;
+    const ownerPrompts = mock.writes.filter((entry) => entry.startsWith("eth_sign")).length;
+    expect(ownerPrompts).toBe(1);
+    const ownerTransactions = mock.writes.filter((entry) => entry.startsWith("eth_send")).length;
+    expect(ownerTransactions).toBe(protectedWithdrawal ? 1 : 0);
+    if (protectedWithdrawal) {
+      const policy = decodeFunctionData({ abi: accountLayerAbi, data: mock.writeData[0]! });
+      if (policy.functionName !== "setupTimelocks") throw new Error("Expected policy setup");
+      expect(policy.args[3]).toHaveLength(22);
+      expect(policy.args[3]).not.toContain(wrapper);
+    }
+    await page.getByRole("tab", { name: "Withdraw", exact: true }).click();
+    await continueToWithdrawal(page);
+    await expect(page.getByTestId("session-key-signer-note")).toBeVisible();
+    await expect(page.getByTestId("withdrawal-owner-signer-note")).toHaveCount(0);
+    await page.getByRole("textbox", { name: "Amount to withdraw" }).fill("1");
+    await page.getByRole("textbox", { name: "Receiver", exact: true }).fill(OWNER);
+    await page.getByRole("button", { name: /Initiate withdrawal$/ }).click();
+    await expect(
+      page.getByText("Withdrawal initiated. Finalize it below after the cooldown.", { exact: true }),
+    ).toBeVisible();
+    expect(mock.relayPayloads).toHaveLength(2);
+    expect(mock.relayPayloads[1]!.signedOps[0]!.signer.toLowerCase()).toBe(key.toLowerCase());
+    expect(mock.approvalSigners.map((signer) => signer.toLowerCase())).toEqual(
+      protectedWithdrawal ? [key.toLowerCase()] : [],
+    );
+    expect(mock.writes.filter((entry) => entry.startsWith("eth_sign"))).toHaveLength(ownerPrompts);
+    expect(mock.writes.filter((entry) => entry.startsWith("eth_send"))).toHaveLength(ownerTransactions);
+  });
+
+  test(`wallet preference keeps owner signing despite a delegated key (protected=${protectedWithdrawal})`, async ({
+    page,
+  }) => {
+    await enableTimelockSolver(page);
+    const mock = await mockDeployment(page, {
+      configured: protectedWithdrawal,
+      unsupported: !protectedWithdrawal,
+      delegatedSelectors: "all",
+      mockSignature: true,
+      mockWriteSuccess: true,
+    });
+    await openTimelock(page, ROOT, false);
+    await openWithdrawal(page);
+    await continueToWithdrawal(page);
+    await expect(page.getByTestId("session-key-signer-note")).toHaveCount(0);
+    await page.getByRole("textbox", { name: "Amount to withdraw" }).fill("1");
+    await page.getByRole("textbox", { name: "Receiver", exact: true }).fill(OWNER);
+    await page.getByRole("button", { name: /Initiate withdrawal$/ }).click();
+    await expect(
+      page.getByText("Withdrawal initiated. Finalize it below after the cooldown.", { exact: true }),
+    ).toBeVisible();
+    expect(mock.approvalSigners.map((signer) => signer.toLowerCase())).toEqual(
+      protectedWithdrawal ? [OWNER.toLowerCase()] : [],
+    );
+    expect(mock.writes.filter((entry) => entry.startsWith("eth_send"))).toHaveLength(1);
+  });
+}
+
+test("withdrawal opt-in does not silently grant a narrower scope when metadata is unavailable", async ({ page }) => {
+  await enableTimelockSolver(page);
+  const mock = await mockDeployment(page, {
+    unavailable: true,
+    sessionSetup: true,
+    mockSignature: true,
+    mockWriteSuccess: true,
+  });
+  await page.goto("/session-keys", { waitUntil: "domcontentloaded" });
+  await connectMockWallet(page);
+  const card = page.getByTestId("card-session-key-delegation");
+  await card.getByRole("combobox").click();
+  await page.getByRole("option").filter({ hasText: ROOT }).click();
+  await card.getByRole("checkbox", { name: /Also allow withdrawals/ }).check();
+  await card.getByRole("button", { name: /Grant authority/ }).click();
+  await expect(
+    card.getByText("Account permissions could not be resolved. Refresh the account before granting authority."),
+  ).toBeVisible();
+  expect(mock.relayPayloads).toHaveLength(0);
+  expect(mock.writes.filter((entry) => entry.startsWith("eth_sign") || entry.startsWith("eth_send"))).toHaveLength(0);
+});
+
+for (const account of [ROOT, VA]) {
+  test(`delegation repair covers protected withdrawal and revoke after scope is unticked (${account})`, async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const { accountLayerAbi, instantLayerAbi } = await import("@symmio/trading-core");
+    await enableTimelockSolver(page);
+    const mock = await mockDeployment(page, {
+      configured: true,
+      sessionSetup: true,
+      legacyDelegation: true,
+      mockSignature: true,
+      mockWriteSuccess: true,
+    });
+    await page.goto("/session-keys", { waitUntil: "domcontentloaded" });
+    await connectMockWallet(page);
+    const card = page.getByTestId("card-session-key-delegation");
+    await card.getByRole("combobox").click();
+    await page.getByRole("option").filter({ hasText: account }).click();
+    await card.getByRole("checkbox", { name: /Also allow withdrawals/ }).check();
+    await expect(card.getByText(/Includes _call authority/)).toBeVisible();
+    await card.getByRole("button", { name: /Grant authority/ }).click();
+    await expect(card.getByTestId("badge-delegation-ready")).toBeVisible();
+    const grant = decodeFunctionData({ abi: instantLayerAbi, data: mock.relayPayloads[0]!.signedOps[0]!.callData });
+    if (grant.functionName !== "grantDelegation") throw new Error("Expected grant");
+    expect(grant.args[0].account.addr.toLowerCase()).toBe(ROOT.toLowerCase());
+    const wrapper = toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "_call" }));
+    expect(grant.args[0].selectors).toContain(wrapper);
+    await card.getByRole("checkbox", { name: /Also allow withdrawals/ }).uncheck();
+    await expect(card.getByText(/This key still holds protected Core-call authority/)).toBeVisible();
+    await card.getByRole("button", { name: "Start revoke (costs gas)", exact: true }).click();
+    await expect.poll(() => mock.writeData.length).toBe(1);
+    const revoke = decodeFunctionData({ abi: instantLayerAbi, data: mock.writeData[0]! });
+    if (revoke.functionName !== "initiateRevokeDelegation") throw new Error("Expected revoke");
+    expect(revoke.args[0].addr.toLowerCase()).toBe(ROOT.toLowerCase());
+    expect(revoke.args[2]).toContain(wrapper);
+    mock.state.now += 61n;
+    await page.clock.fastForward(61_000);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await connectMockWallet(page);
+    await expect(card.getByRole("button", { name: "Clear stored grant (costs gas)", exact: true })).toBeEnabled();
+    await card.getByRole("button", { name: "Clear stored grant (costs gas)", exact: true }).click();
+    await expect.poll(() => mock.writeData.length).toBe(2);
+    const finalized = decodeFunctionData({ abi: instantLayerAbi, data: mock.writeData[1]! });
+    if (finalized.functionName !== "finalizeRevokeDelegation") throw new Error("Expected finalize revoke");
+    expect(finalized.args[0].addr.toLowerCase()).toBe(ROOT.toLowerCase());
+    expect(finalized.args[2]).toContain(wrapper);
+    await expect(card.getByRole("button", { name: "Clear stored grant (costs gas)", exact: true })).toHaveCount(0);
+  });
+}
+
 for (const stage of ["preparation", "approval"] as const) {
   for (const outcome of ["success", "unknown"] as const) {
     test(`withdrawal shows progress during ${stage} until ${outcome} settles`, async ({ page }) => {
@@ -1881,6 +2183,115 @@ test("withdrawal owner fallback preserves configured gasless dispatch", async ({
   await expect.poll(() => relayPayloads.length).toBe(1);
   expect(relayPayloads[0]!.toLowerCase()).toContain(OWNER.toLowerCase());
   expect(mock.approvalSigners.map((signer) => signer.toLowerCase())).toEqual([OWNER.toLowerCase()]);
+  expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toEqual([]);
+});
+
+for (const session of [false, true]) {
+  test(`withdrawal explains an insufficient gasless fee balance (session=${session})`, async ({ page }) => {
+    await enableTimelockSolver(page);
+    await page.addInitScript((session) => {
+      localStorage.setItem("symm:gasless:session-key-default", session ? "on" : "off");
+      const overrides = JSON.parse(localStorage.getItem("symmio.config.overrides.v4")!);
+      overrides[42161].gasless = { execution: { mode: "gasless" } };
+      localStorage.setItem("symmio.config.overrides.v4", JSON.stringify(overrides));
+    }, session);
+    const mock = await mockDeployment(page, {
+      configured: true,
+      delegatedSelectors: "all",
+      mockSignature: true,
+      mockWriteSuccess: true,
+    });
+    let submissions = 0;
+    await page.route("**/operations/gateway/relay-instant", async (route) => {
+      submissions++;
+      await route.fulfill({
+        status: 400,
+        json: {
+          detail: {
+            code: "SIMULATION_REVERTED",
+            message: "The signed operation could not be executed in gateway simulation.",
+            details: {
+              operation_type: "executeTimelockOp",
+              revert_message: "OperationalFee: Insufficient balance",
+              contract_revert: {
+                error: "Error",
+                signature: "Error(string)",
+                arguments: { message: "OperationalFee: Insufficient balance" },
+                decoded: "Error(message=OperationalFee: Insufficient balance)",
+              },
+            },
+          },
+        },
+      });
+    });
+    await openTimelock(page);
+    await openWithdrawal(page);
+    await continueToWithdrawal(page);
+    await page.getByTestId("integration-withdraw-amount").fill("1");
+    await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+    await page.getByTestId("button-initiate-withdraw").click();
+    const status = page.getByTestId("integration-withdraw-status");
+    await expect(status).toContainText("The billing sub-account cannot cover the fee.");
+    await expect(status).toContainText("Top up its SYMMIO collateral — raising the allowance alone does nothing.");
+    expect(await status.innerText()).not.toContain("Request failed with status code 400");
+    await status.getByText("Diagnostics", { exact: true }).click();
+    await expect(status).toContainText("SIMULATION_REVERTED");
+    await expect(
+      page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+    ).toHaveCount(0);
+    await expect(page.getByTestId("button-initiate-withdraw")).toBeEnabled();
+    const records = await page.evaluate(() =>
+      Object.keys(localStorage).filter((key) => key.startsWith("symm:timelock-attempt:")),
+    );
+    expect(records).toEqual([]);
+    await openTimelock(page, ROOT, false);
+    await openWithdrawal(page);
+    await continueToWithdrawal(page);
+    await expect(
+      page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+    ).toHaveCount(0);
+    expect(submissions).toBe(1);
+    expect(mock.approvalSigners).toHaveLength(1);
+    expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toEqual([]);
+  });
+}
+
+test("an uncertain relay response retains an already issued withdrawal approval", async ({ page }) => {
+  await enableTimelockSolver(page);
+  await page.addInitScript(() => localStorage.setItem("symm:gasless:session-key-default", "on"));
+  const mock = await mockDeployment(page, {
+    configured: true,
+    delegatedSelectors: "all",
+    mockSignature: true,
+    mockWriteSuccess: true,
+  });
+  const submittedBodies: string[] = [];
+  await page.route("**/operations/gateway/relay-instant", async (route) => {
+    submittedBodies.push(route.request().postData() ?? "");
+    await route.fulfill({ status: 503, json: { detail: { message: "Service unavailable" } } });
+  });
+  await openTimelock(page);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await page.getByTestId("integration-withdraw-amount").fill("1");
+  await page.getByTestId("integration-withdraw-receiver").fill(OWNER);
+  await page.getByTestId("button-initiate-withdraw").click();
+  await expect(
+    page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+  ).toBeVisible();
+  await expect(page.getByTestId("button-initiate-withdraw")).toBeDisabled();
+  // The existing transport may replay the same idempotent body; reload must not create a new intent.
+  const submissionsBeforeReload = submittedBodies.length;
+  expect(submissionsBeforeReload).toBeGreaterThan(0);
+  await openTimelock(page, ROOT, false);
+  await openWithdrawal(page);
+  await continueToWithdrawal(page);
+  await expect(
+    page.getByText("An earlier protected operation needs reconciliation before a new attempt."),
+  ).toBeVisible();
+  expect(submittedBodies).toHaveLength(submissionsBeforeReload);
+  expect(new Set(submittedBodies).size).toBe(1);
+  expect(mock.approvalSigners).toHaveLength(1);
   expect(mock.writes.filter((method) => method.startsWith("eth_send"))).toEqual([]);
 });
 
