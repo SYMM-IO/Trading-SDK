@@ -60,6 +60,8 @@ export type GetCandleHistoryOptions = GetCandleHistoryParameters & {
 
 /** Options accepted by TanStack's InfiniteQueryObserver and framework infinite-query hooks. */
 export type GetCandleHistoryQueryOptions = Omit<ObserverOptions, "queryFn"> & {
+  /** Fetch exactly this range with cancellation, without extending it for followLatest. Used for corrections. */
+  fetchRange: (range: CandleHistoryRange, signal: AbortSignal) => Promise<CandleHistoryPage>;
   /** Fetch one window using the observer's cursor and cancellation signal. */
   queryFn: (context: QueryFunctionContext<GetCandleHistoryQueryKey, CandleHistoryRange>) => Promise<CandleHistoryPage>;
 };
@@ -105,21 +107,26 @@ export function getCandleHistoryQueryOptions(
 ): GetCandleHistoryQueryOptions {
   const { marketName, resolution, from, to, followLatest = false } = options;
   const width = to - from;
+  async function fetchRange(range: CandleHistoryRange, signal: AbortSignal): Promise<CandleHistoryPage> {
+    validateCandleHistoryRange({ from, to });
+    validateCandleHistoryRange(range);
+    signal.throwIfAborted();
+    const result = await source.getCandles({ marketName, resolution, ...range, signal });
+    signal.throwIfAborted();
+    return { ...result, ...range };
+  }
   return {
     ...options.query,
     queryKey: getCandleHistoryQueryKey({ sourceId: source.id, marketName, resolution, from, to, followLatest }),
     initialPageParam: { from, to },
+    fetchRange,
     queryFn: async ({ pageParam, signal }) => {
       validateCandleHistoryRange({ from, to });
       const range = {
         from: pageParam.from,
         to: followLatest && pageParam.from === from ? Math.max(to, Date.now()) : pageParam.to,
       };
-      validateCandleHistoryRange(range);
-      signal.throwIfAborted();
-      const result = await source.getCandles({ marketName, resolution, ...range, signal });
-      signal.throwIfAborted();
-      return { ...result, ...range };
+      return fetchRange(range, signal);
     },
     getNextPageParam: (lastPage) => {
       if (lastPage.noMoreData) return undefined;

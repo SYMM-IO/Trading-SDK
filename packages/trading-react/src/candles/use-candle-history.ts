@@ -21,7 +21,7 @@ export type UseCandleHistoryParameters = GetCandleHistoryOptions & { source: Can
 export type UseCandleHistoryReturnType = UseInfiniteQueryResult<CandleHistoryData, SymmioRequestError> & {
   /** Fetch only the preceding window. Repeated calls while fetching are ignored; errors require refresh. */
   loadOlder: () => Promise<void>;
-  /** Revalidate all windows, or only those intersecting range. Bounded refreshes wait for active paging. */
+  /** Revalidate all windows, or replace only corrected intervals plus any missing live tail. Bounded refreshes wait for active paging. */
   refresh: (range?: CandleHistoryRange) => Promise<void>;
 };
 
@@ -45,6 +45,13 @@ export function useCandleHistory(parameters: UseCandleHistoryParameters): UseCan
   const queryOptions = getCandleHistoryQueryOptions(source, options);
   const normalizedOptions: GetCandleHistoryQueryOptions = {
     ...queryOptions,
+    fetchRange: async (range, signal) => {
+      try {
+        return await queryOptions.fetchRange(range, signal);
+      } catch (error) {
+        throw normalizeSymmError(error);
+      }
+    },
     queryFn: async (context) => {
       try {
         return await queryOptions.queryFn(context);

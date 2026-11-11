@@ -11,9 +11,9 @@ export interface EnigmaOhlcvPage {
 /** Validate candle data and preserve a continuation signal when available. @internal */
 export function parseEnigmaOhlcvPage(data: unknown): EnigmaOhlcvPage {
   const candles = parseEnigmaOhlcv(data);
-  const hasOlder = (data as Record<string, unknown>).hasOlder;
+  const hasOlder = (data as Record<string, unknown>).has_older;
   if (hasOlder !== undefined && typeof hasOlder !== "boolean") {
-    throw new SymmError("api", "INVALID_ENIGMA_OHLCV_RESPONSE", "OHLCV hasOlder must be a boolean when present.");
+    throw new SymmError("api", "INVALID_ENIGMA_OHLCV_RESPONSE", "OHLCV has_older must be a boolean when present.");
   }
   return hasOlder === undefined ? { candles } : { candles, hasOlder };
 }

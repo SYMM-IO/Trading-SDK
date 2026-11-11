@@ -79,6 +79,7 @@ describe("useCandleHistory", () => {
     });
     await waitFor(() => expect(result.current.data?.candles.at(-1)?.volume).toBe(20));
     expect(getCandles).toHaveBeenCalledOnce();
+    expect(getCandles).toHaveBeenCalledWith(expect.objectContaining({ from: START, to: START + 3_600_000 }));
     expect(result.current.data?.pages[1]).toBe(before.pages[1]);
     expect(result.current.data?.pages[2]).toBe(before.pages[2]);
 

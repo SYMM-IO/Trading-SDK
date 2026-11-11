@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEnigmaOhlcv } from "./parse-enigma-ohlcv";
+import { parseEnigmaOhlcv, parseEnigmaOhlcvPage } from "./parse-enigma-ohlcv";
 
 const BAR = { timestamp: 1_700_000_040, open: 2, high: 4, low: 1, close: 3, volume: 12.75 };
 
@@ -28,6 +28,14 @@ describe("parseEnigmaOhlcv", () => {
 
   it("accepts an empty result", () => {
     expect(parseEnigmaOhlcv({ result: [] })).toEqual([]);
+  });
+
+  it.each([true, false])("preserves the deployed has_older=%s flag even in an empty window", (hasOlder) => {
+    expect(parseEnigmaOhlcvPage({ result: [], has_older: hasOlder })).toEqual({ candles: [], hasOlder });
+  });
+
+  it("keeps exhaustion unknown on older deployments without a continuation flag", () => {
+    expect(parseEnigmaOhlcvPage({ result: [] })).toEqual({ candles: [] });
   });
 
   it.each([undefined, null, [], {}, { result: null }, { result: {} }, { result: [null] }, { result: [{}] }])(

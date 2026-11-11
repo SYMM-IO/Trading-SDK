@@ -28,7 +28,7 @@ function serve(rows: ReturnType<typeof bar>[], metadata = true) {
     return {
       data: {
         result: rows.filter((row) => row.timestamp * 1000 >= from && row.timestamp * 1000 <= to),
-        ...(metadata ? { hasOlder: rows.some((row) => row.timestamp * 1000 < from) } : {}),
+        ...(metadata ? { has_older: rows.some((row) => row.timestamp * 1000 < from) } : {}),
       },
     };
   });
@@ -76,8 +76,8 @@ describe("getLowcapCandles", () => {
     expect(get).toHaveBeenCalledTimes(1);
   });
 
-  it.each([null, "false", 0])("rejects malformed hasOlder=%s instead of coercing it", async (hasOlder) => {
-    get.mockResolvedValue({ data: { result: [], hasOlder } });
+  it.each([null, "false", 0])("rejects malformed has_older=%s instead of coercing it", async (hasOlder) => {
+    get.mockResolvedValue({ data: { result: [], has_older: hasOlder } });
     await expect(getLowcapCandles(OPTIONS)).rejects.toMatchObject({ code: "INVALID_ENIGMA_OHLCV_RESPONSE" });
   });
 

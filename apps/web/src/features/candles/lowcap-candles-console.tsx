@@ -123,8 +123,8 @@ export function LowcapCandlesConsole() {
         </div>
       )}
       <ResultNote>
-        OHLCV is currently available on staging. Open SDK config in the header and choose “Use staging” to test this
-        card. This applies the staging preset to the inspector’s Arbitrum configuration.
+        OHLCV is available on production and staging. SDK config in the header selects the price-service environment for
+        this card.
       </ResultNote>
     </MethodCard>
   );

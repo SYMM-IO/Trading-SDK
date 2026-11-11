@@ -55,7 +55,7 @@ new TradingView.widget({ datafeed, symbol: "BTCUSDT", interval: "60" });
 
 ## Lowcap history and corrections
 
-Pass [`createLowcapCandleSource`](/core/candles/lowcap-source) to the same adapter. Market names containing `::` are preserved. Sparse windows do not indicate exhaustion: on deployments without `hasOlder`, the adapter forwards `noData: false` and TradingView may request additional empty windows.
+Pass [`createLowcapCandleSource`](/core/candles/lowcap-source) to the same adapter. Market names containing `::` are preserved. Sparse windows do not indicate exhaustion: on deployments without `has_older`, the adapter forwards `noData: false` and TradingView may request additional empty windows.
 
 `onResetCacheNeededCallback` is forwarded when the source reconnects or signals a correction. The widget integration must also call its chart's `resetData()` when reloading corrected history; the adapter does not own the widget. See [TradingView's reset guidance](https://www.tradingview.com/charting-library-docs/latest/connecting_data/Datafeed-Issues/#internet-connection-issues).
 

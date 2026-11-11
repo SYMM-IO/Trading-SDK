@@ -120,7 +120,7 @@ The required inputs are `marketName`, `resolution`, `from`, and `to`. Bounds are
 
 Calling `fetchNextPage` requests `[oldestRequestedFrom - (to - from), oldestRequestedFrom)`. It does not download loaded windows again. Cursors come from requested dates, including empty windows, rather than candle counts or the first returned candle. The source owns bucket alignment, internal HTTP limits, and flat-candle filtering. No consumer bar limit is passed, so a page cannot silently discard part of its requested range.
 
-Guard calls with `!isFetching && hasNextPage` and pass `{ cancelRefetch: false }` to deduplicate concurrent page requests. A normal refetch revalidates every retained window, including removals and corrections, following [TanStack's infinite-query behavior](https://tanstack.com/query/latest/docs/framework/react/guides/infinite-queries#what-happens-when-an-infinite-query-needs-to-be-refetched). For a source correction with known bounds, use [`refreshCandleHistory`](#refreshcandlehistory) to refresh only intersecting windows. Do not treat retained data as final or disable correction-triggered refreshes.
+Guard calls with `!isFetching && hasNextPage` and pass `{ cancelRefetch: false }` to deduplicate concurrent page requests. A normal refetch revalidates every retained window, including removals and corrections, following [TanStack's infinite-query behavior](https://tanstack.com/query/latest/docs/framework/react/guides/infinite-queries#what-happens-when-an-infinite-query-needs-to-be-refetched). For a source correction with known bounds, use [`refreshCandleHistory`](#refreshcandlehistory) to fetch only corrected intervals. Do not treat retained data as final or disable correction-triggered refreshes.
 
 The selector retains TanStack’s `pages` and `pageParams` and adds ascending, duplicate-free `candles` and `noMoreData` from the oldest requested window. It preserves the source’s candles, including any first-candle exception per separately requested window. Query identity includes the source id, market, resolution, initial range, and follow policy; keep the initial range stable during paging.
 
@@ -135,9 +135,11 @@ The selector retains TanStack’s `pages` and `pageParams` and adds ascending, d
 | `GetCandleHistoryQueryKey`           | `["getCandleHistory", { sourceId, marketName, resolution, from, to, followLatest }]`.   |
 | `GetCandleHistoryQueryOptions`       | Infinite-query observer options returned by the factory.                                |
 
+The returned options include `fetchRange(range, signal): Promise<CandleHistoryPage>` for exact-range reads. It uses the same source, market, resolution, and cancellation rules as `queryFn`, but never extends the range for `followLatest`. `refreshCandleHistory` uses it for corrections. If you wrap errors for a framework, wrap both `queryFn` and `fetchRange` consistently; the React hook does this for you.
+
 ## refreshCandleHistory
 
-Revalidate an incremental history query using the same `QueryClient` and options that own its retained pages. Pass the optional range from `watchCandles.onReset` to refresh only windows intersecting the correction. Omit it for a full refresh. React consumers use [`history.refresh(range)`](/react/candles#usecandlehistory).
+Revalidate an incremental history query using the same `QueryClient` and options that own its retained pages. Pass the optional range from `watchCandles.onReset` to fetch only corrected intervals. Omit it for a full refresh. React consumers use [`history.refresh(range)`](/react/candles#usecandlehistory).
 
 ```ts
 function refreshCandleHistory(queryClient: QueryClient, parameters: RefreshCandleHistoryParameters): Promise<void>;
@@ -156,7 +158,7 @@ interface RefreshCandleHistoryParameters {
 | `range?`       | Corrected candle starts, in integer milliseconds: inclusive `from`, exclusive `to`. Requires `from < to`.  |
 | `signal?`      | Cancels a scheduled refresh before it starts. An existing shared query owns cancellation of its transport. |
 
-A bounded refresh waits for active or offline-paused paging to finish, then requests whole intersecting windows. Other retained windows are reused. This preserves page boundaries, flat-candle filtering, removals, and the source's exhaustion flag. A correction outside a fixed retained range makes no request. With `followLatest: true`, the newest window can extend through the current time. If no history is retained, the initial window is fetched.
+A bounded refresh waits for active or offline-paused paging to finish, then fetches the corrected intervals within retained windows. It replaces candles in those intervals, including removals, and preserves the others. The original paging boundaries stay intact; exhaustion is updated only when the beginning of a page is fetched again. Flat-candle filtering is evaluated by the source for each requested interval. A correction outside a fixed retained range makes no request. With `followLatest: true`, any missing tail is also fetched through the current time. This read overlaps one interval before the previous cutoff so a candle that was still forming is revalidated, even if it was previously absent. Monthly resolutions use a 31-day overlap; each source retains ownership of bucket alignment. Adjacent or overlapping intervals share a request; separated corrections and tails are fetched independently, so a small correction does not redownload an entire growing page. If no history is retained, the initial window is fetched.
 
 A full refresh cancels active work for this query and revalidates all retained windows. Both modes expose loading and errors through the original query; existing data remains available during refresh and after a failure. The promise rejects on a request failure or cancellation; invalid bounds throw `INVALID_CANDLE_RANGE`. A source can split each window into multiple HTTP requests.
 

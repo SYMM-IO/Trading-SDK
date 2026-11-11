@@ -94,7 +94,7 @@ describe("lowcap candle inspector", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("explains staging setup and keeps a failed history request distinct from an empty result", () => {
+  it("explains environment selection and keeps a failed history request distinct from an empty result", () => {
     mocks.history.mockReturnValue({
       data: undefined,
       loadOlder: mocks.loadOlder,
@@ -104,7 +104,7 @@ describe("lowcap candle inspector", () => {
       error: { kind: "api", message: "FETCH_ENIGMA_OHLCV_FAILED: Request failed with status code 404" },
     });
     render(<LowcapCandlesConsole />);
-    expect(screen.getByText(/Open SDK config in the header and choose “Use staging”/)).toBeTruthy();
+    expect(screen.getByText(/OHLCV is available on production and staging/)).toBeTruthy();
     expect(screen.getByRole("alert").textContent).toContain("404");
     expect(screen.getByText("Candle history could not be loaded.")).toBeTruthy();
     expect(screen.queryByText(/No candles in this window/)).toBeNull();

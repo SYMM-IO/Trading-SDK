@@ -23,7 +23,7 @@ describe("createLowcapCandleSource", () => {
               { name: "TOKEN::Other_SFLOW", address: "Other", status: "ACTIVE" },
               { name: MARKET, address: "AbCd", status: "ACTIVE" },
             ]
-          : { result: [{ timestamp: TIME / 1000, open: 1, high: 2, low: 1, close: 2, volume: 15 }], hasOlder: false },
+          : { result: [{ timestamp: TIME / 1000, open: 1, high: 2, low: 1, close: 2, volume: 15 }], has_older: false },
     }));
   });
 

@@ -6,14 +6,13 @@ import { Callout } from "nextra/components";
 
 The source calls the public `/api/v1/prices/{symbol_address}/ohlcv` route directly, with `version=2`. It needs no API key or proxy and never calls the deprecated `/ohlc` route.
 
-<Callout type="warning">
-  This route is currently available on staging. Use matching price-service REST and WebSocket endpoints in your SDK
-  config. Deployments without `hasOlder` can serve history, but cannot confirm that older history is exhausted.
+<Callout type="info">
+  OHLCV is available on production and staging. Use matching price-service REST and WebSocket endpoints in your SDK
+  config so history and live prices come from the same deployment.
 </Callout>
 
-In the web inspector, open **SDK config** in the header and choose **Use staging**. This applies the staging preset to
-the inspector's Arbitrum configuration. The default production price service does not currently publish `/ohlcv` and
-returns HTTP 404; this response does not establish that the selected market has no history.
+The web inspector uses the active SDK configuration. Its default Arbitrum configuration reads production candles.
+To test staging, open **SDK config** in the header and choose **Use staging**.
 
 ```ts
 import { createLowcapCandleSource, SymmioSupportedChainId } from "@symmio/trading-core";
@@ -70,24 +69,24 @@ SDK ranges are `[from, to)` in Unix **milliseconds**, selecting candles by their
 
 The service aggregates samples inside its requested dates. The source therefore requests aligned bucket boundaries. Its inclusive end can return an extra candle; the SDK discards that boundary candle. Each HTTP request spans 199 intervals plus the possible boundary candle, keeping responses within 200 buckets without truncating the preceding interval's last samples.
 
-Weeks start Monday at 00:00 UTC. Months start on the first day at 00:00 UTC and use calendar arithmetic, including leap years. These alignments have been observed on staging; the backend guarantee is tracked in the internal integration handoff.
+Weeks start Monday at 00:00 UTC. Months start on the first day at 00:00 UTC and use calendar arithmetic, including leap years. These alignments have been observed on staging; their long-term backend guarantee is still to be confirmed.
 
 The SDK omits the service's currently unreliable `limit` parameter. `getCandles({ limit })` still limits the returned result to its newest requested bars. Paging advances by **time window**, including across empty windows; it never stops because a page is short or sparse.
 
 ### Knowing when older history ends
 
-When the service supplies a valid `hasOlder: false`, and the SDK has not trimmed away older bars to satisfy a consumer limit, the result has `noMoreData: true`. A malformed continuation flag is an API error.
+When the service supplies a valid `has_older: false`, and the SDK has not trimmed away older bars to satisfy a consumer limit, the result has `noMoreData: true`. A malformed continuation flag is an API error.
 
-Current staging responses omit `hasOlder`. Such responses still work, including `{ result: [] }`, but return `noMoreData: false`: exhaustion is unknown. The source only scans the finite range requested by the caller; it does not search arbitrarily far back or invent a listing date.
+Production and staging return `has_older` (verified on 2026-11-11). It reports whether history exists before the requested `from_date`, including when the result is empty or flat candles are filtered. Empty windows can return `true` when earlier history exists, or `false` before the first sample. Older deployments that omit the flag still work, including `{ result: [] }`, but return `noMoreData: false`: exhaustion is unknown. The source only scans the finite range requested by the caller; it does not search arbitrarily far back or invent a listing date.
 
 <Callout type="warning">
-  An empty result can be a gap or a market with no stored history. Until the service provides a history boundary,
-  automatic chart pagination cannot reliably stop at the beginning. TradingView may request further empty windows. Full
-  automatic exhaustion requires the backend continuation flag.
+  An empty result alone can be a gap or a market with no stored history. Automatic chart pagination can stop only when
+  the service supplies the continuation flag. Older deployments without it may cause TradingView to request further
+  empty windows.
 </Callout>
 
 In the web inspector, pan toward older dates or zoom out near the left edge to request another history window. The
-chart uses [`useCandleHistory`](/react/candles#usecandlehistory) to keep your position and zoom and retain its candles while loading only the preceding window. Recent stream corrections refresh only intersecting history windows. **Refresh**, reconnects, and hourly resets revalidate all loaded windows. Returning to the browser tab does not refetch the inspector's candle history. The inspector retries a failed history request once before showing an error. Requests are tied to chart interaction;
+chart uses [`useCandleHistory`](/react/candles#usecandlehistory) to keep your position and zoom and retain its candles while loading only the preceding window. Recent stream corrections fetch only corrected intervals and any missing live tail. **Refresh**, reconnects, and hourly resets revalidate all loaded windows. Returning to the browser tab does not refetch the inspector's candle history. The inspector retries a failed history request once before showing an error. Requests are tied to chart interaction;
 an empty response does not start an automatic search through all earlier history. Continue panning to cross a gap.
 When the chart is entirely empty, drag right or zoom out to request the preceding window. Confirmed exhaustion stops
 older requests; after a request error, use **Refresh** to retry.
@@ -116,7 +115,7 @@ const source = createLowcapCandleSource(config, { includeFlat: true });
 
 Price ticks carry **no volume**. Live candles retain their most recently fetched USD volume; a new candle starts at zero until OHLCV supplies its volume. These live updates are provisional. Recent OHLCV is fetched every 30 seconds by default to reconcile prices and volume, with one request in flight per subscription.
 
-The source calls `onReset(range)` when recent HTTP reconciliation changes a previously emitted historical candle, including its USD volume. The range identifies corrected candle starts in milliseconds, with an exclusive end. Forward it to [`refreshCandleHistory`](/core/candles/get-candles#refreshcandlehistory) or React's `history.refresh(range)` to revalidate only intersecting retained windows. A rollover alone does not reset history when HTTP agrees with the completed candle already emitted.
+The source calls `onReset(range)` when recent HTTP reconciliation changes a previously emitted historical candle, including its USD volume. The range identifies corrected candle starts in milliseconds, with an exclusive end. Forward it to [`refreshCandleHistory`](/core/candles/get-candles#refreshcandlehistory) or React's `history.refresh(range)` to fetch only corrected intervals and any missing live tail. A rollover alone does not reset history when HTTP agrees with the completed candle already emitted.
 
 Reconnects and hourly checks call `onReset()` without a range because older data can be backfilled. Revalidate all retained history in that case. Handlers that ignore the optional range remain compatible and perform full refreshes; the TradingView adapter uses this behavior. Recent corrections do not postpone the hourly check. Completed candles are not immutable.
 

@@ -61,10 +61,10 @@ describe("refreshCandleHistory", () => {
     await observer.fetchNextPage();
     getCandles.mockClear();
     await refreshCandleHistory(client, { queryOptions, range: { from: START - 60_000, to: START } });
-    expect(getCandles.mock.calls.map(([request]) => request.from)).toEqual([START - WIDTH]);
+    expect(getCandles.mock.calls.map(([request]) => request.from)).toEqual([START - 60_000]);
     getCandles.mockClear();
     await refreshCandleHistory(client, { queryOptions, range: { from: START - 60_000, to: START + 60_000 } });
-    expect(getCandles.mock.calls.map(([request]) => request.from)).toEqual([START, START - WIDTH]);
+    expect(getCandles.mock.calls.map(([request]) => request.from)).toEqual([START, START - 60_000]);
     client.clear();
   });
 
@@ -188,4 +188,70 @@ describe("refreshCandleHistory", () => {
     expect(getCandles).toHaveBeenCalledTimes(3);
     client.clear();
   });
+});
+
+it("keeps recent corrections bounded after hours of following live history", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(RANGE.to);
+  const { client, observer, getCandles, queryOptions, data } = setup(true);
+  await observer.fetchNextPage();
+  for (let minute = 1; minute <= 240; minute++) {
+    const previousEnd = RANGE.to + (minute - 1) * 60_000;
+    vi.setSystemTime(previousEnd + 60_000);
+    getCandles.mockClear();
+    await refreshCandleHistory(client, {
+      queryOptions,
+      range: { from: previousEnd - 60_000, to: previousEnd },
+    });
+    expect(getCandles).toHaveBeenCalledOnce();
+    expect(getCandles.mock.calls[0]![0]).toMatchObject({ from: previousEnd - 60_000, to: Date.now() });
+  }
+  expect(data().pages[0]?.from).toBe(START);
+  expect(data().pages[0]?.to).toBe(RANGE.to + 240 * 60_000);
+  client.clear();
+});
+
+it("preserves unaffected bars and the page exhaustion flag when an interior candle is removed", async () => {
+  const { client, observer, getCandles, queryOptions, data } = setup();
+  const bar = { open: 1, high: 2, low: 1, close: 2, volume: 10 };
+  const candles = [START, START + 60_000, START + 120_000].map((time) => ({ ...bar, time }));
+  getCandles.mockResolvedValueOnce({ candles, noMoreData: true });
+  await observer.fetchNextPage();
+  getCandles.mockResolvedValueOnce({ candles: [], noMoreData: false });
+  await refreshCandleHistory(client, { queryOptions, range: { from: START + 60_000, to: START + 120_000 } });
+  expect(data().pages[0]?.candles).toEqual([candles[0], candles[2]]);
+  expect(data().pages[0]?.noMoreData).toBe(true);
+  expect(data().pages[0]?.to).toBe(RANGE.to);
+  client.clear();
+});
+
+it("fetches a distant correction and a missing live tail separately without redownloading the gap", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(RANGE.to);
+  const { client, observer, getCandles, queryOptions } = setup(true);
+  await observer.fetchNextPage();
+  vi.setSystemTime(RANGE.to + 60_000);
+  getCandles.mockClear();
+  await refreshCandleHistory(client, { queryOptions, range: { from: START, to: START + 60_000 } });
+  expect(getCandles.mock.calls.map(([{ from, to }]) => ({ from, to }))).toEqual([
+    { from: START, to: START + 60_000 },
+    { from: RANGE.to - 60_000, to: RANGE.to + 60_000 },
+  ]);
+  client.clear();
+});
+
+it("combines a correction overlapping the unfinished bucket with the live tail", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(RANGE.to + 30_000);
+  const { client, observer, getCandles, queryOptions } = setup(true);
+  await observer.fetchNextPage();
+  getCandles.mockClear();
+  vi.setSystemTime(RANGE.to + 120_000);
+  await refreshCandleHistory(client, {
+    queryOptions,
+    range: { from: RANGE.to - 60_000, to: RANGE.to },
+  });
+  expect(getCandles).toHaveBeenCalledOnce();
+  expect(getCandles.mock.calls[0]![0]).toMatchObject({ from: RANGE.to - 60_000, to: Date.now() });
+  client.clear();
 });

@@ -27,8 +27,9 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
-export interface OhlcResponse {
+export interface OhlcvResponse {
   result: AggregatedOhlcCandleResponse[];
+  has_older: boolean;
 }
 
 export enum PriceHistoryVersion {
@@ -59,7 +60,7 @@ export type GetSymbolOhlcvApiV1PricesSymbolAddressOhlcvGetParams = {
    */
   from_date: number | string;
   /**
-   * Inclusive end as Unix epoch seconds or ISO-8601 datetime; anchors the candle window
+   * Inclusive end as Unix epoch seconds or ISO-8601 datetime
    */
   to_date: number | string;
   /**
@@ -84,11 +85,11 @@ export const getSymbolOhlcvApiV1PricesSymbolAddressOhlcvGet = (
   symbolAddress: string,
   params: GetSymbolOhlcvApiV1PricesSymbolAddressOhlcvGetParams,
   options?: AxiosRequestConfig,
-): Promise<AxiosResponse<OhlcResponse>> => {
+): Promise<AxiosResponse<OhlcvResponse>> => {
   return axios.get(`/api/v1/prices/${symbolAddress}/ohlcv`, {
     ...options,
     params: { ...params, ...options?.params },
   });
 };
 
-export type GetSymbolOhlcvApiV1PricesSymbolAddressOhlcvGetResult = AxiosResponse<OhlcResponse>;
+export type GetSymbolOhlcvApiV1PricesSymbolAddressOhlcvGetResult = AxiosResponse<OhlcvResponse>;
