@@ -24,6 +24,7 @@ import {
   useProtectedFunctionEncoder,
   useRequestCancelWithdraw,
   useScheduledCallMatch,
+  useSessionKeySelectors,
   useSubAccount,
   useTimelockRoute,
   useTimelockSelector,
@@ -137,12 +138,19 @@ export function WithdrawFlow({
     lockedPolicies.every((item) => item?.status === "ok") &&
     (!lockedPolicies.length || (journal.loaded && !journal.recovery && !journal.error));
 
+  const protectedSelectors = useSessionKeySelectors({
+    chainId,
+    trade: false,
+    account: false,
+    coreCalls: lockedPolicies.length > 0,
+  });
+
   const withdrawalSigner = useWithdrawalWriteOption({
     account: timelock.rootAccount ?? subAccount,
     chainId,
     policyKnown: isolationType !== undefined && (timelock.unsupported || policiesKnown),
     selectors: lockedPolicies.length
-      ? [sliceHex(encodeCoreCall(subAccount ?? zeroAddress, "0x"), 0, 4)]
+      ? protectedSelectors
       : [initiateSelector, ...(isCustom ? [deallocateSelector] : [])].filter(
           (selector): selector is `0x${string}` => selector !== undefined,
         ),

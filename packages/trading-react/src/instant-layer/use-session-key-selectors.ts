@@ -32,6 +32,9 @@ export type UseSessionKeySelectorsReturnType = readonly Hex[];
  * it can send the sub-account's collateral to an address of its own choosing.
  * Pass `withdraw: true` only for a key that must run withdrawals unattended,
  * and treat it as a materially larger grant.
+ * `coreCalls` and `timelockScheduling` also default to `false` and are separate
+ * opt-ins. The former grants broad AccountLayer `_call` authority (including
+ * delegated timelock approval requests); the latter grants scheduling authority.
  *
  * The result is referentially stable across renders while the chain and scope
  * flags do not change, so it is safe to pass straight into a mutation's
@@ -40,8 +43,8 @@ export type UseSessionKeySelectorsReturnType = readonly Hex[];
  * @param parameters - Optional chain override, scope flags, and `config`.
  * @returns The lowercase, de-duplicated selector set for the requested scope.
  * @throws {SymmError} `UNSUPPORTED_CHAIN` when the chain is not configured.
- * @throws {SymmError} `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` when the `account`
- *   or `withdraw` scope is requested on a chain whose contracts are not
+ * @throws {SymmError} `SESSION_KEY_SELECTORS_UNSUPPORTED_CHAIN` when the `account`,
+ *   `withdraw`, `coreCalls`, or `timelockScheduling` scope is requested on a chain whose contracts are not
  *   `"0.8.6"`. Render a trade-only key there with `{ account: false }`.
  *
  * @example
@@ -62,11 +65,11 @@ export function useSessionKeySelectors(
 ): UseSessionKeySelectorsReturnType {
   const config = useSymmioConfig(parameters);
   const connectedChainId = useSymmioChainId();
-  const { trade, account, withdraw } = parameters;
+  const { trade, account, withdraw, coreCalls, timelockScheduling } = parameters;
   const chainId = parameters.chainId ?? connectedChainId;
 
   return useMemo(
-    () => getSessionKeySelectors(config, { chainId, trade, account, withdraw }),
-    [config, chainId, trade, account, withdraw],
+    () => getSessionKeySelectors(config, { chainId, trade, account, withdraw, coreCalls, timelockScheduling }),
+    [config, chainId, trade, account, withdraw, coreCalls, timelockScheduling],
   );
 }

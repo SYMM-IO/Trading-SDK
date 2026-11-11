@@ -284,11 +284,13 @@ interface UseSessionKeySelectorsParameters {
   trade?: boolean; // default true
   account?: boolean; // default true
   withdraw?: boolean; // default false
+  coreCalls?: boolean; // default false: broad AccountLayer _call authority
+  timelockScheduling?: boolean; // default false: scheduleTimelockOp authority
 }
 ```
 
 <Callout type="warning">
-  Requesting `account` or `withdraw` on a chain that is not perps-core 0.8.6 **throws**
+  Requesting `account`, `withdraw`, `coreCalls`, or `timelockScheduling` on a chain that is not perps-core 0.8.6 **throws**
   `SESSION_KEY_SELECTORS_UNSUPPORTED_CHAIN`, which will crash the rendering component. Gate the scope on
   [`useSupportsGaslessService`](/react/gasless), which tests the same condition:
 
@@ -299,6 +301,10 @@ const selectors = useSessionKeySelectors({ account: supported, withdraw: false }
 
 `withdraw` is off by default because `initiateWithdraw` carries a caller-supplied `receiver` — see
 [`getSessionKeySelectors`](/core/gasless/get-session-key-selectors).
+
+`coreCalls` and `timelockScheduling` are independent, explicit opt-ins. Enabling withdrawals does not enable
+either scope. Use `coreCalls: true` only with consent to broad Core-call authority, including delegated timelock
+approval signing. The hook delegates selector construction to core and does not detect solver capability or grant permissions.
 
 </Callout>
 

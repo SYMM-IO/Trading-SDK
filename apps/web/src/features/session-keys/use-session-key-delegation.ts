@@ -13,10 +13,9 @@ import {
   useRevocationCooldown,
   useSessionKeySelectors,
   useSupportsGaslessService,
-  useTimelockedCoreCallEncoder,
 } from "@symmio/trading-react";
 import { useCallback, useMemo, useState } from "react";
-import { sliceHex, zeroAddress, type Address, type Hex } from "viem";
+import { zeroAddress, type Address, type Hex } from "viem";
 
 /** Parameters for {@link useSessionKeyDelegation}. */
 export interface UseSessionKeyDelegationParameters {
@@ -176,25 +175,17 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
   const includesProtectedCalls = Boolean(withdraw && supportsAccountScope && timelock.capability);
   const scopeReady = Boolean(delegationAccount && (!withdraw || timelock.unsupported || timelock.capability));
   const scopeError = !scopeReady ? (timelock.rootError ?? timelock.info.error) : null;
-  const baseSelectors = useSessionKeySelectors({
+  const requiredSelectors = useSessionKeySelectors({
     account: supportsAccountScope,
     withdraw: withdraw && supportsAccountScope,
+    coreCalls: includesProtectedCalls,
   });
-  const allScopeSelectors = useSessionKeySelectors({
+  // Probe previously granted opt-in authority too, so unticking a scope cannot hide it from revoke.
+  const probedSelectors = useSessionKeySelectors({
     account: supportsAccountScope,
     withdraw: supportsAccountScope,
+    coreCalls: supportsAccountScope,
   });
-  const encodeCoreCall = useTimelockedCoreCallEncoder();
-  const protectedSelector = sliceHex(encodeCoreCall(zeroAddress, "0x"), 0, 4);
-  const requiredSelectors = useMemo(
-    () => (includesProtectedCalls ? [...new Set([...baseSelectors, protectedSelector])] : baseSelectors),
-    [baseSelectors, includesProtectedCalls, protectedSelector],
-  );
-  // Probe previously granted opt-in authority too, so unticking a scope cannot hide it from revoke.
-  const probedSelectors = useMemo(
-    () => (supportsAccountScope ? [...new Set([...allScopeSelectors, protectedSelector])] : allScopeSelectors),
-    [allScopeSelectors, protectedSelector, supportsAccountScope],
-  );
   const enabled = Boolean(delegationAccount && sessionKey);
   /**
    * The read is disabled until both addresses are known, so the placeholders
