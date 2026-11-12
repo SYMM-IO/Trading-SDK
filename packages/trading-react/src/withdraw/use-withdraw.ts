@@ -5,20 +5,24 @@ import {
   getAccountBalanceOfQueryKey,
   getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
+  getSubAccountQueryOptions,
   getWithdrawableTimeQueryKey,
   getWithdrawCooldownOfQueryKey,
+  SubAccountIsolationType,
   SymmError,
   withdrawAutoMutationOptions,
   type WithdrawAutoParameters,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
 import type { Address } from "viem";
+import { useAutomaticTimelock } from "../account-layer/use-automatic-timelock";
 import { useSubAccount } from "../account-layer/use-sub-account";
+import { normalizeProtectedWriteError } from "../errors/normalize-protected-write-error";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
+import { resolveWriteResult, type AutomaticTimelockWriteParameters, type WriteResult } from "../transactions";
 import { predicateMatch } from "../utils";
 
 /**
@@ -27,7 +31,7 @@ import { predicateMatch } from "../utils";
  * {@link useSubAccount}; the per-withdraw inputs (`amount`, `receiver`, …) are the
  * mutation variables.
  */
-export type UseWithdrawParameters = WriteParameters & {
+export type UseWithdrawParameters = AutomaticTimelockWriteParameters & {
   /** The subaccount to withdraw from. The connected wallet must be its on-chain owner. */
   account?: Address;
   /** Target chain id. Defaults to the connected chain. */
@@ -89,6 +93,7 @@ export function useWithdraw(parameters: UseWithdrawParameters = {}): UseWithdraw
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const queryClient = useQueryClient();
+  const automaticTimelock = useAutomaticTimelock(config, parameters.automaticTimelock, parameters.account);
   const resolvedChainId = parameters.chainId ?? chainId;
 
   // Resolve the subaccount's isolation type via the standard hook (deduped by
@@ -106,19 +111,61 @@ export function useWithdraw(parameters: UseWithdrawParameters = {}): UseWithdraw
   return useMutation<WithdrawResult, SymmioRequestError, UseWithdrawVariables>({
     mutationKey: base.mutationKey,
     mutationFn: async (variables) => {
+      let authorization = variables.timelock;
       try {
         const account = parameters.account;
         if (!account) {
           throw new SymmError("validation", "MISSING_ACCOUNT", "useWithdraw: `account` must be set on the hook.");
         }
-        const hash = await base.mutationFn({ ...variables, account, chainId: resolvedChainId, isolationType });
-        return resolveWriteResult(config, hash, {
+        if (!authorization && parameters.automaticTimelock !== false)
+          await automaticTimelock.guard(variables, { account, chainId: resolvedChainId });
+        let actualIsolation = isolationType;
+        const solver = config.getSolver({ chainId: resolvedChainId });
+        const shouldDiscover =
+          parameters.automaticTimelock !== false &&
+          config.getChainConfig(resolvedChainId).timelockSupported !== false &&
+          solver.capabilities?.timelockApproval !== false &&
+          (typeof parameters.automaticTimelock === "object" ||
+            solver.id === "enigma" ||
+            solver.capabilities?.timelockApproval === true);
+        if (!authorization && shouldDiscover) {
+          actualIsolation ??= (
+            await queryClient.fetchQuery({
+              ...getSubAccountQueryOptions(config, { account, chainId: resolvedChainId }),
+              retry: false,
+            })
+          ).isolationType;
+          authorization =
+            actualIsolation === SubAccountIsolationType.CUSTOM
+              ? await automaticTimelock.batch(variables, {
+                  account,
+                  chainId: resolvedChainId,
+                  functionNames: ["deallocate", "initiateWithdraw"],
+                })
+              : await automaticTimelock(variables, {
+                  account,
+                  chainId: resolvedChainId,
+                  functionName: "initiateWithdraw",
+                });
+        }
+        const hash = await base.mutationFn({
+          ...variables,
+          account,
+          chainId: resolvedChainId,
+          isolationType: actualIsolation,
+          ...(authorization ? { timelock: authorization } : {}),
+        });
+        const result = resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,
           confirmations: parameters.confirmations,
         });
+        const settled = await result;
+        automaticTimelock.finish(variables, settled);
+        return settled;
       } catch (err) {
-        throw normalizeSymmError(err);
+        automaticTimelock.fail(variables, err);
+        throw authorization ? normalizeProtectedWriteError(err, authorization) : normalizeSymmError(err);
       }
     },
     onSuccess: (result) => {

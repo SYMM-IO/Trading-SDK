@@ -26,6 +26,52 @@ const config = createConfig({
 });
 
 describe("getSolverInfo", () => {
+  it("exposes deployment-specific timelock metadata without changing fee fields", async () => {
+    genFn.mockResolvedValue({
+      data: {
+        static_solver_fee_open: "0.5",
+        timelock_approval: {
+          unlocker: "0x1111111111111111111111111111111111111111",
+          min_timelock_delay_seconds: 600,
+          validity_seconds: 60,
+          request_domain: {
+            name: "SymmioTimelockApprovalRequest",
+            version: "1",
+            chainId: "42161",
+            verifyingContract: config.getChainConfig(ARBITRUM).addresses.accountLayerAddress,
+          },
+        },
+      },
+    });
+    expect(await getSolverInfo(config, { chainId: ARBITRUM })).toMatchObject({
+      staticSolverFeeOpen: "0.5",
+      timelockApproval: { minTimelockDelaySeconds: 600, validitySeconds: 60, requestDomain: { chainId: "42161" } },
+    });
+  });
+  it("preserves fees when the solver explicitly disables timelocks with null metadata", async () => {
+    genFn.mockResolvedValue({
+      data: {
+        timelock_enabled: false,
+        timelock_approval: null,
+        static_solver_fee_open: "0.1",
+        static_solver_fee_close: "0.2",
+      },
+    });
+    expect(await getSolverInfo(config, { chainId: ARBITRUM })).toEqual({
+      staticSolverFeeOpen: "0.1",
+      staticSolverFeeClose: "0.2",
+    });
+  });
+  it.each([
+    { timelock_approval: null },
+    { timelock_enabled: true, timelock_approval: null },
+    { timelock_enabled: false, timelock_approval: {} },
+  ])("rejects explicitly malformed timelock metadata %j instead of reporting unsupported", async (data) => {
+    genFn.mockResolvedValue({ data });
+    await expect(getSolverInfo(config, { chainId: ARBITRUM })).rejects.toMatchObject({
+      code: "INVALID_TIMELOCK_METADATA",
+    });
+  });
   it("fetches from the solver base URL and maps the wire fields to camelCase", async () => {
     genFn.mockResolvedValue({ data: { static_solver_fee_open: "0.5", static_solver_fee_close: "0.25" } });
 

@@ -1,5 +1,6 @@
 import { Badge } from "@symmio/ui/components/badge";
 import { Spinner } from "@symmio/ui/components/spinner";
+import Link from "next/link";
 import type { ReactNode } from "react";
 
 /**
@@ -24,7 +25,26 @@ export function ResultNote({
 }
 
 /** Typed-error panel — shows the SDK error `kind` as a chip and the message. */
-export function ResultError({ kind, message, testId }: { kind?: ReactNode; message: ReactNode; testId?: string }) {
+export function ResultError({
+  kind,
+  message,
+  testId,
+  code,
+  timelockAccount,
+}: {
+  kind?: ReactNode;
+  message: ReactNode;
+  testId?: string;
+  code?: string | number;
+  timelockAccount?: string;
+}) {
+  const policyError = code === 3711 || code === "3711" || code === "INSTANT_OPEN_TIMELOCK_POLICY_REQUIRED";
+  const timelockError =
+    policyError ||
+    code === "TIMELOCK_REQUIRED" ||
+    code === "TIMELOCK_POLICY_NOT_READY" ||
+    code === "3702" ||
+    code === 3702;
   return (
     <div
       data-testid={testId}
@@ -37,6 +57,23 @@ export function ResultError({ kind, message, testId }: { kind?: ReactNode; messa
         </Badge>
       ) : null}
       <span className="text-foreground/90">{message}</span>
+      {timelockError ? (
+        <p className="text-foreground/90 mt-2">
+          {policyError
+            ? "Trading protection needs to be configured. "
+            : "Review the timelock policy and authorization. "}
+          <Link
+            className="underline"
+            href={
+              timelockAccount
+                ? `/contracts/timelock?account=${encodeURIComponent(timelockAccount)}`
+                : "/contracts/timelock"
+            }
+          >
+            Open timelock settings
+          </Link>
+        </p>
+      ) : null}
     </div>
   );
 }

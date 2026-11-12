@@ -20,6 +20,41 @@ const GRANT_DELEGATION_SELECTOR = toFunctionSelector(
 );
 
 describe("getSessionKeySelectors", () => {
+  it.each([
+    [{ coreCalls: true }, ["0xbd367d8e"]],
+    [{ timelockScheduling: true }, ["0x1ee3e0cf"]],
+    [{ coreCalls: true, timelockScheduling: true }, ["0xbd367d8e", "0x1ee3e0cf"]],
+  ])("grants only the explicitly requested protected scopes: %o", (scope, expected) => {
+    const { config } = mockConfig();
+    expect(getSessionKeySelectors(config, { chainId: V086_CHAIN, trade: false, account: false, ...scope })).toEqual(
+      expected,
+    );
+  });
+
+  it("keeps protected scopes opt-in even for withdrawal keys", () => {
+    const { config } = mockConfig();
+    const previous = getSessionKeySelectors(config, { chainId: V086_CHAIN, withdraw: true });
+    expect(previous).not.toContain("0xbd367d8e");
+    expect(previous).not.toContain("0x1ee3e0cf");
+    expect(
+      getSessionKeySelectors(config, {
+        chainId: V086_CHAIN,
+        withdraw: true,
+        coreCalls: true,
+        timelockScheduling: true,
+      }),
+    ).toEqual([...previous, "0xbd367d8e", "0x1ee3e0cf"]);
+  });
+
+  it.each(["coreCalls", "timelockScheduling"] as const)(
+    "rejects %s on legacy chains even without account scope",
+    (scope) => {
+      const { config } = mockConfig();
+      expect(() =>
+        getSessionKeySelectors(config, { chainId: V085_CHAIN, trade: false, account: false, [scope]: true }),
+      ).toThrowError(SymmError);
+    },
+  );
   it("defaults to account management plus the trade lifecycle, in that order", () => {
     const { config } = mockConfig();
 

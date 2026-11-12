@@ -5,18 +5,28 @@ import {
   type ConfigParameter,
   type GetSolverInfoData,
   type GetSolverInfoOptions,
+  type TimelockApprovalCapability,
 } from "@symmio/trading-core";
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
+import {
+  rememberTimelockCapability,
+  timelockCapabilityKey,
+  useKnownTimelockCapability,
+} from "./timelock-capability-cache";
 
 /** Parameters for {@link useSolverInfo}. */
 export type UseSolverInfoParameters = GetSolverInfoOptions & ConfigParameter;
 
 /** Return type of {@link useSolverInfo}. */
-export type UseSolverInfoReturnType = UseQueryResult<GetSolverInfoData, SymmioRequestError>;
+export type UseSolverInfoReturnType = UseQueryResult<GetSolverInfoData, SymmioRequestError> & {
+  /** Last validated positive timelock capability observed for this deployment in this QueryClient. */
+  knownTimelockApproval?: TimelockApprovalCapability;
+};
 
 /**
  * Read the solver's static fee configuration via the Enigma-only `/info`
@@ -26,19 +36,39 @@ export type UseSolverInfoReturnType = UseQueryResult<GetSolverInfoData, SymmioRe
 export function useSolverInfo(parameters: UseSolverInfoParameters = {}): UseSolverInfoReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
+  const resolvedChainId = parameters.chainId ?? chainId;
+  const queryClient = useQueryClient();
+  const key = useMemo(() => {
+    try {
+      return timelockCapabilityKey(config, resolvedChainId, parameters.solverId);
+    } catch {
+      return undefined;
+    }
+  }, [config, resolvedChainId, parameters.solverId]);
+  const known = useKnownTimelockCapability(config, resolvedChainId, parameters.solverId);
   const options = getSolverInfoQueryOptions(config, {
     ...parameters,
-    chainId: parameters.chainId ?? chainId,
+    chainId: resolvedChainId,
   });
 
-  return useQuery({
+  const result = useQuery({
     ...options,
     queryFn: async () => {
       try {
-        return await options.queryFn();
+        const data = await options.queryFn();
+        if (key) rememberTimelockCapability(queryClient, key, data.timelockApproval);
+        return data;
       } catch (err) {
         throw normalizeSymmError(err);
       }
     },
-  }) as UseSolverInfoReturnType;
+  }) as UseQueryResult<GetSolverInfoData, SymmioRequestError>;
+  useEffect(() => {
+    if (key && !result.isPlaceholderData && result.data?.timelockApproval && !known)
+      rememberTimelockCapability(queryClient, key, result.data.timelockApproval);
+  }, [queryClient, key, known, result.isPlaceholderData, result.data?.timelockApproval]);
+  return {
+    ...result,
+    knownTimelockApproval: known ?? (result.isPlaceholderData ? undefined : result.data?.timelockApproval),
+  };
 }

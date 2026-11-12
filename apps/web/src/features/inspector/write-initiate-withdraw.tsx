@@ -4,6 +4,8 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { createClassicWithdrawPart } from "@symmio/trading-core";
 import {
   useInitiateWithdraw,
@@ -15,7 +17,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
-import { isAddress, parseUnits, type Address } from "viem";
+import { isAddress, isAddressEqual, parseUnits, zeroAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
@@ -29,7 +31,7 @@ export function WriteInitiateWithdraw() {
   const [amount, setAmount] = useState<string>("");
   const [receiver, setReceiver] = useState<string>("");
 
-  const validAccount = isAddress(account) ? (account as Address) : undefined;
+  const validAccount = isAddress(account) && !isAddressEqual(account, zeroAddress) ? (account as Address) : undefined;
   const validReceiver = isAddress(receiver) ? (receiver as Address) : undefined;
   const validAmount =
     amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, addresses.collateralDecimals) : undefined;
@@ -41,7 +43,7 @@ export function WriteInitiateWithdraw() {
     validAmount !== undefined &&
     chainId !== undefined;
 
-  const mutation = useInitiateWithdraw();
+  const mutation = useInitiateWithdraw({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("initiateWithdraw");
 
@@ -49,6 +51,12 @@ export function WriteInitiateWithdraw() {
     validReceiver && validAmount !== undefined && chainId !== undefined
       ? [createClassicWithdrawPart({ id: 0n, amount: validAmount, receiver: validReceiver, chainId: BigInt(chainId) })]
       : undefined;
+  const protection = useProtectedWrite(
+    validAccount,
+    address,
+    "initiateWithdraw",
+    validParts ? { target: "core", functionName: "initiateWithdraw", args: [validParts, false, "0x"] } : undefined,
+  );
 
   /**
    * The fee preview prices the call by its selector, so until a receiver and an
@@ -149,7 +157,7 @@ export function WriteInitiateWithdraw() {
         <Button
           type="button"
           size="sm"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || mutation.isPending || !protection.available}
           onClick={() => {
             if (!validAccount || !validReceiver || validAmount === undefined) return;
             const part = createClassicWithdrawPart({
@@ -158,7 +166,14 @@ export function WriteInitiateWithdraw() {
               receiver: validReceiver,
               chainId: BigInt(chainId!),
             });
-            mutation.mutate({ account: validAccount, parts: [part], ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({
+                account: validAccount,
+                parts: [part],
+                ...write,
+                ...(timelock ? { timelock: withSelectedApprovalSigner(timelock, write) } : {}),
+              }),
+            );
           }}
           data-testid="button-send-initiate-withdraw"
         >
@@ -179,12 +194,13 @@ export function WriteInitiateWithdraw() {
         testId="result-simulate-initiateWithdraw"
       />
 
-      <WritePanel mutation={mutation} />
+      <ProtectedWriteNotice protection={protection} />
+      <WritePanel mutation={mutation} account={validAccount} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useInitiateWithdraw> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useInitiateWithdraw>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-initiateWithdraw-pending" loading>
@@ -194,7 +210,13 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useInitiateWithd
   }
   if (mutation.error) {
     return (
-      <ResultError testId="result-initiateWithdraw-error" kind={mutation.error.kind} message={mutation.error.message} />
+      <ResultError
+        testId="result-initiateWithdraw-error"
+        kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
+        message={mutation.error.message}
+      />
     );
   }
   if (mutation.isSuccess) {

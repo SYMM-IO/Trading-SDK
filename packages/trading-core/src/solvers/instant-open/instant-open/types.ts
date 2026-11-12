@@ -49,10 +49,9 @@ export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind>
       /**
        * Margin routed into the next virtual account — 18-decimal-wei `bigint`.
        *
-       * **Required by the Enigma (lowcap) flow**, which funds a fresh VA in the
-       * same batch as the quote; omitting it there throws
-       * `INSTANT_OPEN_MARGIN_REQUIRED`. **Ignored by Rasa (majors)**, which is
-       * cross-margin and has no `addMargin` step.
+       * When present, the Enigma flow funds the next VA in the same request as
+       * the quote. When omitted, Enigma sends only `sendQuote` and does not emit
+       * a zero-amount margin operation. Ignored by Rasa (majors).
        */
       margin?: InstantOpenMargin;
       /**
@@ -75,6 +74,8 @@ export type InstantOpenParameters<K extends SymmioSolverKind = SymmioSolverKind>
       deadline?: bigint;
       /** Lowcap signed-operation expiry in unix seconds. Defaults to the quote deadline. */
       operationDeadline?: bigint;
+      /** Independent margin approval expiry in Unix seconds. Defaults to the operation deadline, not public approval validity. */
+      marginApprovalDeadline?: bigint;
     }
 >;
 

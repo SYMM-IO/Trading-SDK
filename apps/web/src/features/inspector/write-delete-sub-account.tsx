@@ -3,12 +3,13 @@
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useDeleteSubAccount, useSimulateDeleteSubAccount, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import type { Address } from "viem";
-import { isAddress } from "viem";
+import { isAddress, isAddressEqual, zeroAddress } from "viem";
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
 import { SubAccountField } from "./subaccount-field";
@@ -22,13 +23,19 @@ const PRECONDITIONS = [
 ] as const;
 
 export function WriteDeleteSubAccount() {
-  const { isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain, address: owner } = useWalletAccount();
   const [account, setAccount] = useState<string>("");
 
-  const validAccount = isAddress(account) ? (account as Address) : undefined;
+  const validAccount = isAddress(account) && !isAddressEqual(account, zeroAddress) ? (account as Address) : undefined;
+  const protection = useProtectedWrite(
+    validAccount,
+    owner,
+    "deleteSubAccount",
+    validAccount ? { target: "account-layer", functionName: "deleteSubAccount", args: [validAccount] } : undefined,
+  );
   const canSubmit = isConnected && isOnExpectedChain && Boolean(validAccount);
 
-  const mutation = useDeleteSubAccount();
+  const mutation = useDeleteSubAccount({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("deleteSubAccount");
 
@@ -91,10 +98,12 @@ export function WriteDeleteSubAccount() {
           type="button"
           size="sm"
           variant="destructive"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || !protection.available || mutation.isPending}
           onClick={() => {
             if (!validAccount) return;
-            mutation.mutate({ subAccount: validAccount, ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({ subAccount: validAccount, ...write, ...(timelock ? { timelock } : {}) }),
+            );
           }}
           data-testid="button-send-delete"
         >
@@ -115,12 +124,13 @@ export function WriteDeleteSubAccount() {
         testId="result-simulate-deleteSubAccount"
       />
 
-      <WritePanel mutation={mutation} />
+      <ProtectedWriteNotice protection={protection} />
+      <WritePanel mutation={mutation} account={validAccount} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useDeleteSubAccount> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useDeleteSubAccount>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-deleteSubAccount-pending" loading>
@@ -130,7 +140,13 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useDeleteSubAcco
   }
   if (mutation.error) {
     return (
-      <ResultError testId="result-deleteSubAccount-error" kind={mutation.error.kind} message={mutation.error.message} />
+      <ResultError
+        testId="result-deleteSubAccount-error"
+        kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
+        message={mutation.error.message}
+      />
     );
   }
   if (mutation.isSuccess) {

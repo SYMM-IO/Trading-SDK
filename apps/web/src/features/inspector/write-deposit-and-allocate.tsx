@@ -124,12 +124,12 @@ export function WriteDepositAndAllocate() {
         testId="result-simulate-depositAndAllocateForAccount"
       />
 
-      <WritePanel mutation={mutation} />
+      <WritePanel mutation={mutation} account={validAccount} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useDepositAndAllocate> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useDepositAndAllocate>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-depositAndAllocateForAccount-pending" loading>
@@ -142,6 +142,8 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useDepositAndAll
       <ResultError
         testId="result-depositAndAllocateForAccount-error"
         kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
         message={mutation.error.message}
       />
     );

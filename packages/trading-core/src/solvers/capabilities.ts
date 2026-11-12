@@ -37,9 +37,10 @@ export function getSolverCapabilities(
       groupClose: capabilities?.groupClose ?? false,
       limitOrder: capabilities?.limitOrder ?? false,
       listingService: capabilities?.listingService ?? false,
+      timelockApproval: capabilities?.timelockApproval ?? false,
     };
   } catch {
-    return { groupClose: false, limitOrder: false, listingService: false };
+    return { groupClose: false, limitOrder: false, listingService: false, timelockApproval: false };
   }
 }
 

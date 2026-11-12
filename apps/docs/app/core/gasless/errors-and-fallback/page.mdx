@@ -4,6 +4,8 @@ import { Callout } from "nextra/components";
 
 How gasless failures surface, how to read the vendor's diagnostics out of them, when a wallet-paid retry is safe, and what to do when a submit's outcome is simply unknown.
 
+Batch deadline errors are validation failures: `GASLESS_BATCH_DEADLINE_INVALID` rejects a non-future or over-20-minute explicit expiry before network calls, and `GASLESS_BATCH_DEADLINE_EXPIRED` stops an explicit expiry reached during preparation/signing before this attempt submits. Neither proves that an earlier uncertain attempt failed; preserve its recovery record. See [batch deadlines](/core/gasless/relay-gasless-batch#nonces-and-concurrency).
+
 ## The fallback safety rule
 
 <Callout type="warning">

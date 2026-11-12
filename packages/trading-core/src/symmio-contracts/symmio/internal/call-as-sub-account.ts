@@ -4,6 +4,7 @@ import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-ga
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { GaslessWriteParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
+import { rethrowTimelockRevert } from "../../../timelock/normalize-timelock-revert";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { getSubAccount } from "../../account-layer/actions/get-sub-account";
 import { simulateCallAsSubAccount } from "./simulate-call-as-sub-account";
@@ -74,17 +75,21 @@ export async function callAsSubAccount(
   });
 
   if (shouldSimulateBeforeWrite(config, parameters)) {
-    await simulateCallAsSubAccount(config, { account, data, chainId, from: walletClient.account.address });
+    await simulateCallAsSubAccount(config, { account, data, chainId, from: walletClient.account.address }).catch(
+      rethrowTimelockRevert,
+    );
   }
 
-  return walletClient.writeContract({
-    address: addresses.accountLayerAddress,
-    abi: accountLayerAbi,
-    functionName: "_call",
-    args: [account, callDatas],
-    account: walletClient.account,
-    chain: walletClient.chain,
-  });
+  return walletClient
+    .writeContract({
+      address: addresses.accountLayerAddress,
+      abi: accountLayerAbi,
+      functionName: "_call",
+      args: [account, callDatas],
+      account: walletClient.account,
+      chain: walletClient.chain,
+    })
+    .catch(rethrowTimelockRevert);
 }
 
 /**

@@ -79,6 +79,12 @@ export type RelayGaslessBatchParameters = Compute<
       operationType?: string;
       /** Non-secret client correlation data stored with the request. */
       metadata?: Record<string, unknown>;
+      /**
+       * Absolute signature expiry in Unix seconds. Defaults to call time + 20 minutes.
+       * Must be in the future and no later than that default maximum. Persist the
+       * same absolute value with recovery inputs; never extend a short-lived authorization.
+       */
+      deadline?: bigint;
     }
 >;
 
@@ -146,6 +152,8 @@ export type RelayGaslessBatchReturnType = GaslessSubmitReceipt;
  *   `GASLESS_SUBMIT_UNCONFIRMED` when the outcome could not be established — call again under the
  *   same `idempotencyKey`, or replay it with `resubmitGaslessRequest`; never sign the batch again
  *   under a new key.
+ * @throws {SymmError} `GASLESS_BATCH_DEADLINE_INVALID` for an explicit expiry outside the allowed window.
+ * @throws {SymmError} `GASLESS_BATCH_DEADLINE_EXPIRED` when an explicit expiry elapses before submission.
  * @throws The wallet's own error when the user rejects a prompt; nothing is submitted.
  *
  * @example
@@ -169,7 +177,16 @@ export async function relayGaslessBatch(
   const { account, calls, from, metadata } = parameters;
 
   /** Fixed when the call starts, before any lock wait or prompt. */
-  const deadline = BigInt(Math.floor(Date.now() / 1000) + GASLESS_SIGNATURE_LIFETIME_SECONDS);
+  const now = BigInt(Math.floor(Date.now() / 1000));
+  const maximumDeadline = now + BigInt(GASLESS_SIGNATURE_LIFETIME_SECONDS);
+  const deadline = parameters.deadline ?? maximumDeadline;
+  if (typeof deadline !== "bigint" || deadline <= now || deadline > maximumDeadline) {
+    throw new SymmError(
+      "validation",
+      "GASLESS_BATCH_DEADLINE_INVALID",
+      "Batch deadline must be a future Unix timestamp within 20 minutes of this call.",
+    );
+  }
   /** One key per user action; validated before any network call or prompt. */
   const callerOwnedKey = parameters.idempotencyKey !== undefined;
   const idempotencyKey = resolveGaslessIdempotencyKey(parameters.idempotencyKey);
@@ -278,12 +295,14 @@ export async function relayGaslessBatch(
       }
     }
 
+    if (parameters.deadline !== undefined) assertBatchDeadlineUnexpired(deadline);
     const signatures = await signGaslessBatchOperations(config, {
       chainId,
       walletClients: entryClients,
       entries,
       operations: built.operations,
     });
+    if (parameters.deadline !== undefined) assertBatchDeadlineUnexpired(deadline);
 
     const body: GaslessWireRelayInstantRequest = {
       idempotencyKey,
@@ -313,6 +332,7 @@ export async function relayGaslessBatch(
       streams,
       { service: "operations", chainId, deadline, idempotencyKey, callerOwnedKey },
       async () => {
+        if (parameters.deadline !== undefined) assertBatchDeadlineUnexpired(deadline);
         const raw = await postGaslessSubmit<GaslessWireOperationAccepted>(
           context,
           "/gateway/relay-instant",
@@ -329,6 +349,16 @@ export async function relayGaslessBatch(
       blocksGaslessNonceStream,
     );
   });
+}
+
+function assertBatchDeadlineUnexpired(deadline: bigint): void {
+  if (deadline <= BigInt(Math.floor(Date.now() / 1000))) {
+    throw new SymmError(
+      "validation",
+      "GASLESS_BATCH_DEADLINE_EXPIRED",
+      "Batch authorization expired before submission; nothing was submitted by this attempt.",
+    );
+  }
 }
 
 /**

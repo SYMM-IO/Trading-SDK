@@ -1,8 +1,9 @@
-import type { Hex } from "viem";
+import { getAbiItem, toFunctionSelector, type Hex } from "viem";
 import type { Config } from "../core/config";
 import { SymmError } from "../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../shared/types/properties";
 import { getInstantTradeRequiredSelectors } from "../solvers/instant-open/shared/selectors";
+import { accountLayerAbi } from "../symmio-contracts/abi/v0.8.6/account-layer";
 import { GASLESS_SESSION_KEY_SELECTORS, GASLESS_SESSION_KEY_WITHDRAW_SELECTORS } from "./relayable-writes";
 
 /**
@@ -31,6 +32,17 @@ export interface SessionKeySelectorScope {
    * own choosing. Opt in only for a key that must run withdrawals unattended.
    */
   withdraw?: boolean;
+  /**
+   * Include AccountLayer `_call`, also required when a delegate signs a
+   * timelock approval request. Defaults to `false`. This is broad Core-call
+   * authority, not a withdrawal-only permission; opt in explicitly.
+   */
+  coreCalls?: boolean;
+  /**
+   * Include AccountLayer `scheduleTimelockOp`. Defaults to `false`.
+   * Independent of `coreCalls`: only grant it to keys that schedule operations.
+   */
+  timelockScheduling?: boolean;
 }
 
 /**
@@ -63,16 +75,19 @@ function dedupeSelectors(selectors: readonly Hex[]): readonly Hex[] {
  * call**. {@link GASLESS_SESSION_KEY_SELECTORS} and
  * {@link GASLESS_SESSION_KEY_WITHDRAW_SELECTORS} are its low-level pieces, and
  * the trade lifecycle is a third piece that is chain-dependent; this resolves
- * all three for one chain and hands back a single array for `grantDelegation`.
+ * these scopes for one chain and hands back a single array for `grantDelegation`.
  *
  * The default scope — trade **and** account management, **without**
  * `initiateWithdraw` — is the onboarding grant: one signature buys a key
  * promptless, gas-free authority over the whole trading lifecycle and the
  * account's own bookkeeping, while the one write that names a destination for
- * collateral stays behind an explicit `withdraw: true`.
+ * collateral stays behind an explicit `withdraw: true`. Broad `_call` and
+ * scheduling authority require separate `coreCalls` and `timelockScheduling`
+ * opt-ins; enabling withdrawals does not enable either one.
  *
  * The returned order is stable and meaningful — account selectors, then the
- * withdraw selector, then the trade selectors — so two grants diff readably in a
+ * withdraw selector, then the trade selectors, then optional Core-call and
+ * scheduling selectors — so two grants diff readably in a
  * UI. Values are lowercase and de-duplicated.
  *
  * @param config - The SDK config.
@@ -81,7 +96,7 @@ function dedupeSelectors(selectors: readonly Hex[]): readonly Hex[] {
  * @returns The de-duplicated, lowercase selector set for the requested scope.
  * @throws {SymmError} `UNSUPPORTED_CHAIN` when the chain is not configured.
  * @throws {SymmError} `SESSION_KEY_SELECTORS_UNSUPPORTED_CHAIN` when the `account`
- *   or `withdraw` scope is requested on a chain whose `contractsVersion` is not
+ *   `withdraw`, `coreCalls`, or `timelockScheduling` scope is requested on a chain whose `contractsVersion` is not
  *   `"0.8.6"`. Those selectors come from the v0.8.6 ABIs and include
  *   `approveOperationalFeeWithMultiplier`, which does not exist on a v0.8.5
  *   diamond. A trade-only request (`{ account: false }`) works on both
@@ -108,17 +123,24 @@ export function getSessionKeySelectors(
   config: Config,
   parameters: GetSessionKeySelectorsParameters = {},
 ): readonly Hex[] {
-  const { chainId, trade = true, account = true, withdraw = false } = parameters;
+  const {
+    chainId,
+    trade = true,
+    account = true,
+    withdraw = false,
+    coreCalls = false,
+    timelockScheduling = false,
+  } = parameters;
 
   const selectors: Hex[] = [];
 
-  if (account || withdraw) {
+  if (account || withdraw || coreCalls || timelockScheduling) {
     const chain = config.getChainConfig(chainId);
     if (chain.contractsVersion !== "0.8.6") {
       throw new SymmError(
         "config",
         "SESSION_KEY_SELECTORS_UNSUPPORTED_CHAIN",
-        `Session keys: chain ${chain.chainId} runs contracts ${chain.contractsVersion}, but the account-management selectors exist only on perps-core ("0.8.6") deployments. Request \`{ account: false, withdraw: false }\` for a trade-only key.`,
+        `Session keys: chain ${chain.chainId} runs contracts ${chain.contractsVersion}, but the requested account or protected-operation selectors require perps-core ("0.8.6"). Request \`{ account: false, withdraw: false, coreCalls: false, timelockScheduling: false }\` for a trade-only key.`,
       );
     }
     if (account) selectors.push(...GASLESS_SESSION_KEY_SELECTORS);
@@ -126,6 +148,10 @@ export function getSessionKeySelectors(
   }
 
   if (trade) selectors.push(...getInstantTradeRequiredSelectors(config, { chainId }));
+  if (coreCalls) selectors.push(toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "_call" })));
+  if (timelockScheduling) {
+    selectors.push(toFunctionSelector(getAbiItem({ abi: accountLayerAbi, name: "scheduleTimelockOp" })));
+  }
 
   return dedupeSelectors(selectors);
 }

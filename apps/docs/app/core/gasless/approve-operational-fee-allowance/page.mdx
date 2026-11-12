@@ -2,6 +2,9 @@ import { Callout } from "nextra/components";
 
 # approveOperationalFeeAllowance
 
+The optional `timelock` authorization enables protected writes; see
+[timelock execution](/core/account-layer/timelocks/execution).
+
 Set the gasless fee charger's allowance, as the paying sub-account, **without touching the fee multiplier** — the
 diamond's two-argument `approveOperationalFee(chargers, amounts)`.
 

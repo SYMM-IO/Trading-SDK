@@ -1,4 +1,9 @@
-import type { ConfigParameter } from "@symmio/trading-core";
+import type {
+  ConfigParameter,
+  TimelockApprovalCapability,
+  TimelockApprovalProvider,
+  ValidatedTimelockApproval,
+} from "@symmio/trading-core";
 import type { Hash, TransactionReceipt } from "viem";
 
 /**
@@ -15,6 +20,21 @@ export interface WriteParameters extends ConfigParameter {
   waitForReceipt?: boolean;
   /** Confirmations to wait for when `waitForReceipt` is true. Defaults to `1`. */
   confirmations?: number;
+}
+
+/** Write-hook options for operations that can automatically request a timelock approval. */
+export interface AutomaticTimelockWriteParameters extends WriteParameters {
+  /** Set false for app-owned routing, or provide metadata and transport for a custom provider. Defaults to true. Keep the provider object stable while an operation is active. */
+  automaticTimelock?:
+    | boolean
+    | {
+        capability: TimelockApprovalCapability;
+        provider: TimelockApprovalProvider;
+        /** Unix-seconds request deadline; defaults to chain time plus five minutes. */
+        deadline?: bigint;
+        /** Persist issued approvals before submission when recovery must survive reload. */
+        onApproval?: (approval: ValidatedTimelockApproval) => void | Promise<void>;
+      };
 }
 
 /**

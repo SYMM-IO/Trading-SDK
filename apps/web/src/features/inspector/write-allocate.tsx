@@ -4,12 +4,14 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useAllocate, useSimulateAllocate, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
-import { isAddress, parseUnits, type Address } from "viem";
+import { isAddress, isAddressEqual, parseUnits, zeroAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
@@ -19,15 +21,23 @@ import { SubAccountField } from "./subaccount-field";
 const MARGIN_DECIMALS = 18;
 
 export function WriteAllocate() {
-  const { isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain, address: owner } = useWalletAccount();
   const [account, setAccount] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
 
-  const validAccount = isAddress(account) ? (account as Address) : undefined;
+  const validAccount = isAddress(account) && !isAddressEqual(account, zeroAddress) ? (account as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
+  const protection = useProtectedWrite(
+    validAccount,
+    owner,
+    "allocate",
+    validAccount && validAmount !== undefined
+      ? { target: "core", functionName: "allocate", args: [validAmount] }
+      : undefined,
+  );
   const canSubmit = isConnected && isOnExpectedChain && validAccount && validAmount !== undefined;
 
-  const mutation = useAllocate();
+  const mutation = useAllocate({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("allocate");
 
@@ -92,10 +102,17 @@ export function WriteAllocate() {
         <Button
           type="button"
           size="sm"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || !protection.available || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount, ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({
+                account: validAccount,
+                amount: validAmount,
+                ...write,
+                ...(timelock ? { timelock: withSelectedApprovalSigner(timelock, write) } : {}),
+              }),
+            );
           }}
           data-testid="button-send-allocate"
         >
@@ -116,12 +133,13 @@ export function WriteAllocate() {
         testId="result-simulate-allocate"
       />
 
-      <WritePanel mutation={mutation} />
+      <ProtectedWriteNotice protection={protection} />
+      <WritePanel mutation={mutation} account={validAccount} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useAllocate> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useAllocate>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-allocate-pending" loading>
@@ -130,7 +148,15 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useAllocate> }) 
     );
   }
   if (mutation.error) {
-    return <ResultError testId="result-allocate-error" kind={mutation.error.kind} message={mutation.error.message} />;
+    return (
+      <ResultError
+        testId="result-allocate-error"
+        kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
+        message={mutation.error.message}
+      />
+    );
   }
   if (mutation.isSuccess) {
     return (

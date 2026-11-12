@@ -2,6 +2,7 @@ import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 import { resolveDefaultOperationalFeeCharger } from "../internal/resolve-default-operational-fee-charger";
@@ -13,6 +14,8 @@ import { resolveDefaultOperationalFeeCharger } from "../internal/resolve-default
 export type ApproveOperationalFeeAllowanceParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for a timelocked selector. */
+      timelock?: TimelockAuthorization;
       /**
        * The sub-account that pays operational fees. The call is routed through
        * the AccountLayer `_call` proxy so the diamond sees this sub-account as
@@ -100,6 +103,14 @@ export async function approveOperationalFeeAllowance(
     functionName: "approveOperationalFee",
     args: [[...chargers], [...amounts]],
   });
+
+  if (parameters.timelock)
+    return executeProtectedCall(config, {
+      ...parameters,
+      callData: data,
+      target: "core",
+      timelock: parameters.timelock,
+    });
 
   return callAsSubAccount(config, {
     account,

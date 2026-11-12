@@ -1,6 +1,7 @@
 import { encodeFunctionData, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 
@@ -10,6 +11,8 @@ import { callAsSubAccount } from "../internal/call-as-sub-account";
 export type AllocateParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for a timelocked selector. */
+      timelock?: TimelockAuthorization;
       /**
        * The subaccount to allocate into. The call is routed through the
        * AccountLayer `_call` proxy; the connected wallet must be its on-chain `owner`.
@@ -61,6 +64,14 @@ export async function allocate(config: Config, parameters: AllocateParameters): 
     functionName: "allocate",
     args: [amount],
   });
+
+  if (parameters.timelock)
+    return executeProtectedCall(config, {
+      ...parameters,
+      callData: data,
+      target: "core",
+      timelock: parameters.timelock,
+    });
 
   return callAsSubAccount(config, {
     account,

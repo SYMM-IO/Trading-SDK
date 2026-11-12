@@ -48,10 +48,16 @@ export function buildChainConfigs(
  * @internal
  */
 function mergeChainConfig(base: SymmioChainConfig, override: DeepPartial<SymmioChainConfig>): SymmioChainConfig {
+  const accountLayerChanged =
+    override.addresses?.accountLayerAddress !== undefined &&
+    override.addresses.accountLayerAddress.toLowerCase() !== base.addresses.accountLayerAddress.toLowerCase();
+  const { timelockSupported: baseTimelockSupported, ...baseWithoutTimelockSupport } = base;
+  const timelockSupported = override.timelockSupported ?? (accountLayerChanged ? undefined : baseTimelockSupported);
   return {
-    ...base,
+    ...baseWithoutTimelockSupport,
     ...(override.chainId !== undefined ? { chainId: override.chainId } : {}),
     contractsVersion: override.contractsVersion ?? base.contractsVersion,
+    ...(timelockSupported !== undefined ? { timelockSupported } : {}),
     addresses: { ...base.addresses, ...override.addresses },
     subgraphs: { ...base.subgraphs, ...override.subgraphs },
     solvers: mergeSolvers(base.chainId, base.solvers, override.solvers),

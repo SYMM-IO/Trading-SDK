@@ -2,6 +2,7 @@ import { encodeFunctionData, type Abi, type Address, type Hash } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import { executeProtectedCoreBatch, type TimelockBatchAuthorization } from "../../../timelock/execute-protected-batch";
 import { symmioAbi } from "../../abi/v0.8.6/symmio";
 import { callAsSubAccount } from "../internal/call-as-sub-account";
 
@@ -21,6 +22,8 @@ export type ExecuteAccountCallsParameters = Compute<
       account: Address;
       /** Nonempty ordered list of core writes. Each call executes as the same subaccount. */
       calls: readonly AccountContractCall[];
+      /** Optional per-call authorizations for an atomic protected Core batch. */
+      timelock?: TimelockBatchAuthorization;
     }
 >;
 
@@ -67,6 +70,9 @@ export async function executeAccountCalls(
     }
     return encodeFunctionData({ abi: symmioAbi as Abi, functionName: call.functionName, args: call.args });
   });
+
+  if (execution.timelock)
+    return executeProtectedCoreBatch(config, { ...execution, callDatas: data, timelock: execution.timelock });
 
   return callAsSubAccount(config, { ...execution, data });
 }

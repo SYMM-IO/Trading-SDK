@@ -45,7 +45,7 @@ export function SetupReadyStep({ track, complete, onStartTrading }: Props) {
               ? "Funded and ready. Every flow on this console will prompt your wallet and use native gas."
               : track === "gasless"
                 ? "Funded and provisioned. Relayed writes need no native gas — your wallet still signs each one."
-                : "Funded, provisioned and delegated. The session key signs on its own: no prompts, no native gas."}
+                : "Funded, provisioned and delegated for trading. Withdrawals use the session key only when its required permissions are active; otherwise your wallet signs."}
           </span>
         </ResultSuccess>
       ) : (
@@ -110,6 +110,7 @@ export function SetupReadyStep({ track, complete, onStartTrading }: Props) {
         size="lg"
         className="w-full"
         onClick={onStartTrading}
+        disabled={!complete}
         data-testid="button-setup-start-trading"
       >
         Go to the trading flows

@@ -5,6 +5,7 @@ import { countOverrides } from "@/config/symmio-config-schema";
 import { findGaslessDeployment } from "@/config/symmio-presets";
 import type { CreateConfigParameters } from "@symmio/trading-core";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { rebaseStagingTimelockCapability } from "./staging-timelock-capability";
 
 type ChainOverrides = CreateConfigParameters["symmioConfig"];
 
@@ -138,7 +139,7 @@ export function SymmioOverridesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = readStored();
-    if (stored !== undefined) setOverridesState(rebaseGaslessDeploymentFacts(stored));
+    if (stored !== undefined) setOverridesState(rebaseStagingTimelockCapability(rebaseGaslessDeploymentFacts(stored)));
     setHasHydrated(true);
   }, []);
 
@@ -150,7 +151,7 @@ export function SymmioOverridesProvider({ children }: { children: ReactNode }) {
      * whose addresses name a deployment but whose relayer is gone, and every
      * gasless surface would switch itself off until the preset was re-applied.
      */
-    const rebased = rebaseGaslessDeploymentFacts(next);
+    const rebased = rebaseStagingTimelockCapability(rebaseGaslessDeploymentFacts(next));
     setOverridesState(rebased);
     if (typeof window === "undefined") return;
     try {

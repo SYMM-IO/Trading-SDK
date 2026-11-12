@@ -3,6 +3,8 @@ const DEPOSIT_REASON = "a deposit pulls USDC from your wallet itself, which a se
 
 /** Shared by both delegation grants, which fail for the same reason. */
 const GRANT_REASON = "only the account owner can grant, and the InstantLayer rejects a key-signed grant";
+const TIMELOCK_GRANT_REASON = "the standard session-key grant does not include this timelock operation";
+const PROTECTED_CORE_REASON = "the standard session-key grant does not include the protected Core wrapper";
 
 /**
  * Relayable writes a session key can never sign here, each with the reason its
@@ -31,6 +33,12 @@ const SESSION_KEY_BLOCKED_WRITES: ReadonlyMap<string, string> = new Map([
   ["depositAndAllocateForAccount", DEPOSIT_REASON],
   ["createSubAccounts", "account creation cannot be confined to one account, so it is never delegated"],
   ["deleteSubAccount", "deleting the account would destroy the delegation the key signs under"],
+  ["earlyWithdraw", "early withdrawal must be submitted by the account owner"],
+  ["setupTimelocks", TIMELOCK_GRANT_REASON],
+  ["clearTimelocks", TIMELOCK_GRANT_REASON],
+  ["timelockScheduleRecovery", TIMELOCK_GRANT_REASON],
+  ["timelockProtectedCall", PROTECTED_CORE_REASON],
+  ["timelockProtectedBatch", PROTECTED_CORE_REASON],
   ["grantDelegation", GRANT_REASON],
   ["grantDelegations", GRANT_REASON],
   [
@@ -46,5 +54,15 @@ const SESSION_KEY_BLOCKED_WRITES: ReadonlyMap<string, string> = new Map([
  * @param method - The contract method name, as shown on the card.
  */
 export function getSessionKeyBlockedReason(method: string): string | undefined {
+  if (method.startsWith("timelockAccount:")) {
+    const name = method.slice("timelockAccount:".length);
+    if (name === "allocate" || name === "deallocate") return PROTECTED_CORE_REASON;
+    return SESSION_KEY_BLOCKED_WRITES.get(name);
+  }
+  if (method.startsWith("timelockNamed:")) {
+    const name = method.slice("timelockNamed:".length);
+    if (name === "addMargin" || name === "removeMargin") return undefined;
+    return PROTECTED_CORE_REASON;
+  }
   return SESSION_KEY_BLOCKED_WRITES.get(method);
 }

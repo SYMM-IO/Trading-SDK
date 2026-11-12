@@ -10,6 +10,8 @@ export const CHAIN_CONFIGS: Record<number, SymmioChainConfig> = {
   [SymmioSupportedChainId.BASE]: {
     chainId: SymmioSupportedChainId.BASE,
     contractsVersion: "0.8.5",
+    // Base AccountLayer has no scheduleTimelockOp facet at block 53214315.
+    timelockSupported: false,
     addresses: {
       symmioAddress: "0x91Cf2D8Ed503EC52768999aA6D8DBeA6e52dbe43",
       instantLayerAddress: "0x0825435285ac0E5c02c7a7c443F631f3e07fE375",

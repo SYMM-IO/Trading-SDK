@@ -1023,7 +1023,7 @@ const params = await prepareInstantOpenParams(config, {
 const result = await instantOpen(config, params);
 ```
 
-`prepareInstantOpenParams` returns `InstantOpenParameters` (all final wei values); `instantOpen` signs and submits them. Enigma encodes the margin and the chain-generation quote-send call, signs both operations, and hands off to `sendInstantOpen`. When the solver advertises account timelock requirements, the margin is wrapped in `executeTimelockOp` after a policy preflight; an Active session alone does not establish that policy. See [Enigma margin timelocks](/core/solvers/instant-open#enigma-margin-timelocks) before implementing account setup. You do not build these operations yourself.
+`prepareInstantOpenParams` returns `InstantOpenParameters` (all final wei values); `instantOpen` signs and submits them. Enigma always signs the chain-generation quote-send call and, when `margin` is present, also encodes and signs `addMarginToNextVA`. When the solver advertises account timelock requirements, that margin operation is wrapped in `executeTimelockOp` after a policy preflight; an Active session alone does not establish that policy. See [Enigma margin timelocks](/core/solvers/instant-open#enigma-margin-timelocks) before implementing account setup. You do not build these operations yourself.
 
 <Callout type="info">
   Every contract write dry-runs through its `simulate*` sibling when `simulateBeforeWrite` is `true`. `instantOpen` is a

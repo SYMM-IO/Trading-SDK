@@ -41,7 +41,7 @@ function CardSection({ label, hint, pages }: { label: string; hint: string; page
             description={page.description}
             icon={page.icon}
             index={index}
-            meta={`${methodCount(page)} methods`}
+            meta={page.slug === "timelock" ? "Protection and recovery" : `${methodCount(page)} methods`}
           />
         ))}
       </div>

@@ -1,6 +1,7 @@
 import {
   accountLayerAbi,
   getActiveDelegationsQueryKey,
+  getActiveVirtualAccountByKeyQueryKey,
   getCollateralAllowanceQueryKey,
   getCollateralBalanceQueryKey,
   getDelegationExpiryQueryKey,
@@ -18,12 +19,21 @@ import {
   getPendingRevocationEtasQueryKey,
   getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
+  getPredictedNextVirtualAccountQueryKey,
   getQuotePendingFundingQueryKey,
   getQuoteQueryKey,
+  getSelectorTimelockQueryKey,
   getSubAccountQueryKey,
+  getSubAccountVirtualNonceQueryKey,
   getSubAccountsCountOfUserQueryKey,
+  getTimelockPolicyQueryKey,
+  getTimelockScheduleStateQueryKey,
   getUserSubAccountsAddressesQueryKey,
   getUserSubAccountsQueryKey,
+  getVirtualAccountQueryKey,
+  getVirtualAccountsAddressesOfSubAccountQueryKey,
+  getVirtualAccountsCountOfSubAccountQueryKey,
+  getVirtualAccountsOfSubAccountQueryKey,
   getWithdrawCooldownOfQueryKey,
   getWithdrawRequestsQueryKey,
   getWithdrawableTimeQueryKey,
@@ -32,7 +42,17 @@ import {
   type GaslessBatchCall,
 } from "@symmio/trading-core";
 import type { QueryClient } from "@tanstack/react-query";
-import { isAddress, toFunctionSelector, type Abi, type AbiFunction, type Address, type Hex } from "viem";
+import {
+  decodeFunctionData,
+  encodeFunctionData,
+  isAddress,
+  sliceHex,
+  toFunctionSelector,
+  type Abi,
+  type AbiFunction,
+  type Address,
+  type Hex,
+} from "viem";
 import { invalidateAccountBalances } from "../utils/invalidate-account-balances";
 import { predicateMatch } from "../utils/predicate-match";
 
@@ -190,6 +210,21 @@ const SUB_ACCOUNT_WRITES: ReadonlySet<Hex> = new Set([
   selectorOf(accountLayerAbi as Abi, "createSubAccounts"),
   selectorOf(accountLayerAbi as Abi, "deleteSubAccount"),
   selectorOf(accountLayerAbi as Abi, "editAccountName"),
+  selectorOf(accountLayerAbi as Abi, "transferSubAccountOwnership"),
+  selectorOf(accountLayerAbi as Abi, "setSingleVAMode"),
+  selectorOf(accountLayerAbi as Abi, "createCustomVirtualAccount"),
+]);
+
+const VIRTUAL_ACCOUNT_WRITES: ReadonlySet<Hex> = new Set([
+  selectorOf(accountLayerAbi as Abi, "transferSubAccountOwnership"),
+  selectorOf(accountLayerAbi as Abi, "deleteSubAccount"),
+  selectorOf(accountLayerAbi as Abi, "setSingleVAMode"),
+  selectorOf(accountLayerAbi as Abi, "createCustomVirtualAccount"),
+]);
+
+const OPERATIONAL_FEE_WRITES: ReadonlySet<Hex> = new Set([
+  selectorOf(symmioAbi as Abi, "approveOperationalFee"),
+  selectorOf(symmioAbi as Abi, "approveOperationalFeeWithMultiplier"),
 ]);
 
 /** Relayable writes that pull collateral from the signer's own token balance. */
@@ -203,6 +238,51 @@ const GRANT_DELEGATIONS: ReadonlySet<Hex> = new Set([
   selectorOf(instantLayerAbi as Abi, "grantDelegation"),
   selectorOf(instantLayerAbi as Abi, "grantDelegations"),
 ]);
+
+const TIMELOCK_POLICY_WRITES: ReadonlySet<Hex> = new Set([
+  selectorOf(accountLayerAbi, "setupTimelocks"),
+  selectorOf(accountLayerAbi, "clearTimelocks"),
+]);
+const TIMELOCK_SCHEDULE_WRITES: ReadonlySet<Hex> = new Set([
+  selectorOf(accountLayerAbi, "scheduleTimelockOp"),
+  selectorOf(accountLayerAbi, "cancelTimelockOp"),
+  selectorOf(accountLayerAbi, "executeTimelockOp"),
+]);
+
+/** Cache effects differ from delegation permissions: inspect wrapped operations too. */
+function batchInvalidationSelectors(calls: readonly GaslessBatchCall[]): Set<Hex> {
+  const selectors = new Set(getGaslessBatchSelectors(calls));
+  const pending: Hex[] = [];
+  for (const call of calls) {
+    if ("data" in call) pending.push(call.data);
+    else if ("functionName" in call && call.functionName === "executeTimelockOp") {
+      pending.push(
+        encodeFunctionData({
+          abi: (call.abi ?? accountLayerAbi) as Abi,
+          functionName: call.functionName,
+          args: call.args,
+        }),
+      );
+    }
+  }
+  return collectOperationSelectors(pending, selectors);
+}
+
+function collectOperationSelectors(pending: Hex[], selectors = new Set<Hex>()): Set<Hex> {
+  while (pending.length) {
+    const data = pending.pop()!;
+    if (data.length < 10) continue;
+    selectors.add(sliceHex(data, 0, 4).toLowerCase() as Hex);
+    try {
+      const decoded = decodeFunctionData({ abi: accountLayerAbi, data });
+      if (decoded.functionName === "executeTimelockOp") pending.push(decoded.args[1]);
+      else if (decoded.functionName === "_call") pending.push(...decoded.args[1]);
+    } catch {
+      // Core calls are leaves. Their selector is sufficient for invalidation.
+    }
+  }
+  return selectors;
+}
 
 /**
  * Invalidate the reads a relayed gasless batch changed.
@@ -225,13 +305,13 @@ export function invalidateGaslessBatchReads(
   scope: Scope,
   batch: { account: Address; calls: readonly GaslessBatchCall[] },
 ): void {
-  const selectors = new Set(getGaslessBatchSelectors(batch.calls));
-  const touches = (writes: ReadonlySet<Hex>) => [...writes].some((selector) => selectors.has(selector));
+  const selectors = batchInvalidationSelectors(batch.calls);
 
   void queryClient.invalidateQueries({
     predicate: predicateMatch(getInstantLayerNonceQueryKey, { ...scope, account: batch.account }),
   });
   invalidateRelayTransportReads(queryClient, scope);
+  invalidateOperationReads(queryClient, scope, selectors);
 
   for (const call of batch.calls) {
     if ("walletCalls" in call) {
@@ -240,6 +320,27 @@ export function invalidateGaslessBatchReads(
         signerAccount: batch.account,
       });
     }
+  }
+}
+
+/** Refresh confirmed timelock execution effects without assuming relay transport. @internal */
+export function invalidateTimelockExecutionReads(queryClient: QueryClient, scope: Scope, innerCallData: Hex): void {
+  const selectors = collectOperationSelectors([innerCallData]);
+  selectors.add(selectorOf(accountLayerAbi, "executeTimelockOp"));
+  invalidateAccountBalances(queryClient, scope);
+  invalidateOperationReads(queryClient, scope, selectors);
+}
+
+/** Domain effects shared by direct execution and gasless batches. */
+function invalidateOperationReads(queryClient: QueryClient, scope: Scope, selectors: ReadonlySet<Hex>): void {
+  const touches = (writes: ReadonlySet<Hex>) => [...writes].some((selector) => selectors.has(selector));
+
+  if (touches(TIMELOCK_POLICY_WRITES)) {
+    void queryClient.invalidateQueries({ predicate: predicateMatch(getTimelockPolicyQueryKey, scope) });
+    void queryClient.invalidateQueries({ predicate: predicateMatch(getSelectorTimelockQueryKey, scope) });
+  }
+  if (touches(TIMELOCK_POLICY_WRITES) || touches(TIMELOCK_SCHEDULE_WRITES)) {
+    void queryClient.invalidateQueries({ predicate: predicateMatch(getTimelockScheduleStateQueryKey, scope) });
   }
 
   if (touches(WITHDRAW_WRITES)) {
@@ -282,6 +383,22 @@ export function invalidateGaslessBatchReads(
   if (touches(DEPOSIT_WRITES)) {
     void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralBalanceQueryKey, scope) });
     void queryClient.invalidateQueries({ predicate: predicateMatch(getCollateralAllowanceQueryKey, scope) });
+  }
+  if (touches(VIRTUAL_ACCOUNT_WRITES)) {
+    for (const queryKey of [
+      getVirtualAccountQueryKey,
+      getVirtualAccountsOfSubAccountQueryKey,
+      getVirtualAccountsAddressesOfSubAccountQueryKey,
+      getVirtualAccountsCountOfSubAccountQueryKey,
+      getActiveVirtualAccountByKeyQueryKey,
+      getPredictedNextVirtualAccountQueryKey,
+      getSubAccountVirtualNonceQueryKey,
+    ]) {
+      void queryClient.invalidateQueries({ predicate: predicateMatch(queryKey, scope) });
+    }
+  }
+  if (touches(OPERATIONAL_FEE_WRITES)) {
+    void queryClient.invalidateQueries({ predicate: predicateMatch(getOperationalFeeAllowanceQueryKey, scope) });
   }
   if (touches(GRANT_DELEGATIONS)) {
     /** Scoped by config only: one grant covers every selector it lists, for every delegate. */
