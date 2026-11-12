@@ -7,6 +7,7 @@ import { GaslessWriteModeProvider } from "@/features/gasless/gasless-write-mode-
 import { MagicPopoutProvider } from "@/features/magic-sidebar/magic-popout-store";
 import { MagicSidebarDock } from "@/features/magic-sidebar/magic-sidebar-dock";
 import { MagicSidebarProvider } from "@/features/magic-sidebar/magic-sidebar-store";
+import { TimelockRecoveryNoticeProvider } from "@/features/timelock/timelock-recovery-notices";
 import { SymmioProvider } from "@symmio/trading-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -28,7 +29,9 @@ function SymmioConfigBridge({ children }: { children: ReactNode }) {
       <GaslessWriteModeProvider>
         <MagicSidebarProvider>
           <MagicPopoutProvider>
-            <MagicSidebarDock>{children}</MagicSidebarDock>
+            <TimelockRecoveryNoticeProvider>
+              <MagicSidebarDock>{children}</MagicSidebarDock>
+            </TimelockRecoveryNoticeProvider>
           </MagicPopoutProvider>
         </MagicSidebarProvider>
       </GaslessWriteModeProvider>

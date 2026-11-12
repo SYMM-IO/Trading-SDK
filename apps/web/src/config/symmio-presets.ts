@@ -150,7 +150,7 @@ export const STAGING_CHAIN_OVERRIDES = {
           protocol: "enigma",
           searchUrl: "https://notification-stage.rasa.capital",
         },
-        capabilities: { groupClose: true, listingService: true },
+        capabilities: { groupClose: true, listingService: true, timelockApproval: true },
       },
     },
     defaultSolverId: "enigma",
@@ -170,7 +170,6 @@ export const STAGING_CHAIN_OVERRIDES = {
         "https://muon-oracle1.rasa.capital/v1/",
         "https://muon-oracle2.rasa.capital/v1/",
         "https://muon-oracle3.rasa.capital/v1/",
-        "https://muon-oracle4.rasa.capital/v1/",
       ],
     },
     listing: {

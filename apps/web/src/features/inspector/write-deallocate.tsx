@@ -5,12 +5,14 @@ import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { FEE_PREVIEW_UPNL_SIG } from "@/features/gasless/fee-preview-placeholders";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useDeallocate, useDeallocateUpnlSig, useSimulateDeallocate, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
-import { isAddress, parseUnits, type Address } from "viem";
+import { isAddress, isAddressEqual, parseUnits, zeroAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
@@ -20,15 +22,16 @@ import { SubAccountField } from "./subaccount-field";
 const MARGIN_DECIMALS = 18;
 
 export function WriteDeallocate() {
-  const { isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain, address: owner } = useWalletAccount();
   const [account, setAccount] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
 
-  const validAccount = isAddress(account) ? (account as Address) : undefined;
+  const validAccount = isAddress(account) && !isAddressEqual(account, zeroAddress) ? (account as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
+  const protection = useProtectedWrite(validAccount, owner, "deallocate");
   const canSubmit = isConnected && isOnExpectedChain && validAccount && validAmount !== undefined;
 
-  const mutation = useDeallocate();
+  const mutation = useDeallocate({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("deallocate");
 
@@ -108,10 +111,17 @@ export function WriteDeallocate() {
         <Button
           type="button"
           size="sm"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || !protection.available || mutation.isPending}
           onClick={() => {
             if (!validAccount || validAmount === undefined) return;
-            mutation.mutate({ account: validAccount, amount: validAmount, ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({
+                account: validAccount,
+                amount: validAmount,
+                ...write,
+                ...(timelock ? { timelock: withSelectedApprovalSigner(timelock, write) } : {}),
+              }),
+            );
           }}
           data-testid="button-send-deallocate"
         >
@@ -132,12 +142,13 @@ export function WriteDeallocate() {
         testId="result-simulate-deallocate"
       />
 
-      <WritePanel mutation={mutation} />
+      <ProtectedWriteNotice protection={protection} />
+      <WritePanel mutation={mutation} account={validAccount} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useDeallocate> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useDeallocate>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-deallocate-pending" loading>
@@ -146,7 +157,15 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useDeallocate> }
     );
   }
   if (mutation.error) {
-    return <ResultError testId="result-deallocate-error" kind={mutation.error.kind} message={mutation.error.message} />;
+    return (
+      <ResultError
+        testId="result-deallocate-error"
+        kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
+        message={mutation.error.message}
+      />
+    );
   }
   if (mutation.isSuccess) {
     return (

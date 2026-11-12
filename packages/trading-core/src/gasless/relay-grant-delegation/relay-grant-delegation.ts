@@ -1,13 +1,21 @@
 import { encodeFunctionData, type Address, type Hex } from "viem";
 import type { Config } from "../../core/config";
-import type { ChainIdParameter, Compute, FromParameter } from "../../shared/types/properties";
+import type {
+  ChainIdParameter,
+  Compute,
+  FromParameter,
+  GaslessIdempotencyKeyParameter,
+} from "../../shared/types/properties";
 import { getInstantLayerEip712Domain, signSignedOperation } from "../../solvers/instant-open/shared/eip712";
 import { buildSignedOperation } from "../../solvers/instant-open/shared/operations";
 import { instantLayerAbi } from "../../symmio-contracts/abi/v0.8.6/instant-layer";
 import { getInstantLayerNonce } from "../../symmio-contracts/instant-layer/actions/get-instant-layer-nonce";
+import { GASLESS_SIGNATURE_LIFETIME_SECONDS } from "../constants";
+import { resolveGaslessIdempotencyKey } from "../idempotency-key";
 import {
   blocksGaslessNonceStream,
   gaslessInstantNonceStreamKey,
+  getGaslessPendingAcceptance,
   readGaslessStreamNonce,
   submitOnGaslessNonceStream,
   withGaslessNonceLock,
@@ -20,7 +28,8 @@ import type { GaslessSubmitReceipt } from "../types";
  */
 export type RelayGrantDelegationParameters = Compute<
   ChainIdParameter &
-    FromParameter & {
+    FromParameter &
+    GaslessIdempotencyKeyParameter & {
       /**
        * The sub-account granting the delegation. The account **owner's** wallet
        * signs the operation — a delegation grant is always owner-signed.
@@ -61,17 +70,23 @@ export type RelayGrantDelegationReturnType = GaslessSubmitReceipt;
  * `getGaslessRequest` (or `waitForGaslessRequest`) to a terminal status. The
  * wallet-paid alternative is the plain `grantDelegation` write.
  *
- * The idempotency key is minted per call and is not a parameter: every call
- * signs a fresh operation, so one key can only ever describe one signature.
- * Replaying a submit whose response was lost is `resubmitGaslessRequest`'s job.
+ * Pass `idempotencyKey` (one per user action, from
+ * `generateGaslessIdempotencyKey`) to make the grant retryable: a later call
+ * with the same key never waits for its own earlier submit, returns that
+ * submit's receipt when this config saw it accepted, and is otherwise accepted
+ * by the service at most once. Omitted, a key is generated for this call alone.
+ * The signature's deadline is fixed when the call starts
+ * (`GASLESS_SIGNATURE_LIFETIME_SECONDS`).
  *
  * @param config - The SDK config (must have a `getWalletClient` resolver).
- * @param parameters - Delegation fields, optional chain id / signer override.
+ * @param parameters - Delegation fields, optional chain id / signer / idempotency-key override.
  * @returns The acceptance receipt; persist `requestId` immediately.
+ * @throws {SymmError} `GASLESS_IDEMPOTENCY_KEY_INVALID` for a blank key or one longer than 128 characters.
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
  * @throws {SymmApiError} `GASLESS_RELAY_SUBMIT_FAILED` on HTTP failure.
  * @throws {SymmApiError} `GASLESS_SUBMIT_UNCONFIRMED` when the outcome could not be
- *   established; replay it with `resubmitGaslessRequest` rather than signing a new grant.
+ *   established; call again under the same `idempotencyKey`, or replay it with
+ *   `resubmitGaslessRequest`, rather than signing a new grant under a new key.
  *
  * @example
  * ```ts
@@ -89,7 +104,21 @@ export async function relayGrantDelegation(
 ): Promise<RelayGrantDelegationReturnType> {
   const { chainId, account, delegatedSigner, selectors, expiryTimestamp, from } = parameters;
 
+  /** Fixed when the call starts, before any lock wait or prompt. */
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + GASLESS_SIGNATURE_LIFETIME_SECONDS);
+  /** One key per user action; validated before any network call or prompt. */
+  const callerOwnedKey = parameters.idempotencyKey !== undefined;
+  const idempotencyKey = resolveGaslessIdempotencyKey(parameters.idempotencyKey);
+
   const chain = config.getChainConfig(chainId);
+  const streamKey = gaslessInstantNonceStreamKey(chain.chainId, account);
+
+  /** This config already saw an attempt under the same key accepted: return it instead of signing again. */
+  if (callerOwnedKey) {
+    const earlier = getGaslessPendingAcceptance(config, [streamKey], idempotencyKey);
+    if (earlier) return earlier;
+  }
+
   const walletClient = await config.getWalletClient({ chainId, from });
   const domain = getInstantLayerEip712Domain(config, { chainId });
 
@@ -106,13 +135,13 @@ export async function relayGrantDelegation(
     ],
   });
 
-  const streamKey = gaslessInstantNonceStreamKey(chain.chainId, account);
-
   return withGaslessNonceLock(config, streamKey, async () => {
-    const currentNonce = await readGaslessStreamNonce(config, streamKey, () =>
-      getInstantLayerNonce(config, { chainId, account }),
+    const currentNonce = await readGaslessStreamNonce(
+      config,
+      streamKey,
+      () => getInstantLayerNonce(config, { chainId, account }),
+      callerOwnedKey ? idempotencyKey : undefined,
     );
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
 
     const operation = buildSignedOperation({
       signer: walletClient.account.address,
@@ -127,7 +156,14 @@ export async function relayGrantDelegation(
     return submitOnGaslessNonceStream(
       config,
       streamKey,
-      { signedNonce: currentNonce + 1n, service: "operations", chainId: chain.chainId, deadline },
+      {
+        signedNonce: currentNonce + 1n,
+        service: "operations",
+        chainId: chain.chainId,
+        deadline,
+        idempotencyKey,
+        callerOwnedKey,
+      },
       () =>
         relayInstantOperations(config, {
           chainId,
@@ -135,6 +171,7 @@ export async function relayGrantDelegation(
           operationType: "grantDelegation",
           /** A delegation grant is an ordinary InstantLayer operation: wallet 0. */
           operations: [{ operation, signature }],
+          idempotencyKey,
         }),
       blocksGaslessNonceStream,
     );

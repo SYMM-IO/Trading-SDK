@@ -46,13 +46,20 @@ function requireAddress(body: Record<string, unknown>, field: string): Address {
  *
  * This is the vendor's prescribed recovery for a lost response: the same key
  * with the same payload either lands the request or returns the record the
- * service already created, so it can never execute the intent twice. It is the
- * *only* safe response to `GASLESS_SUBMIT_UNCONFIRMED` — re-running the intent
- * through the wallet would double-execute whatever the relayer accepted.
+ * service already created, so it can never execute the intent twice. Re-running
+ * the intent through the wallet would double-execute whatever the relayer
+ * accepted. For a write sent with a caller-owned `gasless.idempotencyKey`,
+ * calling the write again under that key is the simpler recovery: it needs no
+ * recorded bytes.
  *
  * The body is sent exactly as recorded, never rebuilt: the signatures inside it
  * cover specific nonces and deadlines, and a regenerated payload would be a
  * different request under a key the service has already bound.
+ *
+ * A refused replay stays unconfirmed: a gateway refusal or a service verdict on
+ * the replay describes only the replay, while the original attempt may have
+ * executed. Keep the record, and never treat that refusal as grounds for a
+ * wallet-paid retry.
  *
  * A deposit settlement is re-verified the same way the original submit was —
  * the wallet's deterministic address is read before the POST and checked
@@ -66,7 +73,7 @@ function requireAddress(body: Record<string, unknown>, field: string): Address {
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION` for the recorded chain.
  * @throws {SymmError} `GASLESS_RESUBMIT_BODY_INVALID` when the record is not a submit this SDK produced.
  * @throws {SymmApiError} `GASLESS_SUBMIT_UNCONFIRMED` again when the replay is itself
- *   inconclusive — keep the record and try again later.
+ *   inconclusive or refused — keep the record and try again later.
  *
  * @example
  * ```ts
@@ -94,7 +101,9 @@ export async function resubmitGaslessRequest(
     const walletIds = Array.isArray(record.walletIds)
       ? record.walletIds.map((walletId, index) => parseGaslessWalletId(walletId, `walletIds[${index}]`))
       : [];
-    const raw = await postGaslessSubmit<GaslessWireOperationAccepted>(context, path, body, idempotencyKey);
+    const raw = await postGaslessSubmit<GaslessWireOperationAccepted>(context, path, body, idempotencyKey, {
+      replay: true,
+    });
     return toGaslessSubmitReceipt(raw, {
       owner,
       walletIds,
@@ -110,7 +119,9 @@ export async function resubmitGaslessRequest(
   /** Read before the POST, exactly as the original settlement did: a failed read must not follow a 202. */
   const depositAddress = await getGaslessWalletAddress(config, { chainId, owner, walletId });
 
-  const raw = await postGaslessSubmit<GaslessWireDepositAccepted>(context, path, body, idempotencyKey);
+  const raw = await postGaslessSubmit<GaslessWireDepositAccepted>(context, path, body, idempotencyKey, {
+    replay: true,
+  });
   const receipt = toGaslessDepositReceipt(raw, {
     owner,
     walletId,

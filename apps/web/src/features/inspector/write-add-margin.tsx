@@ -4,12 +4,14 @@ import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { TxReceipt } from "@/components/tx-result";
 import { useGaslessWriteOption } from "@/features/gasless/gasless-write-mode-store";
+import { withSelectedApprovalSigner } from "@/features/timelock/approval-signer";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { useAddMargin, useSimulateAddMargin, useVirtualAccount, useWalletAccount } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Input } from "@symmio/ui/components/input";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
-import { isAddress, parseUnits, type Address } from "viem";
+import { isAddress, isAddressEqual, parseUnits, zeroAddress, type Address } from "viem";
 
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
@@ -19,15 +21,24 @@ import { VirtualAccountField } from "./virtual-account-field";
 const MARGIN_DECIMALS = 18;
 
 export function WriteAddMargin() {
-  const { isConnected, isOnExpectedChain } = useWalletAccount();
+  const { isConnected, isOnExpectedChain, address: owner } = useWalletAccount();
   const [virtualAccount, setVirtualAccount] = useState<string>("");
   const [amount, setAmount] = useState<string>("");
 
-  const validVa = isAddress(virtualAccount) ? (virtualAccount as Address) : undefined;
+  const validVa =
+    isAddress(virtualAccount) && !isAddressEqual(virtualAccount, zeroAddress) ? (virtualAccount as Address) : undefined;
   const validAmount = amount.length > 0 && Number(amount) > 0 ? parseUnits(amount, MARGIN_DECIMALS) : undefined;
+  const protection = useProtectedWrite(
+    validVa,
+    owner,
+    "addMargin",
+    validVa && validAmount !== undefined
+      ? { target: "account-layer", functionName: "addMargin", args: [validVa, validAmount] }
+      : undefined,
+  );
   const canSubmit = isConnected && isOnExpectedChain && validVa && validAmount !== undefined;
 
-  const mutation = useAddMargin();
+  const mutation = useAddMargin({ automaticTimelock: false });
 
   const write = useGaslessWriteOption("addMargin");
   /** A relayed margin write runs under — and is billed to — the virtual account's parent sub-account. */
@@ -95,10 +106,17 @@ export function WriteAddMargin() {
         <Button
           type="button"
           size="sm"
-          disabled={!canSubmit || mutation.isPending}
+          disabled={!canSubmit || !protection.available || mutation.isPending}
           onClick={() => {
             if (!validVa || validAmount === undefined) return;
-            mutation.mutate({ virtualAccount: validVa, amount: validAmount, ...write });
+            void protection.run((timelock) =>
+              mutation.mutateAsync({
+                virtualAccount: validVa,
+                amount: validAmount,
+                ...write,
+                ...(timelock ? { timelock: withSelectedApprovalSigner(timelock, write) } : {}),
+              }),
+            );
           }}
           data-testid="button-send-add-margin"
         >
@@ -117,14 +135,16 @@ export function WriteAddMargin() {
         isSuccess={simulate.isSuccess}
         error={simulate.error}
         testId="result-simulate-addMargin"
+        timelockAccount={simulate.variables?.virtualAccount}
       />
 
-      <WritePanel mutation={mutation} />
+      <ProtectedWriteNotice protection={protection} />
+      <WritePanel mutation={mutation} account={validVa} />
     </MethodCard>
   );
 }
 
-function WritePanel({ mutation }: { mutation: ReturnType<typeof useAddMargin> }) {
+function WritePanel({ mutation, account }: { mutation: ReturnType<typeof useAddMargin>; account?: Address }) {
   if (mutation.isPending) {
     return (
       <ResultNote testId="result-addMargin-pending" loading>
@@ -133,7 +153,15 @@ function WritePanel({ mutation }: { mutation: ReturnType<typeof useAddMargin> })
     );
   }
   if (mutation.error) {
-    return <ResultError testId="result-addMargin-error" kind={mutation.error.kind} message={mutation.error.message} />;
+    return (
+      <ResultError
+        testId="result-addMargin-error"
+        kind={mutation.error.kind}
+        code={mutation.error.code}
+        timelockAccount={account}
+        message={mutation.error.message}
+      />
+    );
   }
   if (mutation.isSuccess) {
     return (

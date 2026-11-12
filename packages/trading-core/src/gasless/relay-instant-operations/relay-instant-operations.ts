@@ -1,10 +1,11 @@
 import type { Address, Hex } from "viem";
 import type { Config } from "../../core/config";
 import { SymmError } from "../../shared/errors/symm-error";
-import type { ChainIdParameter, Compute } from "../../shared/types/properties";
+import type { ChainIdParameter, Compute, GaslessIdempotencyKeyParameter } from "../../shared/types/properties";
 import type { SignedOperation } from "../../solvers/instant-open/shared/types";
 import { formatGaslessOperation } from "../format-gasless-operation";
-import { generateGaslessIdempotencyKey, postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { postGaslessSubmit, resolveGaslessHttp } from "../http";
+import { resolveGaslessIdempotencyKey } from "../idempotency-key";
 import { toGaslessSubmitReceipt } from "../to-gasless-submit-receipt";
 import type { GaslessSubmitReceipt } from "../types";
 import { assertGaslessWalletId, toGaslessWalletIdWire } from "../wallet-id";
@@ -41,46 +42,35 @@ export interface GaslessSignedOperationInput {
  * Parameters for {@link relayInstantOperations}.
  */
 export type RelayInstantOperationsParameters = Compute<
-  ChainIdParameter & {
-    /**
-     * The signed operations, in execution order. The batch is **atomic** — one
-     * revert rolls back every operation and every fee — so only bundle
-     * operations that must share fate. Replay nonces must be strictly
-     * sequential in this order (`current + 1`, `current + 2`, …).
-     */
-    operations: readonly GaslessSignedOperationInput[];
-    /**
-     * Workflow label stored with the request (display, metrics, idempotency).
-     * Free-form, 1–128 chars; fees are derived on-chain from calldata
-     * selectors, never from this. Keep it stable per action.
-     */
-    operationType: string;
-    /** Wallet the workflow is tracked under (not necessarily the raw signer). */
-    userAddress: Address;
-    /** Optional client accounting id stored with the request. */
-    accountId?: string;
-    /**
-     * Registered result-chained template id; omit for independent batches.
-     *
-     * The contract's `relayInstantTemplate` takes no wallet ids, so a template
-     * batch must leave every operation on wallet `0`.
-     */
-    templateId?: number;
-    /**
-     * Stable retry key (max 128 chars). Defaults to a random UUID.
-     *
-     * **One key per signature.** The signed operations are built by the caller
-     * here, so the key is a parameter: pass the same one to replay a submit
-     * whose response was lost, and the service returns the existing record
-     * instead of duplicating work. Change anything in the batch — re-sign, add
-     * an operation, move a wallet id — and the key must change too, or the
-     * service answers `409 IDEMPOTENCY_KEY_CONFLICT`
-     * (`isGaslessIdempotencyConflictError`).
-     */
-    idempotencyKey?: string;
-    /** Non-secret client correlation data stored with the request. */
-    metadata?: Record<string, unknown>;
-  }
+  ChainIdParameter &
+    GaslessIdempotencyKeyParameter & {
+      /**
+       * The signed operations, in execution order. The batch is **atomic** — one
+       * revert rolls back every operation and every fee — so only bundle
+       * operations that must share fate. Replay nonces must be strictly
+       * sequential in this order (`current + 1`, `current + 2`, …).
+       */
+      operations: readonly GaslessSignedOperationInput[];
+      /**
+       * Workflow label stored with the request (display, metrics, idempotency).
+       * Free-form, 1–128 chars; fees are derived on-chain from calldata
+       * selectors, never from this. Keep it stable per action.
+       */
+      operationType: string;
+      /** Wallet the workflow is tracked under (not necessarily the raw signer). */
+      userAddress: Address;
+      /** Optional client accounting id stored with the request. */
+      accountId?: string;
+      /**
+       * Registered result-chained template id; omit for independent batches.
+       *
+       * The contract's `relayInstantTemplate` takes no wallet ids, so a template
+       * batch must leave every operation on wallet `0`.
+       */
+      templateId?: number;
+      /** Non-secret client correlation data stored with the request. */
+      metadata?: Record<string, unknown>;
+    }
 >;
 
 /** Return type of {@link relayInstantOperations}. */
@@ -137,9 +127,20 @@ function toGaslessBatchWalletIds(
  * receipt's `owner`, `walletIds` and `idempotencyKey` with its `requestId`: a
  * bare request id is not enough context to reconcile a workflow after a reload.
  *
+ * `idempotencyKey` is one key per **user action** (default: a random UUID per
+ * call). Any later submit under the key, the same signed operations or ones
+ * signed again, returns the request the key is bound to (`202`, the same
+ * `requestId`) and runs nothing new. The key is used up once that request
+ * ends; a new action needs a new key.
+ *
+ * Sign every operation with a near deadline, as the SDK's own writes do
+ * (`GASLESS_SIGNATURE_LIFETIME_SECONDS`). A deadline of `0` never expires, so
+ * an unresolved request could never be settled by waiting.
+ *
  * @param config - The SDK config.
- * @param parameters - Signed operations, workflow labels, retry key.
+ * @param parameters - Signed operations, workflow labels, idempotency key.
  * @returns The acceptance receipt; persist `requestId` immediately.
+ * @throws {SymmError} `GASLESS_IDEMPOTENCY_KEY_INVALID` for a blank key or one longer than 128 characters.
  * @throws {SymmError} `GASLESS_NOT_CONFIGURED` / `GASLESS_UNSUPPORTED_CONTRACTS_VERSION`.
  * @throws {SymmError} `GASLESS_EMPTY_BATCH` for an empty `operations` array.
  * @throws {SymmError} `GASLESS_TEMPLATE_ID_INVALID` for a `templateId` that is not a non-negative safe integer.
@@ -166,6 +167,7 @@ export async function relayInstantOperations(
   parameters: RelayInstantOperationsParameters,
 ): Promise<RelayInstantOperationsReturnType> {
   const { chainId, operations, operationType, userAddress, accountId, templateId, metadata } = parameters;
+  const idempotencyKey = resolveGaslessIdempotencyKey(parameters.idempotencyKey);
   if (operations.length === 0) {
     throw new SymmError(
       "validation",
@@ -183,7 +185,6 @@ export async function relayInstantOperations(
   const walletIds = toGaslessBatchWalletIds(operations, templateId);
 
   const context = resolveGaslessHttp(config, { chainId, service: "operations" });
-  const idempotencyKey = parameters.idempotencyKey ?? generateGaslessIdempotencyKey();
 
   const body: GaslessWireRelayInstantRequest = {
     idempotencyKey,

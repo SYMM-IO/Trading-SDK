@@ -8,7 +8,6 @@ import {
   type CreateSubAccountsParameters,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
-import { useConnection } from "wagmi";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
@@ -34,10 +33,15 @@ export type UseCreateSubAccountsReturnType = UseMutationResult<
 >;
 
 /**
- * Submit a `createSubAccounts` transaction. The connected wallet becomes the
- * `owner` of every created subaccount. On success, the connected user's
- * `getUserSubAccounts`, `getUserSubAccountsAddresses`, and
- * `getSubAccountsCountOfUser` queries are invalidated so mounted lists refetch.
+ * Submit a `createSubAccounts` transaction through the configured SDK wallet.
+ * On success, all owner variants of `getUserSubAccounts`,
+ * `getUserSubAccountsAddresses`, and `getSubAccountsCountOfUser` queries are
+ * invalidated. A host embedded wallet or session signer need not match wagmi's
+ * connected address.
+ *
+ * To make creation recoverable, pass `gasless.idempotencyKey` in the
+ * variables — one key per user action, saved before calling — and call the
+ * mutation again with the same key after an unknown outcome.
  *
  * @remarks
  * The created subaccount addresses are not returned directly — read them from the
@@ -56,7 +60,6 @@ export type UseCreateSubAccountsReturnType = UseMutationResult<
 export function useCreateSubAccounts(parameters: UseCreateSubAccountsParameters = {}): UseCreateSubAccountsReturnType {
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
-  const { address } = useConnection();
   const queryClient = useQueryClient();
 
   const base = createSubAccountsMutationOptions(config);
@@ -77,10 +80,11 @@ export function useCreateSubAccounts(parameters: UseCreateSubAccountsParameters 
       }
     },
     onSuccess: () => {
-      const partial = address ? { user: address } : undefined;
-      void queryClient.invalidateQueries({ predicate: predicateMatch(getUserSubAccountsQueryKey, partial) });
-      void queryClient.invalidateQueries({ predicate: predicateMatch(getUserSubAccountsAddressesQueryKey, partial) });
-      void queryClient.invalidateQueries({ predicate: predicateMatch(getSubAccountsCountOfUserQueryKey, partial) });
+      // The host resolver may use an embedded owner or a session key unrelated to wagmi.
+      // Invalidate every owner variant; active lists refetch without an extra owner RPC.
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getUserSubAccountsQueryKey) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getUserSubAccountsAddressesQueryKey) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getSubAccountsCountOfUserQueryKey) });
     },
   });
 }

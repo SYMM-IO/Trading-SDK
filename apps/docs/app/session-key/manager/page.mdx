@@ -28,6 +28,13 @@ const { signature } = await manager.sign("hello");
   <Property name="now" type="() => number" default="Date.now">
     Injectable clock. Override in tests to control expiry.
   </Property>
+  <Property name="onLoadError" type='"rotate" | "throw"' default='"rotate"'>
+    What `initialize` does when the storage adapter's `load` throws or its record fails validation. `"rotate"` removes
+    the stored record and generates a new key, which holds no on-chain delegation, so the user must authorize again.
+    `"throw"` leaves the stored record untouched, clears the in-memory key, and rejects with
+    [`SessionKeyLoadError`](#sessionkeyloaderror), so the app can retry or ask before replacing anything. Prefer
+    `"throw"` whenever a stored key may still be delegated.
+  </Property>
 </Properties>
 
 ## Methods
@@ -35,12 +42,24 @@ const { signature } = await manager.sign("hello");
 <Properties>
   <Property name="initialize(owner, options?)" type="Promise<SessionKeyState>">
     Load an existing non-expired key for `owner`, or generate and persist a new one. If the stored key is expired it is
-    removed and a fresh one is generated (auto-rotate); a `load` that throws is treated as "no key" and also rotated.
-    `options.ttlMs` overrides the default lifetime for a freshly generated key.
+    removed and a fresh one is generated (auto-rotate); a `load` that throws follows `onLoadError`. `options.ttlMs`
+    overrides the default lifetime for a freshly generated key. When that owner's key is already loaded and not expired,
+    it resolves the current state at once without reading storage or revoking anything, so it is safe to call on every
+    mount. Starting another lifecycle operation before this one settles revokes the in-memory signer and makes this call
+    reject with `SessionKeyOperationSupersededError`.
+  </Property>
+  <Property name="load(owner)" type="Promise<SessionKeyState>">
+    Restore an existing key without creating, deleting, or replacing records. Missing records return empty state;
+    expired records return non-ready state with `isExpired: true`. Read and validation failures always reject with
+    `SessionKeyLoadError`, regardless of `onLoadError`. Use this when the device cannot authorize a replacement key.
+    Like `initialize`, it resolves the current state at once when that owner's key is already loaded and not expired, so
+    it is safe to call on every mount.
   </Property>
   <Property name="importPrivateKey(owner, key, options?)" type="Promise<SessionKeyState>">
     Persist an existing private key for `owner` and load it into memory, **replacing** any stored key. Used by
-    device-transfer flows.
+    device-transfer flows. `options` accepts either `ttlMs` or an absolute `expiresAt` in milliseconds. Pass the
+    original `expiresAt` during transfer to keep the existing lifetime. Invalid inputs reject before changing the
+    current signer or storage. Timestamps and lifetimes must be finite safe integers; expiry must be in the future.
   </Property>
   <Property name="rotate(owner, options?)" type="Promise<SessionKeyState>">
     Generate a new key, persist it (replacing any existing key for `owner`), and load it.
@@ -49,7 +68,8 @@ const { signature } = await manager.sign("hello");
     The loaded key as a viem `LocalAccount`, or `null` when none is in memory. **This is the seam for wiring a session
     key into the SDK** — hand it to [`createSessionKeyWalletClientResolver`](/react/provider) so relayable writes can be
     signed by the key. Prefer it over `getPrivateKey()` everywhere except explicit device transfer: the raw key never
-    leaves the manager.
+    leaves the manager. A previously captured account rejects all signing methods after destruction, a lifecycle change,
+    or local expiry, including signatures already in flight.
   </Property>
   <Property name="sign(message)" type="Promise<SessionKeySignature>">
     Sign a UTF-8 string as an EIP-191 personal message. Returns the signature, the signing address, and the client-side
@@ -59,10 +79,11 @@ const { signature } = await manager.sign("hello");
     Sign EIP-712 typed data — the path the SDK's trade actions use. Throws if no key is loaded.
   </Property>
   <Property name="destroy(owner?)" type="Promise<void>">
-    Clear the in-memory key and reset state. When `owner` is passed, also remove its stored record.
+    Clear the in-memory key and reset state **synchronously**, before the returned promise is awaited. When `owner` is
+    passed, the queued storage operation also removes its persisted record.
   </Property>
   <Property name="getState()" type="SessionKeyState">
-    Current runtime snapshot — see below.
+    Current frozen runtime snapshot — see below. Do not mutate it to control the manager.
   </Property>
   <Property name="isReady()" type="boolean">
     Quick boolean for "a valid session key is loaded".
@@ -71,7 +92,8 @@ const { signature } = await manager.sign("hello");
     Loaded session-key public address, or `null`.
   </Property>
   <Property name="getPrivateKey()" type="Hex | null">
-    Loaded raw private key — **for explicit device-transfer / export only.** Treat like a wallet mnemonic.
+    Loaded raw private key — **for explicit device-transfer / export only.** Treat like a wallet mnemonic. The manager
+    cannot revoke a raw key that has already been copied elsewhere.
   </Property>
   <Property name="getMetadata(owner)" type="Promise<SessionKeyMetadata | null>">
     Stored public metadata via the adapter, without loading the key into memory.
@@ -84,7 +106,69 @@ const { signature } = await manager.sign("hello");
   </Property>
 </Properties>
 
+## Lifecycle guarantees
+
+- **One call at a time.** `initialize`, `load`, `importPrivateKey`, `rotate` and `destroy` run one after another on a manager, so
+  their storage reads and writes never interleave. Concurrent `initialize(owner)` calls for the same owner share one
+  run, so two components mounting together load or generate **one** key; concurrent `load(owner)` calls share one run
+  too.
+- **Calling `initialize` or `load` again is free.** For an owner whose key is already loaded and not expired,
+  `initialize(owner)` and `load(owner)` return the current state without starting a new operation. Accounts from
+  `getAccount()` and signatures already in progress are unaffected. A different owner, an expired key, or a key
+  replaced by `rotate`/`importPrivateKey` still starts over.
+- **Revoked before queued work.** Starting a different lifecycle operation immediately clears the in-memory account,
+  private key and ready state. An older operation that was still waiting on storage cannot publish after that point; it
+  rejects with [`SessionKeyOperationSupersededError`](#sessionkeyoperationsupersedederror) instead.
+- **Captured capabilities expire.** Every account signing method checks the lifecycle and expiry before and after
+  signing. Reading state, address, private key, or account also checks expiry and clears expired signing material.
+  Expiry retains public metadata in state and leaves storage untouched. No background expiry timer is installed;
+  subscribers learn about expiry when a read or signing attempt observes it.
+- **Best-effort competing-writer reconciliation.** After a new key is saved, the manager reads its public metadata. If
+  it observes that another writer stored a different key meanwhile, it loads that key instead. A writer can still land
+  after the final read, so this is not an atomic cross-tab guarantee. Coordinate competing writers in the
+  consumer-owned storage layer when an application requires strict cross-context consistency.
+
+The lifecycle ordering and synchronous revocation guarantees hold within one manager. Across tabs or processes, the
+storage adapter decides how writes are serialized and which one wins.
+
+## `SessionKeyLoadError`
+
+Thrown by `load`, or by `initialize` under `onLoadError: "throw"`, when reading or validating the stored record fails.
+The owner, key-derived address, private key, and timestamps are validated before publication. `owner` names the wallet
+whose stored key could not be loaded, and `cause` holds the underlying error. A post-save reconciliation failure can
+also throw this error; that does not undo a save that has already completed.
+
+```ts
+import { SessionKeyLoadError } from "@symmio/session-key";
+
+try {
+  await manager.initialize(owner);
+} catch (error) {
+  if (error instanceof SessionKeyLoadError) showUnlockRetry(error.owner);
+  else throw error;
+}
+```
+
+## `SessionKeyOperationSupersededError`
+
+Thrown when a newer lifecycle request replaces an operation that was still waiting on storage, or changes the key while
+`manager.sign`, `manager.signTypedData`, or a captured account's signing method is running. The old operation never returns key material or a signature. Its
+`operation` field identifies the interrupted method; most lifecycle-driven UIs can ignore it and follow the newer request.
+
+```ts
+import { SessionKeyOperationSupersededError } from "@symmio/session-key";
+
+try {
+  await manager.initialize(owner);
+} catch (error) {
+  if (!(error instanceof SessionKeyOperationSupersededError)) throw error;
+}
+```
+
 ## `SessionKeyState`
+
+Signing an expired key throws `SessionKeyExpiredError`, with `address` and `expiresAt` (milliseconds). Resolve expiry
+through the application's recovery or authorization flow. The manager does not refresh contract delegations.
 
 The shape `getState()` returns:
 

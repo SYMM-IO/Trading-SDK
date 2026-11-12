@@ -1,6 +1,7 @@
 "use client";
 
 import { PageHeader } from "@/components/page-header";
+import { TimelockContracts } from "@/features/timelock/timelock-contracts";
 import Link from "next/link";
 import { MethodGroup } from "../inspector/method-group";
 import { WalletPanel } from "../inspector/wallet-panel";
@@ -39,6 +40,7 @@ export function ContractMethodsShell({ slug }: Props) {
       <PageHeader eyebrow={`Contracts · ${page.eyebrow}`} title={page.title} description={page.description} />
 
       <WalletPanel />
+      {page.slug === "timelock" ? <TimelockContracts /> : null}
 
       {reads.length > 0 ? (
         <MethodGroup label="Reads" count={reads.length} fullWidth={page.fullWidth}>

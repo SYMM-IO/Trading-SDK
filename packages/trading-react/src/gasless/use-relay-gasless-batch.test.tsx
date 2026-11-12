@@ -1,4 +1,13 @@
-import { createConfig, GaslessRequestStatus, SymmioSupportedChainId } from "@symmio/trading-core";
+import {
+  createConfig,
+  GaslessRequestStatus,
+  getTimelockPolicyQueryKey,
+  SymmioSupportedChainId,
+  type Config,
+  type ConfirmGaslessRequestParameters,
+  type GaslessRequest,
+} from "@symmio/trading-core";
+import { QueryClient } from "@tanstack/react-query";
 import { act } from "@testing-library/react";
 import type { PublicClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -39,7 +48,7 @@ const VARIABLES: RelayGaslessBatchVariables = {
   account: SUB_ACCOUNT,
   calls: [
     { functionName: "allocate", args: [5n] },
-    { walletId: 2n, walletCalls: [{ target: USDC, data: "0xa9059cbb" }] },
+    { walletId: 2n, walletCalls: [{ target: USDC, data: "0xa9059cbb" }], from: SESSION_KEY },
   ],
 };
 
@@ -63,6 +72,8 @@ describe("useRelayGaslessBatch", () => {
       from: SESSION_KEY,
       operationType: "onboarding",
       metadata: { source: "test" },
+      idempotencyKey: "onboard-1",
+      deadline: 2_000_000_300n,
     };
 
     await result.current.mutateAsync(variables);
@@ -95,5 +106,68 @@ describe("useRelayGaslessBatch", () => {
 
     expect(result.current.isSuccess).toBe(false);
     expect(result.current.relay.phase).toBe("idle");
+  });
+
+  it("refreshes timelock policy only after observing successful execution", async () => {
+    const config = buildConfig();
+    const queryClient = new QueryClient();
+    const key = getTimelockPolicyQueryKey({ account: SUB_ACCOUNT, configKey: config.getChainConfigKey(CHAIN) });
+    queryClient.setQueryData(key, { ready: false });
+    let finish = () => {};
+    const gate = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    let started = () => {};
+    const waiting = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    confirmGaslessRequest.mockImplementation(async (_config: Config, parameters: ConfirmGaslessRequestParameters) => {
+      started();
+      await gate;
+      const request: GaslessRequest = {
+        service: "operations",
+        requestId: "req-batch",
+        status: GaslessRequestStatus.SUCCEEDED,
+        txHash: TX_HASH,
+        errorCode: null,
+        errorMessage: null,
+        idempotencyKey: "key-batch",
+        owner: SUB_ACCOUNT,
+        walletIds: [0n],
+        createdAt: null,
+        updatedAt: null,
+        operationType: "setupTimelocks",
+        accountId: null,
+        feeAmountRaw: null,
+      };
+      parameters.onUpdate?.(request);
+      return { request, txHash: TX_HASH };
+    });
+    const { result } = renderHookWithProviders(() => useRelayGaslessBatch({ config }), { queryClient });
+    const pending = result.current.mutateAsync({
+      ...VARIABLES,
+      calls: [{ functionName: "setupTimelocks", args: [SUB_ACCOUNT, SESSION_KEY, 600n, ["0xb48c2317"]] }],
+    });
+    await waiting;
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
+    finish();
+    await pending;
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(true);
+  });
+
+  it("does not refresh policy when confirmation fails without observed success", async () => {
+    const config = buildConfig();
+    const queryClient = new QueryClient();
+    const key = getTimelockPolicyQueryKey({ account: SUB_ACCOUNT, configKey: config.getChainConfigKey(CHAIN) });
+    queryClient.setQueryData(key, { ready: false });
+    confirmGaslessRequest.mockRejectedValue(new Error("Relay failed"));
+    const { result } = renderHookWithProviders(() => useRelayGaslessBatch({ config }), { queryClient });
+    await expect(
+      result.current.mutateAsync({
+        ...VARIABLES,
+        calls: [{ functionName: "setupTimelocks", args: [SUB_ACCOUNT, SESSION_KEY, 600n, ["0xb48c2317"]] }],
+      }),
+    ).rejects.toThrow();
+    expect(queryClient.getQueryState(key)?.isInvalidated).toBe(false);
   });
 });

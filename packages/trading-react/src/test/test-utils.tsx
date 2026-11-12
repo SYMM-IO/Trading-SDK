@@ -96,6 +96,7 @@ export interface MockSymmioConfig {
  */
 export function createMockSymmioConfig(opts?: {
   withWallet?: boolean;
+  timelockApproval?: boolean;
   webSocketConstructor?: WebSocketConstructor;
 }): MockSymmioConfig {
   const readContract = vi.fn();
@@ -117,6 +118,7 @@ export function createMockSymmioConfig(opts?: {
     symmioConfig: {
       [arbitrum.id]: {
         addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" },
+        solvers: { enigma: { capabilities: { timelockApproval: opts?.timelockApproval ?? false } } },
       },
     },
     getClient: () => publicClient,

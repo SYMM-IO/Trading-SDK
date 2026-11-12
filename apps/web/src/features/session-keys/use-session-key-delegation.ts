@@ -1,5 +1,7 @@
 "use client";
 
+import { useTimelockContext } from "@/features/timelock/use-timelock-context";
+
 import {
   classifyGaslessFailure,
   parseGaslessErrorDetail,
@@ -28,7 +30,8 @@ export interface UseSessionKeyDelegationParameters {
    */
   sessionKeyExpiresAtMs?: number;
   /**
-   * Include `initiateWithdraw` in the grant. Defaults to `false`: that selector
+   * Opt into withdrawals, including broad `_call` authority when this deployment
+   * advertises protected operations. Defaults to `false`: withdrawal authority
    * carries a caller-supplied receiver, so a key holding it can move the
    * sub-account's collateral to any address.
    */
@@ -37,6 +40,10 @@ export interface UseSessionKeyDelegationParameters {
 
 /** Value returned by {@link useSessionKeyDelegation}. */
 export interface UseSessionKeyDelegationResult {
+  /** Canonical root where this account family's authority is granted and revoked. */
+  delegationAccount?: Address;
+  /** The opted-in scope includes broad AccountLayer `_call` authority. */
+  includesProtectedCalls: boolean;
   /** The full selector set the current scope wants granted. */
   requiredSelectors: readonly Hex[];
   /** Selectors the contract currently enforces for this key. */
@@ -136,8 +143,9 @@ function toActionableError(reason: unknown): Error {
  *
  * The grant is relayed (`gasless: true`), so onboarding costs the owner no
  * native gas — the contract only ever accepts `grantDelegation` from the
- * account owner, which is why onboarding is exactly one wallet prompt and every
- * later action by the key needs none. **Revocation is the opposite**: the
+ * account owner. The grant needs one owner signature; later key-signed actions
+ * need no owner prompt while the required permissions and key remain valid.
+ * **Revocation is the opposite**: the
  * Instant Layer refuses to relay it, so both revoke steps are wallet
  * transactions that cost native gas, and the key keeps its authority until the
  * cooldown ETA passes.
@@ -162,30 +170,43 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
    * the page.
    */
   const supportsAccountScope = useSupportsGaslessService();
+  const timelock = useTimelockContext(subAccount, undefined, undefined, true);
+  const delegationAccount = supportsAccountScope ? timelock.rootAccount : subAccount;
+  const includesProtectedCalls = Boolean(withdraw && supportsAccountScope && timelock.capability);
+  const scopeReady = Boolean(delegationAccount && (!withdraw || timelock.unsupported || timelock.capability));
+  const scopeError = !scopeReady ? (timelock.rootError ?? timelock.info.error) : null;
   const requiredSelectors = useSessionKeySelectors({
     account: supportsAccountScope,
     withdraw: withdraw && supportsAccountScope,
+    coreCalls: includesProtectedCalls,
   });
-
-  const enabled = Boolean(subAccount && sessionKey);
+  // Probe previously granted opt-in authority too, so unticking a scope cannot hide it from revoke.
+  const probedSelectors = useSessionKeySelectors({
+    account: supportsAccountScope,
+    withdraw: supportsAccountScope,
+    coreCalls: supportsAccountScope,
+  });
+  const enabled = Boolean(delegationAccount && sessionKey);
   /**
    * The read is disabled until both addresses are known, so the placeholders
    * are never sent — they exist only to keep the parameters well-typed while
    * the wallet or the session key is still resolving.
    */
-  const account = useMemo(() => ({ addr: subAccount ?? zeroAddress, isPartyB: false }), [subAccount]);
+  const account = useMemo(() => ({ addr: delegationAccount ?? zeroAddress, isPartyB: false }), [delegationAccount]);
 
   const delegations = useAreDelegationsActive({
     account,
     delegate: sessionKey ?? zeroAddress,
-    selectors: requiredSelectors,
+    selectors: probedSelectors,
     query: { enabled },
   });
   const cooldown = useRevocationCooldown();
   const refetchDelegations = delegations.refetch;
 
   const activeSelectors = delegations.activeSelectors;
-  const missingSelectors = delegations.missing;
+  const missingSelectors = requiredSelectors.filter(
+    (selector) => !activeSelectors.some((active) => active.toLowerCase() === selector.toLowerCase()),
+  );
 
   /**
    * A scheduled revocation is invisible to the readiness read — the contract
@@ -195,16 +216,16 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
    * from the chain (rather than remembering the click) is what makes the state
    * survive a reload and show up in a second tab.
    *
-   * It probes `requiredSelectors`, not `activeSelectors`: the moment the ETA
+   * It probes all app-grantable selectors, not only `activeSelectors`: the moment the ETA
    * passes, enforcement stops and `activeSelectors` empties out — probing it
    * would drop the scheduled revocation from view and disable Finalize at
    * exactly the point it becomes callable. `activeSelectors` is filtered from
-   * `requiredSelectors`, so the wider set can only ever probe more.
+   * the probed set, so the wider set can only ever probe more.
    */
   const pendingRevocation = usePendingRevocation({
     account,
     delegate: sessionKey ?? zeroAddress,
-    selectors: requiredSelectors,
+    selectors: probedSelectors,
     query: { enabled },
   });
   const refetchPendingRevocation = pendingRevocation.refetch;
@@ -237,8 +258,10 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
   const grant = useCallback(async () => {
     if (!subAccount || !sessionKey || expiryTimestamp === undefined) return;
     await run(async () => {
+      if (!scopeReady || !delegationAccount)
+        throw new Error("Account permissions could not be resolved. Refresh the account before granting authority.");
       await grantDelegation.mutateAsync({
-        account: { addr: subAccount, isPartyB: false },
+        account,
         delegatedSigner: sessionKey,
         selectors: requiredSelectors,
         expiryTimestamp,
@@ -251,6 +274,9 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
     sessionKey,
     expiryTimestamp,
     requiredSelectors,
+    account,
+    scopeReady,
+    delegationAccount,
     grantDelegation,
     refetchDelegations,
     refetchPendingRevocation,
@@ -268,7 +294,7 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
     if (!subAccount || !sessionKey) return;
     await run(async () => {
       await initiateRevokeDelegation.mutateAsync({
-        account: { addr: subAccount, isPartyB: false },
+        account,
         delegate: sessionKey,
         selectors: revokableSelectors,
       });
@@ -278,6 +304,7 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
     subAccount,
     sessionKey,
     revokableSelectors,
+    account,
     initiateRevokeDelegation,
     refetchDelegations,
     refetchPendingRevocation,
@@ -285,19 +312,20 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
   ]);
 
   const finalizeRevoke = useCallback(async () => {
-    if (!subAccount || !sessionKey) return;
+    if (!subAccount || !sessionKey || pendingRevocation.revokingSelectors.length === 0) return;
     await run(async () => {
       await finalizeRevokeDelegation.mutateAsync({
-        account: { addr: subAccount, isPartyB: false },
+        account,
         delegate: sessionKey,
-        selectors: revokableSelectors,
+        selectors: pendingRevocation.revokingSelectors,
       });
       await Promise.all([refetchDelegations(), refetchPendingRevocation()]);
     });
   }, [
     subAccount,
     sessionKey,
-    revokableSelectors,
+    pendingRevocation.revokingSelectors,
+    account,
     finalizeRevokeDelegation,
     refetchDelegations,
     refetchPendingRevocation,
@@ -305,12 +333,14 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
   ]);
 
   return {
+    delegationAccount,
+    includesProtectedCalls,
     requiredSelectors,
     activeSelectors,
     missingSelectors,
-    isReady: enabled && delegations.allActive,
+    isReady: enabled && scopeReady && !delegations.isError && missingSelectors.length === 0,
     supportsAccountScope,
-    isLoading: enabled && delegations.isLoading,
+    isLoading: Boolean(subAccount && sessionKey && ((!scopeReady && !scopeError) || delegations.isLoading)),
     expiryTimestamp,
     activeExpiryTimestamp: delegations.expiryTimestamp,
     cooldownSeconds: cooldown.data,
@@ -322,7 +352,7 @@ export function useSessionKeyDelegation(parameters: UseSessionKeyDelegationParam
     initiateRevoke,
     finalizeRevoke,
     isWriting: grantDelegation.isPending || initiateRevokeDelegation.isPending || finalizeRevokeDelegation.isPending,
-    error,
+    error: error ?? scopeError ?? delegations.error,
     resetError: useCallback(() => setError(null), []),
   };
 }

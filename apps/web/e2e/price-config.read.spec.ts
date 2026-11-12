@@ -28,12 +28,13 @@ test.beforeEach(async ({ page }) => {
   await page.goto(`${ORIGIN}/price-service`);
 });
 
-test("migrates a saved legacy staging socket without discarding other settings", async ({ page }) => {
+test("migrates legacy staging prices and restores timelock support without discarding settings", async ({ page }) => {
   await applyStaging(page);
   await page.evaluate((key) => {
     const saved = JSON.parse(localStorage.getItem(key)!);
     saved["42161"].priceService.wsUrl = "wss://lowcap-price.rasa.capital/ws";
     saved["42161"].solvers.enigma.name = "Saved staging name";
+    delete saved["42161"].solvers.enigma.capabilities.timelockApproval;
     localStorage.setItem(key, JSON.stringify(saved));
   }, STORAGE_KEY);
   const sockets: string[] = [];
@@ -45,6 +46,7 @@ test("migrates a saved legacy staging socket without discarding other settings",
   const saved = await page.evaluate((key) => JSON.parse(localStorage.getItem(key)!), STORAGE_KEY);
   expect(saved["42161"].priceService.wsUrl).toBe(STAGING_WS);
   expect(saved["42161"].solvers.enigma.name).toBe("Saved staging name");
+  expect(saved["42161"].solvers.enigma.capabilities.timelockApproval).toBe(true);
 });
 
 test("preserves hidden staging and custom settings when applying and resetting an edited field", async ({ page }) => {

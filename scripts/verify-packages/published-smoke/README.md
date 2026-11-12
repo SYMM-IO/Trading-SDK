@@ -25,14 +25,14 @@ Both checks are needed because they catch different defects:
 
 ## Files
 
-| File                | Role                                                                                                                                                                                                      |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `core.ts`           | Type-resolves `@symmio/trading-core` root under `nodenext`.                                                                                                                                               |
-| `react.tsx`         | Type-resolves `@symmio/trading-react` root **and all nine subpath exports**, and exercises React types via `react-jsx`. Regression guard for the subpaths that once shipped a `.d.ts` with no `.js` twin. |
-| `session.ts`        | Type-resolves `@symmio/session-key` root.                                                                                                                                                                 |
-| `utils.ts`          | Type-resolves `@symmio/utils` root and every subpath (`address`, `amounts`, `decimal`, `format`).                                                                                                         |
-| `runtime-probe.mjs` | Runtime-`import()`s every published entrypoint (root + subpaths) and exits non-zero if any fails to load.                                                                                                 |
-| `tsconfig.json`     | Self-contained strict `nodenext` config; no `extends`, so it stays valid once copied to the temp consumer.                                                                                                |
+| File                | Role                                                                                                                                                                                                        |
+| ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `core.ts`           | Type-resolves `@symmio/trading-core` root under `nodenext`.                                                                                                                                                 |
+| `react.tsx`         | Type-resolves `@symmio/trading-react` root **and every named subpath export**, and exercises React types via `react-jsx`. Regression guard for the subpaths that once shipped a `.d.ts` with no `.js` twin. |
+| `session.ts`        | Type-resolves `@symmio/session-key` root.                                                                                                                                                                   |
+| `utils.ts`          | Type-resolves `@symmio/utils` root and every subpath (`address`, `amounts`, `decimal`, `format`).                                                                                                           |
+| `runtime-probe.mjs` | Runtime-`import()`s every published entrypoint (root + subpaths) and exits non-zero if any fails to load.                                                                                                   |
+| `tsconfig.json`     | Self-contained strict `nodenext` config; no `extends`, so it stays valid once copied to the temp consumer.                                                                                                  |
 
 The consumer's `package.json` and `node_modules` are **generated at run time** — they are not committed here.
 
@@ -46,6 +46,8 @@ pnpm verify-pack       # Layer 1 only (offline, fast) — skips this folder
 ```
 
 Namespace imports (`import * as x`) are deliberate: the fixtures must fail on a **packaging/type-resolution** defect, not on a renamed named export.
+
+**Do not add feature checks to these files** — no named types, functions, fields or usage examples for new APIs. Unit tests in the owning package cover API shapes; here they only duplicate them and make CI's `verify-packages` step fail on every rename. A feature that adds no package or subpath export needs no change in this folder.
 
 ## When you add a package or subpath export
 

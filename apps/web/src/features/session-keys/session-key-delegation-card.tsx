@@ -2,7 +2,7 @@
 
 import { AddressTag } from "@/components/address-tag";
 import { DataList, DataRow } from "@/components/data-list";
-import { ResultError } from "@/components/result";
+import { ResultError, ResultNote } from "@/components/result";
 import { GaslessFeePreview } from "@/features/gasless/gasless-fee-preview";
 import { useUserSubAccounts, useWalletAccount } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
@@ -47,9 +47,13 @@ import { useSessionKeyDelegation } from "./use-session-key-delegation";
  * scopes exist only on perps-core 0.8.6, so on an older chain the grant really
  * is trade-only and must not claim otherwise.
  */
-function describeScope(supportsAccountScope: boolean, withdraw: boolean): string {
+function describeScope(supportsAccountScope: boolean, withdraw: boolean, protectedCalls: boolean): string {
   if (!supportsAccountScope) return "trade only (this chain has no gasless account management)";
-  return withdraw ? "trade + account + withdraw" : "trade + account";
+  return protectedCalls
+    ? "trade + account + withdraw + protected Core calls"
+    : withdraw
+      ? "trade + account + withdraw"
+      : "trade + account";
 }
 
 export function SessionKeyDelegationCard() {
@@ -80,18 +84,22 @@ export function SessionKeyDelegationCard() {
   });
 
   const canWrite = Boolean(
-    isConnected && isOnExpectedChain && subAccount && sessionKeyAddress && delegation.expiryTimestamp !== undefined,
+    isConnected &&
+    isOnExpectedChain &&
+    delegation.delegationAccount &&
+    sessionKeyAddress &&
+    delegation.expiryTimestamp !== undefined,
   );
 
   /** The grant the button relays, priced before its one prompt. */
   const grantCall =
-    subAccount && sessionKeyAddress && delegation.expiryTimestamp !== undefined
+    delegation.delegationAccount && sessionKeyAddress && delegation.expiryTimestamp !== undefined
       ? [
           {
             functionName: "grantDelegation",
             args: [
               {
-                account: { addr: subAccount, isPartyB: false },
+                account: { addr: delegation.delegationAccount, isPartyB: false },
                 delegatedSigner: sessionKeyAddress,
                 selectors: delegation.requiredSelectors,
                 expiryTimestamp: delegation.expiryTimestamp,
@@ -134,6 +142,9 @@ export function SessionKeyDelegationCard() {
           </div>
 
           <DataList>
+            {delegation.delegationAccount ? (
+              <DataRow label="authority account" value={<AddressTag address={delegation.delegationAccount} />} />
+            ) : null}
             <DataRow
               label="session key"
               value={sessionKeyAddress ? <AddressTag address={sessionKeyAddress} /> : "Not initialized"}
@@ -152,7 +163,7 @@ export function SessionKeyDelegationCard() {
             />
             <DataRow
               label="scope"
-              value={`${delegation.requiredSelectors.length} selectors — ${describeScope(delegation.supportsAccountScope, withdraw)}`}
+              value={`${delegation.requiredSelectors.length} selectors — ${describeScope(delegation.supportsAccountScope, withdraw, delegation.includesProtectedCalls)}`}
             />
             {delegation.revokingSelectorCount > 0 ? (
               <DataRow label="revocation" value={<RevocationStatus delegation={delegation} />} />
@@ -172,18 +183,27 @@ export function SessionKeyDelegationCard() {
               <span className="flex flex-col gap-1">
                 <span className="text-sm font-medium">Also allow withdrawals (off by default)</span>
                 <span className="text-muted-foreground text-xs font-normal">
-                  Adds <code className="font-mono">initiateWithdraw</code>, which lets this key move the sub-account’s
-                  collateral to any address it chooses. Only tick this for a key that must run withdrawals unattended.
+                  Allows this key to withdraw collateral to any address it chooses.
+                  {delegation.includesProtectedCalls
+                    ? " Includes _call authority for protected withdrawals and other Core operations on the root account and its virtual accounts. This authority is broader than withdrawal alone."
+                    : " Leave it off unless this key should initiate withdrawals."}
                 </span>
               </span>
             </Label>
           </div>
 
+          {!delegation.includesProtectedCalls &&
+          delegation.activeSelectors.some((selector) => getSelectorScope(selector) === "protected") ? (
+            <ResultNote>
+              This key still holds protected Core-call authority. Changing the scope does not revoke existing
+              permissions; use Start revoke to remove them.
+            </ResultNote>
+          ) : null}
           <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
               size="sm"
-              disabled={!canWrite || delegation.isWriting || delegation.isReady}
+              disabled={!canWrite || delegation.isLoading || delegation.isWriting || delegation.isReady}
               onClick={() => void delegation.grant()}
               data-testid="button-grant-session-key-delegation"
             >
@@ -319,13 +339,14 @@ function RevocationStatus({ delegation }: { delegation: ReturnType<typeof useSes
 }
 
 /** The authority groups a missing-selector list is broken into, in grant order. */
-const SCOPE_ORDER: readonly SessionKeyScopeName[] = ["account", "trade", "withdraw"];
+const SCOPE_ORDER: readonly SessionKeyScopeName[] = ["account", "trade", "withdraw", "protected"];
 
 /** The heading each authority group is listed under. */
 const SCOPE_HEADINGS: Readonly<Record<SessionKeyScopeName, string>> = {
   account: "Account management",
   trade: "Trade lifecycle",
   withdraw: "Withdrawal",
+  protected: "Protected Core calls (broader authority)",
 };
 
 /**

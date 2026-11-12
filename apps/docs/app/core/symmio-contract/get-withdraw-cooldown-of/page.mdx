@@ -1,0 +1,40 @@
+# getWithdrawCooldownOf
+
+Read the account's raw `withdrawCooldownOf(user)` timestamp. This is core's
+stored `deallocateTimestamp`: deallocation and internal credits to withdrawable
+balance stamp it, while ordinary external deposits do not. It is neither the
+cooldown duration nor the withdrawal unlock timestamp.
+
+Use `getWithdrawableTime` for readiness before initiating a withdrawal. After
+initiation, use the request's stored `cooldownEndTime` returned by
+[getPendingWithdrawRequests](/core/symmio-contract/get-pending-withdraw-requests).
+
+The core also uses this timestamp to space deallocations: `deallocate` reverts
+until this timestamp plus the
+[deallocate debounce](/core/symmio-contract/get-deallocate-debounce-time) has
+passed. In React, read it with [`useWithdrawCooldownOf`](/react/withdraw#usewithdrawcooldownof).
+
+```ts
+import { getWithdrawCooldownOf, getWithdrawCooldownOfQueryOptions } from "@symmio/trading-core";
+
+const lastCreditAt = await getWithdrawCooldownOf(config, { user: account }); // Unix seconds
+const query = getWithdrawCooldownOfQueryOptions(config, { user: account });
+```
+
+## Signature
+
+```ts
+function getWithdrawCooldownOf(config: Config, parameters: { user: Address; chainId?: number }): Promise<bigint>;
+```
+
+`GetWithdrawCooldownOfParameters` describes these inputs. `GetWithdrawCooldownOfReturnType` and
+`GetWithdrawCooldownOfData` are `bigint`; no conversion, clock adjustment or zero fallback is
+applied. RPC and configuration errors propagate to the caller.
+
+## Query options
+
+`getWithdrawCooldownOfQueryOptions(config, options)` returns `GetWithdrawCooldownOfQueryOptions` with a
+deployment-scoped key and the action's query function. `GetWithdrawCooldownOfOptions` combines
+the action parameters with optional TanStack overrides under `query`.
+`getWithdrawCooldownOfQueryKey(options)` produces `GetWithdrawCooldownOfQueryKey`; prefer the options factory
+when executing queries so the SDK config's deployment identity is included.

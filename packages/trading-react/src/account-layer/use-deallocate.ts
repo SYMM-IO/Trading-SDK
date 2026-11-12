@@ -1,25 +1,30 @@
 "use client";
 
 import {
+  assertTimelockAuthorizationUnused,
   deallocateMutationOptions,
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
   getDeallocateUpnlSig,
+  getWithdrawCooldownOfQueryKey,
+  getWithdrawableTimeQueryKey,
   type DeallocateParameters,
   type SingleUpnlSig,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+import { normalizeProtectedWriteError } from "../errors/normalize-protected-write-error";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
+import { resolveWriteResult, type AutomaticTimelockWriteParameters, type WriteResult } from "../transactions";
 import { predicateMatch } from "../utils";
+import { useAutomaticTimelock } from "./use-automatic-timelock";
 
 /**
  * Parameters for {@link useDeallocate}.
  */
-export type UseDeallocateParameters = WriteParameters;
+export type UseDeallocateParameters = AutomaticTimelockWriteParameters;
 
 /**
  * Variables for the {@link useDeallocate} mutation: the core action's inputs
@@ -44,11 +49,12 @@ export type UseDeallocateReturnType = UseMutationResult<DeallocateResult, Symmio
  * fresh Muon uPnL signature** (the contract requires it to prove the subaccount
  * stays solvent) immediately before submitting, unless you pass one as `upnlSig`.
  * The connected wallet must own the subaccount. On success, the subaccount's
- * balance reads are invalidated.
+ * balance, withdraw-cooldown and withdrawable-time reads are invalidated.
  *
  * @remarks
- * Subject to the on-chain deallocate debounce — submitting too soon after a prior
- * deallocate reverts. That (and an insolvent result, or a stale signature) is
+ * Subject to the on-chain deallocate debounce — submitting before
+ * `withdrawCooldownOf + debounce` reverts (read both with
+ * {@link useWithdrawCooldownOf} and {@link useDeallocateDebounceTime}). That (and an insolvent result, or a stale signature) is
  * surfaced as a normalized {@link SymmioRequestError}; enabling `simulateBeforeWrite`
  * catches it as a dry-run before anything is signed.
  *
@@ -62,34 +68,57 @@ export function useDeallocate(parameters: UseDeallocateParameters = {}): UseDeal
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const queryClient = useQueryClient();
+  const automaticTimelock = useAutomaticTimelock(config, parameters.automaticTimelock);
 
   const base = deallocateMutationOptions(config);
 
   return useMutation<DeallocateResult, SymmioRequestError, DeallocateVariables>({
     mutationKey: base.mutationKey,
     mutationFn: async (variables) => {
+      let authorization = variables.timelock;
       try {
         const resolvedChainId = variables.chainId ?? chainId;
+        authorization = await automaticTimelock(variables, {
+          account: variables.account,
+          chainId: resolvedChainId,
+          functionName: "deallocate",
+          explicit: authorization,
+        });
+        if (authorization) assertTimelockAuthorizationUnused(authorization);
         const upnlSig =
           variables.upnlSig ??
           (await getDeallocateUpnlSig(config, {
             virtualAccount: variables.account,
             chainId: resolvedChainId,
           }));
-        const hash = await base.mutationFn({ ...variables, upnlSig, chainId: resolvedChainId });
-        return resolveWriteResult(config, hash, {
+        const hash = await base.mutationFn({
+          ...variables,
+          upnlSig,
+          chainId: resolvedChainId,
+          ...(authorization ? { timelock: authorization } : {}),
+        });
+        const result = resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,
           confirmations: parameters.confirmations,
         });
+        const settled = await result;
+        automaticTimelock.finish(variables, settled);
+        return settled;
       } catch (err) {
-        throw normalizeSymmError(err);
+        automaticTimelock.fail(variables, err);
+        throw authorization ? normalizeProtectedWriteError(err, authorization) : normalizeSymmError(err);
       }
     },
     onSuccess: (_result, variables) => {
       const partial = { account: variables.account };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, partial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, partial) });
+
+      /** A deallocation stamps the account's cooldown timestamp, which also moves its withdrawable time. */
+      const timing = { user: variables.account };
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getWithdrawCooldownOfQueryKey, timing) });
+      void queryClient.invalidateQueries({ predicate: predicateMatch(getWithdrawableTimeQueryKey, timing) });
     },
   });
 }

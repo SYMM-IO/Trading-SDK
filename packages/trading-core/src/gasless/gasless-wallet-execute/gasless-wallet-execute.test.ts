@@ -201,6 +201,72 @@ function innerCallsOf(signTypedData: Mock): readonly { target: Address; value: b
   return decoded.args[0];
 }
 
+describe("gaslessWalletExecute caller-owned idempotency key", () => {
+  const CALLS = [{ target: USDC, value: 0n, data: "0xa9059cbb" as const }];
+
+  beforeEach(() => {
+    post.mockReset();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("sends the key, and answers a same-key retry with the accepted receipt instead of a second prompt", async () => {
+    const { config, signTypedData } = walletExecuteRig();
+
+    const first = await gaslessWalletExecute(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      calls: CALLS,
+      idempotencyKey: "exit-1",
+    });
+    const retry = await gaslessWalletExecute(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      calls: CALLS,
+      idempotencyKey: "exit-1",
+    });
+
+    expect((post.mock.calls[0]?.[1] as { idempotencyKey: string }).idempotencyKey).toBe("exit-1");
+    expect(retry).toEqual(first);
+    expect(signTypedData).toHaveBeenCalledOnce();
+    expect(post).toHaveBeenCalledOnce();
+  });
+
+  it("rejects an invalid key before any read or prompt", async () => {
+    const { config, readContract, signTypedData } = walletExecuteRig();
+
+    await expect(
+      gaslessWalletExecute(config, { chainId: GASLESS_TEST_CHAIN, calls: CALLS, idempotencyKey: "k".repeat(129) }),
+    ).rejects.toMatchObject({ code: "GASLESS_IDEMPOTENCY_KEY_INVALID" });
+    expect(readContract).not.toHaveBeenCalled();
+    expect(signTypedData).not.toHaveBeenCalled();
+  });
+
+  it("fixes its 10-minute signature deadline when the call starts", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-19T12:00:00Z"));
+    const startedAt = Math.floor(Date.now() / 1000);
+    const { config, readContract } = gaslessWriteTestConfig();
+    /** The nonce read answers a minute later, so signing happens a minute after the call started. */
+    readContract.mockImplementation(({ functionName }: { functionName: string }) => {
+      if (functionName === "getGaslessWalletAddress") return Promise.resolve(WALLET);
+      return new Promise((resolve) => setTimeout(() => resolve(4n), 60_000));
+    });
+    post.mockResolvedValue(ACCEPTED);
+
+    const pending = gaslessWalletExecute(config, {
+      chainId: GASLESS_TEST_CHAIN,
+      calls: CALLS,
+      idempotencyKey: "exit-2",
+    });
+    await vi.advanceTimersByTimeAsync(61_000);
+    await pending;
+
+    const body = post.mock.calls[0]?.[1] as { signedOps: { replayAttackHeader: { deadline: number } }[] };
+    expect(body.signedOps[0]?.replayAttackHeader.deadline).toBe(startedAt + 10 * 60);
+  });
+});
+
 describe("gaslessWalletExecute call forms", () => {
   beforeEach(() => {
     post.mockReset();

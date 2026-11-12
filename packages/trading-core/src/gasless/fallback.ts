@@ -1,7 +1,8 @@
 import { gaslessRevertText, parseGaslessErrorDetail, type GaslessErrorDetail } from "./errors";
+import { isGaslessFreeQuotaExhaustedError } from "./get-gasless-fee-quote/fee-quote-errors";
 import { classifyGaslessHttpStatus } from "./http";
 import { GaslessRequestStatus } from "./types";
-import { getGaslessUnconfirmedSubmit, readGaslessErrorStatus } from "./unconfirmed-submit";
+import { getGaslessUnconfirmedSubmit, readGaslessErrorCode, readGaslessErrorStatus } from "./unconfirmed-submit";
 
 /**
  * Vendor codes that mean the gateway's **fee policy** refused the request —
@@ -116,4 +117,66 @@ export function isConfirmedGaslessUnavailableError(err: unknown): boolean {
   if (getGaslessUnconfirmedSubmit(err) !== null) return false;
   const failure = classifyGaslessHttpStatus(err);
   return failure === "rate-limited" || failure === "gateway-not-ready";
+}
+
+/**
+ * Whether the service refused this submit before it could execute: the daily
+ * free quota, the fee policy or allowance, or a confirmed outage before
+ * acceptance. It is the same rule the SDK applies before its own automatic
+ * wallet fallback, so a caller that decides the wallet path itself (a write
+ * with `gasless.idempotencyKey` never falls back on its own) applies the same
+ * rule.
+ *
+ * It describes this submit only. If you retried a key, a refusal does not prove
+ * that an earlier attempt under that key was refused, so never send a retried
+ * action through the wallet on this answer.
+ *
+ * @param error - Anything a gasless write or relay threw, including a React-wrapped error.
+ * @returns `true` when this submit did not and will not execute.
+ *
+ * @example
+ * ```ts
+ * if (isFirstAttempt && isConfirmedGaslessRefusalError(error)) {
+ *   await createSubAccounts(config, { ...inputs, gasless: false });
+ * }
+ * ```
+ */
+export function isConfirmedGaslessRefusalError(error: unknown): boolean {
+  return (
+    isGaslessFreeQuotaExhaustedError(error) ||
+    isConfirmedGaslessFeeLimitError(error) ||
+    isConfirmedGaslessUnavailableError(error)
+  );
+}
+
+/**
+ * Whether a gasless request was accepted and then ended without any on-chain
+ * effect: `rejected` (refused by the service's worker before broadcast) or
+ * `reverted` (mined and reverted, with every operation and fee rolled back).
+ * The service does not try it again, so the action under its key did not
+ * happen.
+ *
+ * A `failed` request is deliberately excluded: the service lost track of it,
+ * and its transaction may still mine. Treat it as unresolved.
+ *
+ * @param error - Anything a gasless write, relay or confirmation threw, including a React-wrapped error.
+ * @returns `true` when the error's code is `GASLESS_RELAY_REJECTED` or `GASLESS_RELAY_REVERTED`
+ *   and the request record it carries, when present, has the matching status.
+ *
+ * @example
+ * ```ts
+ * if (isGaslessRequestRejectedOrRevertedError(error)) await pendingActions.remove(key);
+ * ```
+ */
+export function isGaslessRequestRejectedOrRevertedError(error: unknown): boolean {
+  const code = readGaslessErrorCode(error);
+  const expected =
+    code === "GASLESS_RELAY_REJECTED"
+      ? GaslessRequestStatus.REJECTED
+      : code === "GASLESS_RELAY_REVERTED"
+        ? GaslessRequestStatus.REVERTED
+        : null;
+  if (expected === null) return false;
+  const status = recordStatus(error);
+  return status === undefined || status === expected;
 }

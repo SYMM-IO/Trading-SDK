@@ -145,14 +145,23 @@ The solver's general information from the **Enigma-only** `/info` endpoint — t
 const info = useSolverInfo();
 info.data?.staticSolverFeeOpen; // "0.5"  — USD per instant open
 info.data?.staticSolverFeeClose; // "0.25" — USD per instant close (incl. partial closes)
+info.data?.timelockApproval; // Optional TimelockApprovalCapability from this deployment.
+info.knownTimelockApproval; // Last positively discovered capability in this QueryClient.
 ```
 
-Returns `UseQueryResult<EnigmaSolverInfo, SymmioRequestError>`:
+Returns `UseSolverInfoReturnType`, a `UseQueryResult<EnigmaSolverInfo, SymmioRequestError>` with `knownTimelockApproval`:
 
-| Field                  | Type                  | Notes                                                                         |
-| ---------------------- | --------------------- | ----------------------------------------------------------------------------- |
-| `staticSolverFeeOpen`  | `string \| undefined` | Configured USD amount per instant open. `undefined` when the solver omits it. |
-| `staticSolverFeeClose` | `string \| undefined` | Configured USD amount per instant close, including each partial close.        |
+`knownTimelockApproval` retains the last validated positive timelock capability for the selected chain,
+AccountLayer, solver and solver URL while this QueryClient exists. A failed refresh or a response omitting
+the capability does not erase it. `data` and `error` still describe the current `/info` query; a browser
+reload or clearing the query cache starts discovery again. This value does not cache the account policy or
+an operation's approval.
+
+| Field                  | Type                                      | Notes                                                                                                              |
+| ---------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `staticSolverFeeOpen`  | `string \| undefined`                     | Configured USD amount per instant open. `undefined` when the solver omits it.                                      |
+| `staticSolverFeeClose` | `string \| undefined`                     | Configured USD amount per instant close, including each partial close.                                             |
+| `timelockApproval`     | `TimelockApprovalCapability \| undefined` | Unlocker, minimum delay, validity and signing domain; see [policy metadata](/core/account-layer/timelocks/policy). |
 
 Amounts are USD decimal strings exactly as the solver reports them — no decimal scaling. **Enigma-only:** on a rasa-kind solver the query fails before the wire with a `SymmioRequestError` carrying `code: "UNSUPPORTED_BY_SOLVER"`; a failed request carries `FETCH_SOLVER_INFO_FAILED`.
 
@@ -180,7 +189,7 @@ Gate a flow or UI on what the resolved solver declares it supports, so an unsupp
 
 ### `useSolverCapabilities`
 
-The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService }`, all definite booleans). `listingService` is declarative metadata — the listing functions do not gate on it (see [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service)).
+The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService, timelockApproval }`, all definite booleans). `timelockApproval` declares whether the configured solver deployment offers timelock approvals; an unset flag is false. It does not prove that a particular on-chain selector is unlocked or that the service is online. `listingService` is declarative metadata — the listing functions do not gate on it (see [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service)).
 
 ```tsx
 const { limitOrder, groupClose } = useSolverCapabilities();

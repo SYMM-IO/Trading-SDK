@@ -1,6 +1,11 @@
 "use client";
 
-import type { SessionKeyMetadata, SessionKeyState } from "@symmio/session-key";
+import {
+  SessionKeyLoadError,
+  SessionKeyOperationSupersededError,
+  type SessionKeyMetadata,
+  type SessionKeyState,
+} from "@symmio/session-key";
 import { useWalletAccount } from "@symmio/trading-react";
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import type { Address, Hex } from "viem";
@@ -58,8 +63,10 @@ export function useSessionKey() {
       })
       .catch((reason: unknown) => {
         if (cancelled) return;
-        setError(reason instanceof Error ? reason : new Error(String(reason)));
         setIsLoading(false);
+        /** A newer lifecycle call took over; what it publishes is what this key shows. */
+        if (reason instanceof SessionKeyOperationSupersededError) return;
+        setError(toError(reason));
       });
 
     return () => {
@@ -67,58 +74,37 @@ export function useSessionKey() {
     };
   }, [address, isConnected, manager, refreshMetadata]);
 
-  const initialize = useCallback(async () => {
-    if (!address) throw new Error("Wallet not connected.");
-    setIsLoading(true);
-    setError(null);
-    try {
-      const next = await manager.initialize(address);
-      await refreshMetadata(address);
-      return next;
-    } catch (reason) {
-      const nextError = reason instanceof Error ? reason : new Error(String(reason));
-      setError(nextError);
-      throw nextError;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [address, manager, refreshMetadata]);
-
-  const rotate = useCallback(async () => {
-    if (!address) throw new Error("Wallet not connected.");
-    setIsLoading(true);
-    setError(null);
-    try {
-      const next = await manager.rotate(address);
-      await refreshMetadata(address);
-      return next;
-    } catch (reason) {
-      const nextError = reason instanceof Error ? reason : new Error(String(reason));
-      setError(nextError);
-      throw nextError;
-    } finally {
-      setIsLoading(false);
-    }
-  }, [address, manager, refreshMetadata]);
-
-  const importPrivateKey = useCallback(
-    async (privateKey: Hex) => {
+  /**
+   * Run one lifecycle call for the connected owner. A call a newer one
+   * supersedes resolves `undefined` instead of failing: it never published a
+   * key, and the newer call's outcome is the one to show.
+   */
+  const runLifecycle = useCallback(
+    async (operation: (owner: Address) => Promise<SessionKeyState>): Promise<SessionKeyState | undefined> => {
       if (!address) throw new Error("Wallet not connected.");
       setIsLoading(true);
       setError(null);
       try {
-        const next = await manager.importPrivateKey(address, privateKey);
+        const next = await operation(address);
         await refreshMetadata(address);
         return next;
       } catch (reason) {
-        const nextError = reason instanceof Error ? reason : new Error(String(reason));
+        if (reason instanceof SessionKeyOperationSupersededError) return undefined;
+        const nextError = toError(reason);
         setError(nextError);
         throw nextError;
       } finally {
         setIsLoading(false);
       }
     },
-    [address, manager, refreshMetadata],
+    [address, refreshMetadata],
+  );
+
+  const initialize = useCallback(() => runLifecycle((owner) => manager.initialize(owner)), [manager, runLifecycle]);
+  const rotate = useCallback(() => runLifecycle((owner) => manager.rotate(owner)), [manager, runLifecycle]);
+  const importPrivateKey = useCallback(
+    (privateKey: Hex) => runLifecycle((owner) => manager.importPrivateKey(owner, privateKey)),
+    [manager, runLifecycle],
   );
 
   const destroy = useCallback(async () => {
@@ -134,7 +120,7 @@ export function useSessionKey() {
       try {
         return await manager.sign(message);
       } catch (reason) {
-        const nextError = reason instanceof Error ? reason : new Error(String(reason));
+        const nextError = toError(reason);
         setError(nextError);
         throw nextError;
       } finally {
@@ -152,6 +138,12 @@ export function useSessionKey() {
     isLoading,
     isSigning,
     error,
+    /**
+     * `true` when a key is stored for this wallet but could not be loaded. The
+     * record is left untouched — it may still hold a delegation — so loading
+     * again cannot help until storage recovers; rotating or importing replaces it.
+     */
+    loadFailed: error instanceof SessionKeyLoadError,
     initialize,
     rotate,
     importPrivateKey,
@@ -163,4 +155,8 @@ export function useSessionKey() {
 
 function getServerSnapshot(): Address | null {
   return null;
+}
+
+function toError(reason: unknown): Error {
+  return reason instanceof Error ? reason : new Error(String(reason));
 }

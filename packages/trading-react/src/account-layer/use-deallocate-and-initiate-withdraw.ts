@@ -1,27 +1,32 @@
 "use client";
 
 import {
+  assertTimelockBatchUnused,
   deallocateAndInitiateWithdrawMutationOptions,
   getAccountBalanceInfoQueryKey,
   getAccountBalanceOfQueryKey,
   getDeallocateUpnlSig,
+  getPendingWithdrawRequestsBatchQueryKey,
   getPendingWithdrawRequestsQueryKey,
+  getWithdrawCooldownOfQueryKey,
   getWithdrawableTimeQueryKey,
   type DeallocateAndInitiateWithdrawParameters,
   type SingleUpnlSig,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
+import { normalizeProtectedWriteError } from "../errors/normalize-protected-write-error";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
 import { useSymmioChainId } from "../provider/use-symmio-chain-id";
 import { useSymmioConfig } from "../provider/use-symmio-config";
-import { resolveWriteResult, type WriteParameters, type WriteResult } from "../transactions";
+import { resolveWriteResult, type AutomaticTimelockWriteParameters, type WriteResult } from "../transactions";
 import { predicateMatch } from "../utils";
+import { useAutomaticTimelock } from "./use-automatic-timelock";
 
 /**
  * Parameters for {@link useDeallocateAndInitiateWithdraw}.
  */
-export type UseDeallocateAndInitiateWithdrawParameters = WriteParameters;
+export type UseDeallocateAndInitiateWithdrawParameters = AutomaticTimelockWriteParameters;
 
 /**
  * Variables for the {@link useDeallocateAndInitiateWithdraw} mutation: the core
@@ -53,7 +58,7 @@ export type UseDeallocateAndInitiateWithdrawReturnType = UseMutationResult<
  * it to prove the subaccount stays solvent) immediately before submitting, unless
  * you pass one as `upnlSig`. The connected wallet must own the subaccount. On
  * success, the subaccount's balance reads and its pending-requests /
- * withdrawable-time reads are invalidated.
+ * withdrawable-time / withdraw-cooldown reads are invalidated.
  *
  * @remarks
  * The `deallocate` leg is subject to the on-chain deallocate debounce — submitting
@@ -79,31 +84,56 @@ export function useDeallocateAndInitiateWithdraw(
   const config = useSymmioConfig(parameters);
   const chainId = useSymmioChainId();
   const queryClient = useQueryClient();
+  const automaticTimelock = useAutomaticTimelock(config, parameters.automaticTimelock);
 
   const base = deallocateAndInitiateWithdrawMutationOptions(config);
 
   return useMutation<DeallocateAndInitiateWithdrawResult, SymmioRequestError, DeallocateAndInitiateWithdrawVariables>({
     mutationKey: base.mutationKey,
     mutationFn: async (variables) => {
+      let authorization = variables.timelock;
       try {
         const resolvedChainId = variables.chainId ?? chainId;
+        authorization ??= await automaticTimelock.batch(variables, {
+          account: variables.account,
+          chainId: resolvedChainId,
+          functionNames: ["deallocate", "initiateWithdraw"],
+        });
+        if (authorization) assertTimelockBatchUnused(authorization);
         const upnlSig =
           variables.upnlSig ??
           (await getDeallocateUpnlSig(config, {
             virtualAccount: variables.account,
             chainId: resolvedChainId,
           }));
-        const hash = await base.mutationFn({ ...variables, upnlSig, chainId: resolvedChainId });
-        return resolveWriteResult(config, hash, {
+        const hash = await base.mutationFn({
+          ...variables,
+          upnlSig,
+          chainId: resolvedChainId,
+          ...(authorization ? { timelock: authorization } : {}),
+        });
+        const result = resolveWriteResult(config, hash, {
           chainId: resolvedChainId,
           waitForReceipt: parameters.waitForReceipt,
           confirmations: parameters.confirmations,
         });
+        const settled = await result;
+        automaticTimelock.finish(variables, settled);
+        return settled;
       } catch (err) {
-        throw normalizeSymmError(err);
+        automaticTimelock.fail(variables, err);
+        throw authorization ? normalizeProtectedWriteError(err, authorization) : normalizeSymmError(err);
       }
     },
-    onSuccess: (_result, variables) => {
+    onSuccess: (result, variables) => {
+      /** Broadcast-only callers own confirmation and the later batch refresh. */
+      if (result.receipt) {
+        void queryClient.invalidateQueries({
+          predicate: predicateMatch(getPendingWithdrawRequestsBatchQueryKey, {
+            configKey: config.getChainConfigKey(variables.chainId ?? chainId),
+          }),
+        });
+      }
       const balancePartial = { account: variables.account };
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceInfoQueryKey, balancePartial) });
       void queryClient.invalidateQueries({ predicate: predicateMatch(getAccountBalanceOfQueryKey, balancePartial) });
@@ -114,6 +144,9 @@ export function useDeallocateAndInitiateWithdraw(
       });
       void queryClient.invalidateQueries({
         predicate: predicateMatch(getWithdrawableTimeQueryKey, withdrawPartial),
+      });
+      void queryClient.invalidateQueries({
+        predicate: predicateMatch(getWithdrawCooldownOfQueryKey, withdrawPartial),
       });
     },
   });

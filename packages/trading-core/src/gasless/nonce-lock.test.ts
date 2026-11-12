@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SymmioSupportedChainId } from "../core/chains";
 import { SymmApiError, SymmError } from "../shared/errors/symm-error";
-import { GaslessRequestStatus } from "./types";
+import { GaslessRequestStatus, type GaslessSubmitReceipt } from "./types";
 
 const waitForGaslessRequest = vi.hoisted(() => vi.fn());
 
@@ -12,6 +12,7 @@ import {
   clearGaslessPendingNonce,
   gaslessInstantNonceStreamKey,
   gaslessWalletNonceStreamKey,
+  getGaslessPendingAcceptance,
   readGaslessStreamNonce,
   submitOnGaslessNonceStream,
   submitOnGaslessNonceStreams,
@@ -46,6 +47,31 @@ function flush(): Promise<void> {
 /** A deadline `seconds` from now, in the `bigint` seconds the signed header carries. */
 function deadlineIn(seconds: number): bigint {
   return BigInt(Math.floor(Date.now() / 1000) + seconds);
+}
+
+/** The acceptance receipt a relay returns for `requestId`. */
+function receiptFor(requestId: string, idempotencyKey = "sdk-key"): GaslessSubmitReceipt {
+  return {
+    requestId,
+    status: GaslessRequestStatus.QUEUED,
+    paidFee: null,
+    remainingFeeAllowance: null,
+    idempotencyKey,
+    protocolInstance: null,
+    owner: OWNER,
+    walletIds: [0n],
+  };
+}
+
+/** What a submit records on its streams. An SDK-generated key unless the test names a caller-owned one. */
+function streamSubmit(options: { deadline: bigint; callerKey?: string }) {
+  return {
+    service: "operations" as const,
+    chainId: GASLESS_TEST_CHAIN,
+    deadline: options.deadline,
+    idempotencyKey: options.callerKey ?? "sdk-key",
+    callerOwnedKey: options.callerKey !== undefined,
+  };
 }
 
 describe("gasless nonce stream keys", () => {
@@ -261,20 +287,32 @@ describe("gasless pending-nonce guard", () => {
   /** Record a 202 on the stream, as a relay would after submitting. */
   async function submitAccepted(
     config: Parameters<typeof submitOnGaslessNonceStream>[0],
-    options: { signedNonce: bigint; deadline: bigint; requestId?: string },
+    options: { signedNonce: bigint; deadline: bigint; requestId?: string; callerKey?: string },
   ) {
     await submitOnGaslessNonceStream(
       config,
       STREAM,
-      {
-        signedNonce: options.signedNonce,
-        service: "operations",
-        chainId: GASLESS_TEST_CHAIN,
-        deadline: options.deadline,
-      },
-      async () => ({ requestId: options.requestId ?? "req-1" }),
+      { signedNonce: options.signedNonce, ...streamSubmit(options) },
+      async () => receiptFor(options.requestId ?? "req-1", options.callerKey),
       () => true,
     );
+  }
+
+  /** Record a submit whose outcome is unknown, as a relay would after an ambiguous failure. */
+  async function submitUnconfirmed(
+    config: Parameters<typeof submitOnGaslessNonceStream>[0],
+    options: { signedNonce: bigint; deadline: bigint; callerKey?: string },
+  ) {
+    const rejection = new Error("socket hang up");
+    await expect(
+      submitOnGaslessNonceStream(
+        config,
+        STREAM,
+        { signedNonce: options.signedNonce, ...streamSubmit(options) },
+        () => Promise.reject(rejection),
+        () => true,
+      ),
+    ).rejects.toBe(rejection);
   }
 
   it("reads the nonce straight through when nothing is pending", async () => {
@@ -320,7 +358,7 @@ describe("gasless pending-nonce guard", () => {
       submitOnGaslessNonceStream(
         config,
         STREAM,
-        { signedNonce: 7n, service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(600) },
+        { signedNonce: 7n, ...streamSubmit({ deadline: deadlineIn(600) }) },
         () => Promise.reject(rejection),
         () => false,
       ),
@@ -384,7 +422,7 @@ describe("gasless pending-nonce guard", () => {
       submitOnGaslessNonceStream(
         config,
         STREAM,
-        { signedNonce: 6n, service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(600) },
+        { signedNonce: 6n, ...streamSubmit({ deadline: deadlineIn(600) }) },
         () => Promise.reject(rejection),
         () => false,
       ),
@@ -402,9 +440,9 @@ describe("gasless pending-nonce guard", () => {
       submitOnGaslessNonceStream(
         config,
         STREAM,
-        { signedNonce: 6n, service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(3) },
+        { signedNonce: 6n, ...streamSubmit({ deadline: deadlineIn(3) }) },
         /** The acceptance parse runs inside the submit: a 202 without an id throws from here. */
-        async () => ({ requestId: requireGaslessRequestId(undefined) }),
+        async () => receiptFor(requireGaslessRequestId(undefined)),
         blocksGaslessNonceStream,
       ),
     ).rejects.toMatchObject({ code: "GASLESS_ACCEPTANCE_INVALID" });
@@ -428,8 +466,8 @@ describe("gasless pending-nonce guard", () => {
         { key: STREAM, signedNonce: 7n },
         { key: walletStream, signedNonce: 3n },
       ],
-      { service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(600) },
-      async () => ({ requestId: "req-batch" }),
+      streamSubmit({ deadline: deadlineIn(600) }),
+      async () => receiptFor("req-batch"),
       () => true,
     );
     waitForGaslessRequest.mockResolvedValue(operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED }));
@@ -457,7 +495,7 @@ describe("gasless pending-nonce guard", () => {
           { key: STREAM, signedNonce: 7n },
           { key: walletStream, signedNonce: 3n },
         ],
-        { service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(3) },
+        streamSubmit({ deadline: deadlineIn(3) }),
         () => Promise.reject(rejection),
         () => true,
       ),
@@ -484,7 +522,7 @@ describe("gasless pending-nonce guard", () => {
       submitOnGaslessNonceStream(
         config,
         STREAM,
-        { signedNonce: 6n, service: "operations", chainId: GASLESS_TEST_CHAIN, deadline: deadlineIn(3) },
+        { signedNonce: 6n, ...streamSubmit({ deadline: deadlineIn(3) }) },
         () => Promise.reject(rejection),
         () => true,
       ),
@@ -499,6 +537,137 @@ describe("gasless pending-nonce guard", () => {
 
     clearGaslessPendingNonce(config, STREAM);
     await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(5n);
+  });
+
+  it("lets a retry under the same caller-owned key read at once, with no wait and no GASLESS_NONCE_STREAM_BUSY", async () => {
+    vi.useFakeTimers();
+    const { config } = gaslessTestConfig();
+    await submitUnconfirmed(config, { signedNonce: 6n, deadline: deadlineIn(600), callerKey: "action-1" });
+
+    /** The service accepts the key at most once, so the retry signs nonce 6 again and lets it decide. */
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n, "action-1")).resolves.toBe(5n);
+    expect(waitForGaslessRequest).not.toHaveBeenCalled();
+
+    clearGaslessPendingNonce(config, STREAM);
+  });
+
+  it("keeps serializing a different action on the same stream behind an unconfirmed submit", async () => {
+    vi.useFakeTimers();
+    const { config } = gaslessTestConfig();
+    await submitUnconfirmed(config, { signedNonce: 6n, deadline: deadlineIn(3), callerKey: "action-1" });
+
+    const pending = readGaslessStreamNonce(config, STREAM, async () => 5n, "action-2");
+    const assertion = expect(pending).rejects.toMatchObject({ code: "GASLESS_NONCE_STREAM_BUSY" });
+    await vi.advanceTimersByTimeAsync(5_000);
+    await assertion;
+
+    clearGaslessPendingNonce(config, STREAM);
+  });
+
+  it("returns an accepted submit's receipt to a retry under the same caller-owned key only", async () => {
+    const { config } = gaslessTestConfig();
+    await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600), callerKey: "action-1" });
+
+    expect(getGaslessPendingAcceptance(config, [STREAM], "action-1")).toMatchObject({
+      requestId: "req-1",
+      idempotencyKey: "action-1",
+    });
+    expect(getGaslessPendingAcceptance(config, [STREAM], "action-2")).toBeNull();
+    expect(
+      getGaslessPendingAcceptance(
+        config,
+        [gaslessInstantNonceStreamKey(GASLESS_TEST_CHAIN, OTHER_ACCOUNT)],
+        "action-1",
+      ),
+    ).toBeNull();
+
+    clearGaslessPendingNonce(config, STREAM);
+  });
+
+  it("returns nothing for a same-key submit whose outcome is unknown", async () => {
+    const { config } = gaslessTestConfig();
+    await submitUnconfirmed(config, { signedNonce: 6n, deadline: deadlineIn(600), callerKey: "action-1" });
+
+    expect(getGaslessPendingAcceptance(config, [STREAM], "action-1")).toBeNull();
+
+    clearGaslessPendingNonce(config, STREAM);
+  });
+
+  it("does not raise the floor when a caller-keyed request succeeds, since it may be an earlier request for another nonce", async () => {
+    const { config } = gaslessTestConfig();
+    /** The retry signed nonce 7, but the service answered with the earlier request under the key, which used 6. */
+    await submitAccepted(config, { signedNonce: 7n, deadline: deadlineIn(600), callerKey: "action-1" });
+    waitForGaslessRequest.mockResolvedValue(operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED }));
+
+    /** The stream re-reads the chain instead of assuming 7 was consumed. */
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 6n)).resolves.toBe(6n);
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 6n)).resolves.toBe(6n);
+  });
+
+  it("still raises the floor for an SDK-keyed success, so a lagging RPC never re-signs a spent nonce", async () => {
+    const { config } = gaslessTestConfig();
+    await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600) });
+    waitForGaslessRequest.mockResolvedValue(operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED }));
+
+    /** A different action reads through the lagging RPC and still signs past nonce 6. */
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n, "action-2")).resolves.toBe(6n);
+    await expect(readGaslessStreamNonce(config, STREAM, async () => 5n)).resolves.toBe(6n);
+  });
+
+  describe("after a caller-keyed success", () => {
+    const SUCCESS_TX = `0x${"ab".repeat(32)}` as const;
+
+    it("waits for this RPC to see the transaction before another action reads the nonce", async () => {
+      vi.useFakeTimers();
+      const { config, getTransactionReceipt } = gaslessTestConfig();
+      await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600), callerKey: "action-1" });
+      waitForGaslessRequest.mockResolvedValue(
+        operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED, txHash: SUCCESS_TX }),
+      );
+      /** The relayer's node has the block; this RPC still trails it. */
+      let rpcNonce = 5n;
+      getTransactionReceipt.mockRejectedValue(new Error("Transaction receipt could not be found"));
+
+      let settled = false;
+      const pending = readGaslessStreamNonce(config, STREAM, async () => rpcNonce, "action-2");
+      const markSettled = () => {
+        settled = true;
+      };
+      void pending.then(markSettled, markSettled);
+      await vi.advanceTimersByTimeAsync(3_000);
+      /** Not nonce 5: that would make the next action sign 6, which the success already spent. */
+      expect(settled).toBe(false);
+      expect(getTransactionReceipt).toHaveBeenCalledWith({ hash: SUCCESS_TX });
+
+      /** The RPC catches up: the receipt and the consumed nonce arrive together. */
+      rpcNonce = 6n;
+      getTransactionReceipt.mockResolvedValue({ status: "success" });
+      await vi.advanceTimersByTimeAsync(1_500);
+
+      /** The next action signs 7. */
+      await expect(pending).resolves.toBe(6n);
+    });
+
+    it("throws GASLESS_NONCE_STREAM_BUSY, and keeps blocking, while this RPC never sees the transaction", async () => {
+      vi.useFakeTimers();
+      const { config, getTransactionReceipt } = gaslessTestConfig();
+      await submitAccepted(config, { signedNonce: 6n, deadline: deadlineIn(600), callerKey: "action-1" });
+      waitForGaslessRequest.mockResolvedValue(
+        operationRequestFixture({ status: GaslessRequestStatus.SUCCEEDED, txHash: SUCCESS_TX }),
+      );
+      getTransactionReceipt.mockRejectedValue(new Error("Transaction receipt could not be found"));
+
+      for (let attempt = 0; attempt < 2; attempt += 1) {
+        const pending = readGaslessStreamNonce(config, STREAM, async () => 5n, "action-2");
+        const assertion = expect(pending).rejects.toMatchObject({ code: "GASLESS_NONCE_STREAM_BUSY" });
+        await vi.advanceTimersByTimeAsync(121_000);
+        await assertion;
+      }
+
+      /** Once the RPC has the receipt, the stream is free again. */
+      getTransactionReceipt.mockResolvedValue({ status: "success" });
+      await expect(readGaslessStreamNonce(config, STREAM, async () => 5n, "action-2")).resolves.toBe(5n);
+    });
   });
 });
 

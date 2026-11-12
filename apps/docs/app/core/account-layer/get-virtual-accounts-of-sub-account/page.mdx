@@ -1,0 +1,76 @@
+# getVirtualAccountsOfSubAccount
+
+List a subaccount's Virtual Accounts (VAs) **with their details**, in one call. Reading the addresses first and then each VA would take one call per VA. Each row carries the VA's market and isolation type, so a UI can group a subaccount's isolated positions by market and side without another read.
+
+```ts
+import { getVirtualAccountsOfSubAccount } from "@symmio/trading-core";
+
+const vas = await getVirtualAccountsOfSubAccount(config, { subAccount });
+```
+
+The AccountLayer clamps instead of reverting: an `offset` past the end returns an empty array, and `limit` is clamped to what remains. One call with the default `limit` therefore returns every VA of a subaccount that has at most 200; page past that with [`getVirtualAccountsCountOfSubAccount`](/core/account-layer/get-virtual-accounts-count-of-sub-account).
+
+## Parameters
+
+<Properties>
+  <Property name="subAccount" type="Address" required>
+    The subaccount whose VAs to list.
+  </Property>
+  <Property name="offset" type="bigint" default="0n">
+    Pagination offset.
+  </Property>
+  <Property name="limit" type="bigint" default="200n">
+    Maximum number of entries to return; clamped on-chain to the number remaining.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="readonly VirtualAccountDetail[]">
+  <Property name="accountAddress" type="Address">
+    The VA's own address — the on-chain `partyA` of the positions it holds.
+  </Property>
+  <Property name="parentAccount" type="Address">
+    The subaccount that created the VA.
+  </Property>
+  <Property name="symbolId" type="bigint">
+    Market the VA trades.
+  </Property>
+  <Property name="isExists" type="boolean">
+    `true` once the VA exists on-chain.
+  </Property>
+  <Property name="metadata" type="Hex">
+    Opaque per-VA metadata blob, or `0x`.
+  </Property>
+  <Property name="isolationType" type="VirtualAccountIsolationType">
+    `VIRTUAL_ACCOUNT_ISOLATION_TYPE`: `0` POSITION, `1` MARKET, `2` MARKET_LONG, `3` MARKET_SHORT. MARKET_LONG and
+    MARKET_SHORT pin the side. Note that `2` means MARKET_DIRECTION on a *subaccount*'s `SubAccountIsolationType`.
+  </Property>
+</Returns>
+
+## Query options
+
+```ts
+import { getVirtualAccountsOfSubAccountQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getVirtualAccountsOfSubAccountQueryOptions(config, { subAccount }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { accountLayerAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: accountLayerAbi,
+  address: accountLayerAddress,
+  functionName: "getVirtualAccountsOfSubAccount",
+  args: [subAccount, 0n, 200n],
+});
+```

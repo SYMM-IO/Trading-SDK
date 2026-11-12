@@ -39,10 +39,11 @@ export type UseRelayGaslessBatchReturnType = UseMutationResult<
  * `abi`) or raw `{ data }`, and GaslessWallet calls as `{ walletCalls, walletId }`;
  * see `relayGaslessBatch`.
  *
- * Every call is signed separately — the protocol has no batch signature — so
- * a browser wallet shows one prompt per call, in order, while a session key
- * (`from`) signs them silently. Nothing is submitted until every prompt is
- * signed. Preview the same batch with {@link useGaslessBatchFeeQuote}.
+ * Every entry accepts `from`, including wallet entries, and falls back to the
+ * batch's `from`, then the configured wallet. Each entry is signed separately:
+ * local keys sign first, followed by browser-wallet prompts in execution order.
+ * Nothing is submitted until every signature succeeds. Preview the same batch
+ * with {@link useGaslessBatchFeeQuote}.
  *
  * **Resolves when the batch has landed, not when the relayer accepts it.** By
  * default this waits for the terminal `succeeded` and then for the receipt on
