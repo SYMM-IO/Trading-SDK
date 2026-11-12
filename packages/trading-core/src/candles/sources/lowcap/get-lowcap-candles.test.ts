@@ -13,7 +13,7 @@ const OPTIONS: LowcapHistoryParameters = {
   marketName: "TOKEN::a_SFLOW",
   resolution: "1m",
   from: START,
-  to: START + 450 * MINUTE,
+  to: START + 2450 * MINUTE,
   includeFlat: true,
 };
 
@@ -39,8 +39,8 @@ describe("getLowcapCandles", () => {
     get.mockReset();
   });
 
-  it("returns every bar across >200 intervals once, in milliseconds, omitting the vendor limit", async () => {
-    const rows = Array.from({ length: 451 }, (_, index) => bar(START + index * MINUTE, index + 1));
+  it("returns every bar across several bounded windows once, in milliseconds, omitting the vendor limit", async () => {
+    const rows = Array.from({ length: 2451 }, (_, index) => bar(START + index * MINUTE, index + 1));
     serve(rows);
     const result = await getLowcapCandles(OPTIONS);
     expect(result.candles.map((candle) => candle.time)).toEqual(rows.slice(0, -1).map((row) => row.timestamp * 1000));
@@ -53,14 +53,22 @@ describe("getLowcapCandles", () => {
       expect(config?.params).not.toHaveProperty("version");
       expect(
         (Date.parse(config!.params.to_date) - Date.parse(config!.params.from_date)) / MINUTE + 1,
-      ).toBeLessThanOrEqual(200);
+      ).toBeLessThanOrEqual(1001);
     }
   });
 
+  it("loads a viewport larger than 200 intervals in one HTTP request", async () => {
+    serve(Array.from({ length: 1001 }, (_, index) => bar(START + index * MINUTE)));
+    const result = await getLowcapCandles({ ...OPTIONS, to: START + 1000 * MINUTE });
+    expect(result.candles).toHaveLength(1000);
+    expect(result.candles.at(-1)?.time).toBe(START + 999 * MINUTE);
+    expect(get).toHaveBeenCalledOnce();
+  });
+
   it("continues through an empty middle page and stops at a confirmed beginning", async () => {
-    serve([bar(START), bar(START + 449 * MINUTE)]);
+    serve([bar(START), bar(START + 2449 * MINUTE)]);
     const result = await getLowcapCandles(OPTIONS);
-    expect(result.candles.map((candle) => candle.time)).toEqual([START, START + 449 * MINUTE]);
+    expect(result.candles.map((candle) => candle.time)).toEqual([START, START + 2449 * MINUTE]);
     expect(result.noMoreData).toBe(true);
     expect(get).toHaveBeenCalledTimes(3);
   });
@@ -101,39 +109,39 @@ describe("getLowcapCandles", () => {
   });
 
   it("keeps flat intervals when explicitly included, including all page-boundary bars", async () => {
-    serve(Array.from({ length: 450 }, (_, index) => bar(START + index * MINUTE, 2, 0)));
-    expect((await getLowcapCandles(OPTIONS)).candles).toHaveLength(450);
+    serve(Array.from({ length: 2450 }, (_, index) => bar(START + index * MINUTE, 2, 0)));
+    expect((await getLowcapCandles(OPTIONS)).candles).toHaveLength(2450);
   });
 
   it("keeps the first, volume-bearing and changed-price candles when filtering across pages", async () => {
     serve(
-      Array.from({ length: 450 }, (_, index) =>
-        bar(START + index * MINUTE, index >= 420 ? 3 : 2, index === 310 ? 10 : 0),
+      Array.from({ length: 2450 }, (_, index) =>
+        bar(START + index * MINUTE, index >= 2420 ? 3 : 2, index === 1310 ? 10 : 0),
       ),
     );
     const result = await getLowcapCandles({ ...OPTIONS, includeFlat: false });
-    expect(result.candles.map((candle) => candle.time)).toEqual([0, 310, 420].map((index) => START + index * MINUTE));
+    expect(result.candles.map((candle) => candle.time)).toEqual([0, 1310, 2420].map((index) => START + index * MINUTE));
     expect(get).toHaveBeenCalledTimes(3);
     for (const [, config] of get.mock.calls) expect(config?.params.flat_enable).toBe(false);
   });
 
   it.each(getLowcapSupportedResolutions())(
-    "pages %s with at most 200 UTC buckets including the boundary",
+    "pages %s with 1000 UTC intervals plus the inclusive boundary",
     async (resolution) => {
       const start = floorLowcapCandleTime(START, resolution);
-      const rows = Array.from({ length: 401 }, (_, index) => bar(shiftLowcapCandleTime(start, resolution, index)));
+      const rows = Array.from({ length: 2001 }, (_, index) => bar(shiftLowcapCandleTime(start, resolution, index)));
       serve(rows);
       const result = await getLowcapCandles({
         ...OPTIONS,
         resolution,
         from: start,
-        to: shiftLowcapCandleTime(start, resolution, 400),
+        to: shiftLowcapCandleTime(start, resolution, 2000),
       });
-      expect(result.candles).toHaveLength(400);
-      expect(get).toHaveBeenCalledTimes(3);
+      expect(result.candles).toHaveLength(2000);
+      expect(get).toHaveBeenCalledTimes(2);
       for (const [, config] of get.mock.calls) {
         const from = Date.parse(config!.params.from_date);
-        expect(Date.parse(config!.params.to_date)).toBeLessThanOrEqual(shiftLowcapCandleTime(from, resolution, 199));
+        expect(Date.parse(config!.params.to_date)).toBeLessThanOrEqual(shiftLowcapCandleTime(from, resolution, 1000));
       }
     },
   );
@@ -159,18 +167,20 @@ describe("getLowcapCandles", () => {
 
   it("stops early for a small countBack with flats filtered without relying on page length", async () => {
     serve(
-      Array.from({ length: 450 }, (_, index) => bar(START + index * MINUTE, index + 1)),
+      Array.from({ length: 2450 }, (_, index) => bar(START + index * MINUTE, index + 1)),
       false,
     );
     const result = await getLowcapCandles({ ...OPTIONS, includeFlat: false, limit: 3 });
-    expect(result.candles.map((candle) => candle.time)).toEqual([447, 448, 449].map((index) => START + index * MINUTE));
+    expect(result.candles.map((candle) => candle.time)).toEqual(
+      [2447, 2448, 2449].map((index) => START + index * MINUTE),
+    );
     expect(get).toHaveBeenCalledOnce();
     expect(result.noMoreData).toBe(false);
   });
 
   it("does not satisfy countBack from an artificial first candle at a flat page boundary", async () => {
     serve(
-      Array.from({ length: 450 }, (_, index) => bar(START + index * MINUTE, 2, 0)),
+      Array.from({ length: 2450 }, (_, index) => bar(START + index * MINUTE, 2, 0)),
       false,
     );
     const result = await getLowcapCandles({ ...OPTIONS, includeFlat: false, limit: 1 });

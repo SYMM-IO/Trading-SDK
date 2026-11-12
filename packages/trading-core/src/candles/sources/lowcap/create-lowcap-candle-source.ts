@@ -6,7 +6,7 @@ import { resolvePriceService } from "../../../price-service/resolve-price-servic
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { CandleSource } from "../../types";
 import { createLowcapSymbolLoader } from "./create-lowcap-symbol-loader";
-import { getLowcapCandles } from "./get-lowcap-candles";
+import { getLowcapCandles, LOWCAP_HISTORY_WINDOW_INTERVALS } from "./get-lowcap-candles";
 import { getLowcapSupportedResolutions, toLowcapTimeframe } from "./map-resolution";
 import { resolveLowcapSymbol } from "./resolve-lowcap-symbol";
 import { watchLowcapCandles } from "./watch-lowcap-candles";
@@ -100,7 +100,7 @@ export function createLowcapCandleSource(config: Config, parameters: LowcapCandl
     })}`,
     priceBasis: "price-service",
     supportedResolutions: getLowcapSupportedResolutions(),
-    maxCandlesPerRequest: 200,
+    maxCandlesPerRequest: LOWCAP_HISTORY_WINDOW_INTERVALS,
     async getSymbol(marketName) {
       const symbol = await findSymbol(marketName);
       return symbol

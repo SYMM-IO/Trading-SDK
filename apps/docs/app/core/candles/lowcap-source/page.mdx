@@ -57,7 +57,7 @@ interface LowcapCandleSourceParameters {
 
 ## Returned source
 
-The result implements [`CandleSource`](/core/candles/candle-source-type). Its identity includes the endpoints and flat-candle policy so different configurations do not share history query entries. It declares `priceBasis: "price-service"`, `maxCandlesPerRequest: 200`, and these resolutions:
+The result implements [`CandleSource`](/core/candles/candle-source-type). Its identity includes the endpoints and flat-candle policy so different configurations do not share history query entries. It declares `priceBasis: "price-service"`, `maxCandlesPerRequest: 1000`, and these resolutions:
 
 `1m`, `5m`, `10m`, `15m`, `30m`, `1h`, `4h`, `6h`, `12h`, `1d`, `1w`, `1M`.
 
@@ -67,11 +67,13 @@ Symbol metadata declares `volumeUnit: "quote"`, `volumeCurrency: "USD"`, and `vo
 
 SDK ranges are `[from, to)` in Unix **milliseconds**, selecting candles by their UTC start time. A start halfway through an interval excludes that interval's candle; an end halfway through an interval includes it. Returned OHLCV describes the complete available bucket, including any samples after a historical range end inside that bucket. A current bucket contains only samples available so far.
 
-The service aggregates samples inside its requested dates. The source therefore requests aligned bucket boundaries. Its inclusive end can return an extra candle; the SDK discards that boundary candle. Each HTTP request spans 199 intervals plus the possible boundary candle, keeping responses within 200 buckets without truncating the preceding interval's last samples.
+The service aggregates samples inside its requested dates. The source therefore requests aligned bucket boundaries. Each HTTP request covers up to 1,000 intervals. Its inclusive end can return one extra boundary candle, which the SDK discards without truncating the preceding interval's last samples. Larger ranges use consecutive time windows. A chart-sized request can therefore load hundreds of candles in one HTTP call.
 
 Weeks start Monday at 00:00 UTC. Months start on the first day at 00:00 UTC and use calendar arithmetic, including leap years. These alignments have been observed on staging; their long-term backend guarantee is still to be confirmed.
 
-The SDK omits the service's currently unreliable `limit` parameter. `getCandles({ limit })` still limits the returned result to its newest requested bars. Paging advances by **time window**, including across empty windows; it never stops because a page is short or sparse.
+The SDK omits the service's `limit` parameter: its 200-interval restriction applies only when that parameter is supplied, whereas date-range reads return the full requested range. `getCandles({ limit })` still limits the returned result to its newest requested bars. Paging advances by **time window**, including across empty windows; it never stops because a page is short or sparse.
+
+Consumers own viewport sizing and prefetching. Estimate the visible bar count from chart width and bar spacing, request a buffer before the loaded edge becomes visible, and recheck coverage after sparse responses. Filtered flats and gaps mean that a date range cannot guarantee a particular number of bars. Keep the initial history query range stable during resizing and use older-page requests to extend it.
 
 ### Knowing when older history ends
 

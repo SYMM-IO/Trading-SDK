@@ -12,3 +12,5 @@ Add optional correction ranges to candle reset callbacks and `refreshCandleHisto
 Bounded history corrections replace only affected intervals and any missing live tail, preserving older pages and their exhaustion markers. Tail reads overlap the previously forming interval, including variable-length months, so partial snapshots are finalized and late or removed candles are reconciled.
 
 Read final-price OHLCV without the obsolete `version` query parameter, matching the current production and staging contract.
+
+Batch lowcap history in windows of up to 1,000 intervals, plus the discarded inclusive boundary candle. Omit the vendor limit so ordinary chart ranges no longer split at 199 intervals; retain cancellation, flat filtering, and authoritative history exhaustion across larger windows.

@@ -4,6 +4,9 @@ import type { Candle, GetCandlesParameters, GetCandlesReturnType } from "../../t
 import { ceilLowcapCandleTime, shiftLowcapCandleTime } from "./lowcap-candle-time";
 import { toLowcapTimeframe } from "./map-resolution";
 
+/** Bound response size independently of the optional vendor limit parameter. @internal */
+export const LOWCAP_HISTORY_WINDOW_INTERVALS = 1_000;
+
 /** Endpoint and resolved identity for one history read. @internal */
 export interface LowcapHistoryParameters extends GetCandlesParameters {
   baseURL: string;
@@ -52,10 +55,9 @@ export async function getLowcapCandles(parameters: LowcapHistoryParameters): Pro
 
   while (end > start) {
     signal?.throwIfAborted();
-    // Inclusive to_date can return the next bucket as well. Reserve one of
-    // the 200 intervals for that boundary bar, then discard it below. This
-    // preserves the whole preceding bucket, including subsecond samples.
-    const pageStart = Math.max(start, shiftLowcapCandleTime(end, resolution, -199));
+    // Without limit the service returns the full date range. Bound its size
+    // locally; discard the inclusive boundary bar without truncating samples.
+    const pageStart = Math.max(start, shiftLowcapCandleTime(end, resolution, -LOWCAP_HISTORY_WINDOW_INTERVALS));
     const page = await fetchEnigmaOhlcvPage({
       baseURL,
       symbolAddress,
