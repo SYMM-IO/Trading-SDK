@@ -26,7 +26,7 @@ export interface LowcapCandleSourceParameters {
 /**
  * Create a lowcap candle source backed by the configured public price service.
  *
- * Resolves full market names to symbol addresses, requests version-2 OHLCV,
+ * Resolves full market names to symbol addresses, requests final-price OHLCV,
  * and reports quote volume in USD. Listings are reused for 60 seconds per source;
  * history is not cached. Empty windows do
  * not prove exhaustion: `noMoreData` is true only when the service confirms it.
@@ -97,7 +97,6 @@ export function createLowcapCandleSource(config: Config, parameters: LowcapCandl
         ? { url: resolved.value.url, wsUrl: resolved.value.wsUrl }
         : { chainId: chainId ?? config.defaultChainId, solverId, error: resolved.error?.code }),
       includeFlat,
-      version: 2,
     })}`,
     priceBasis: "price-service",
     supportedResolutions: getLowcapSupportedResolutions(),

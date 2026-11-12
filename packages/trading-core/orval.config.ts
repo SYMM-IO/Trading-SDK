@@ -239,7 +239,6 @@ export default defineConfig({
           "AggregatedOhlcCandleResponse",
           "OhlcvResponse",
           "PriceTimeframe",
-          "PriceHistoryVersion",
           "HTTPValidationError",
           "ValidationError",
         ],

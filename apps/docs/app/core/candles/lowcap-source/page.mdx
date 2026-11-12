@@ -4,7 +4,7 @@ import { Callout } from "nextra/components";
 
 `createLowcapCandleSource` supplies lowcap OHLCV history and live candle updates from the configured price service. Use it with [`getCandlesQueryOptions`](/core/candles/get-candles), [`toTradingViewDatafeed`](/core/candles/tradingview-datafeed), or the [React candle hooks](/react/candles).
 
-The source calls the public `/api/v1/prices/{symbol_address}/ohlcv` route directly, with `version=2`. It needs no API key or proxy and never calls the deprecated `/ohlc` route.
+The source calls the public `/api/v1/prices/{symbol_address}/ohlcv` route directly. The service always reads final-price history; the SDK sends no `version` parameter. It needs no API key or proxy and never calls the deprecated `/ohlc` route.
 
 <Callout type="info">
   OHLCV is available on production and staging. Use matching price-service REST and WebSocket endpoints in your SDK

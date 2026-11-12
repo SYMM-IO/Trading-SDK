@@ -38,7 +38,7 @@ describe("createLowcapCandleSource", () => {
     await source.getCandles({ marketName: MARKET, resolution: "1m", from: TIME, to: TIME + 60_000 });
     expect(get).toHaveBeenCalledWith(
       "/api/v1/prices/AbCd/ohlcv",
-      expect.objectContaining({ params: expect.objectContaining({ flat_enable: false, version: 2 }) }),
+      expect.objectContaining({ params: expect.objectContaining({ flat_enable: false }) }),
     );
   });
 

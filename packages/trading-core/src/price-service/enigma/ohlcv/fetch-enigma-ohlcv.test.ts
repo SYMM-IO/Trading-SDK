@@ -20,7 +20,7 @@ describe("fetchEnigmaOhlcv", () => {
     get.mockResolvedValue({ data: { result: [BAR] } });
   });
 
-  it("calls the public OHLCV route with version 2 and flat candles filtered by default", async () => {
+  it("calls the public OHLCV route without a version parameter and with flat candles filtered by default", async () => {
     const controller = new AbortController();
     const candles = await fetchEnigmaOhlcv({ ...PARAMETERS, signal: controller.signal });
 
@@ -33,7 +33,6 @@ describe("fetchEnigmaOhlcv", () => {
         from_date: 1_700_000_000,
         to_date: 1_700_003_600,
         limit: 200,
-        version: 2,
         flat_enable: false,
       },
     });

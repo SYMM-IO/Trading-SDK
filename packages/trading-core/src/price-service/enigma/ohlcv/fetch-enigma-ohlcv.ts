@@ -1,11 +1,7 @@
 import { isAxiosError, isCancel } from "axios";
 import type { Candle } from "../../../candles/types";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
-import {
-  getSymbolOhlcvApiV1PricesSymbolAddressOhlcvGet,
-  PriceHistoryVersion,
-  PriceTimeframe,
-} from "./generated/enigma-price-service-ohlcv";
+import { getSymbolOhlcvApiV1PricesSymbolAddressOhlcvGet, PriceTimeframe } from "./generated/enigma-price-service-ohlcv";
 import { parseEnigmaOhlcvPage, type EnigmaOhlcvPage } from "./parse-enigma-ohlcv";
 
 /** Parameters for a single bounded request, in the service's inclusive date units. @internal */
@@ -44,7 +40,7 @@ function dateToMs(value: number | string): number {
 }
 
 /**
- * Fetch one version-2 OHLCV window directly from the public price service.
+ * Fetch one final-price OHLCV window directly from the public price service.
  *
  * This transport uses the service's inclusive dates, not CandleSource's
  * millisecond [from, to) range. Pagination and boundary discovery belong to
@@ -89,7 +85,6 @@ export async function fetchEnigmaOhlcvPage(parameters: FetchEnigmaOhlcvParameter
         from_date: fromDate,
         to_date: toDate,
         ...(limit === undefined ? {} : { limit }),
-        version: PriceHistoryVersion.NUMBER_2,
         flat_enable: includeFlat,
       },
       { baseURL, signal, timeout: 30_000 },

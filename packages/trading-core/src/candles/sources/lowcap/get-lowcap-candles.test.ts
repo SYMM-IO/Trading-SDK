@@ -48,8 +48,9 @@ describe("getLowcapCandles", () => {
     expect(get).toHaveBeenCalledTimes(3);
     for (const [url, config] of get.mock.calls) {
       expect(url).toBe("/api/v1/prices/MixedCaseAddress/ohlcv");
-      expect(config?.params).toMatchObject({ version: 2, flat_enable: true });
+      expect(config?.params).toMatchObject({ flat_enable: true });
       expect(config?.params).not.toHaveProperty("limit");
+      expect(config?.params).not.toHaveProperty("version");
       expect(
         (Date.parse(config!.params.to_date) - Date.parse(config!.params.from_date)) / MINUTE + 1,
       ).toBeLessThanOrEqual(200);

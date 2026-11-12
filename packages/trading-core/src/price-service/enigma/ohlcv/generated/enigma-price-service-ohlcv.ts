@@ -8,12 +8,13 @@ import type { AxiosRequestConfig, AxiosResponse } from "axios";
 import axios from "axios";
 
 export interface AggregatedOhlcCandleResponse {
+  /** UTC candle bucket start as Unix epoch seconds */
   timestamp: number;
   open: number;
   high: number;
   low: number;
   close: number;
-  /** USD volume summed from 1-minute buckets within this candle; 0 when no volume data exists. Both history versions include stored partial-minute volumes and provider corrections */
+  /** USD volume summed from 1-minute buckets within this candle; 0 when no volume data exists. Includes stored partial-minute volumes and provider corrections */
   volume: number;
 }
 
@@ -29,13 +30,10 @@ export interface HTTPValidationError {
 
 export interface OhlcvResponse {
   result: AggregatedOhlcCandleResponse[];
+  /** Whether stored final-price history exists before the effective window start, independently of whether result is empty */
   has_older: boolean;
 }
 
-export enum PriceHistoryVersion {
-  NUMBER_1 = 1,
-  NUMBER_2 = 2,
-}
 export enum PriceTimeframe {
   "1m" = "1m",
   "5m" = "5m",
@@ -68,17 +66,13 @@ export type GetSymbolOhlcvApiV1PricesSymbolAddressOhlcvGetParams = {
    */
   limit?: number | null;
   /**
-   * Price history version: 1 uses legacy price history; 2 uses final-price history without price fallback. Both versions use the same minute-volume history, including partial minutes and provider corrections
-   */
-  version?: PriceHistoryVersion;
-  /**
    * Include flat candles. By default, a candle is omitted when open, high, low, and close equal the previous close and volume is 0; the first candle is always returned
    */
   flat_enable?: boolean;
 };
 
 /**
- * Read stored history without checking symbol registration; missing history returns an empty result. Both versions fetch prices followed by volumes in one database session.
+ * Read only stored final prices, without legacy price fallback or a symbol-registration check. Missing final history returns an empty result. Candles include USD volume; has_older indicates final-price history before the effective window start, even if the selected window is empty. The version query parameter has been removed; supplied values are ignored and do not change the price source.
  * @summary Get aggregated price OHLCV history
  */
 export const getSymbolOhlcvApiV1PricesSymbolAddressOhlcvGet = (

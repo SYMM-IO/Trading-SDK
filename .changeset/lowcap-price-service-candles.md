@@ -10,3 +10,5 @@ Add framework-neutral incremental candle history query options and `useCandleHis
 Add optional correction ranges to candle reset callbacks and `refreshCandleHistory` for bounded revalidation. `useCandleHistory.refresh(range)` delegates to this core action, waits for active paging, and preserves unaffected windows. Recent lowcap volume corrections no longer require every retained window to be fetched again when consumers forward the range; reconnects and hourly checks still request full refreshes. Existing reset handlers and TradingView integrations remain compatible.
 
 Bounded history corrections replace only affected intervals and any missing live tail, preserving older pages and their exhaustion markers. Tail reads overlap the previously forming interval, including variable-length months, so partial snapshots are finalized and late or removed candles are reconciled.
+
+Read final-price OHLCV without the obsolete `version` query parameter, matching the current production and staging contract.
