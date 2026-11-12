@@ -163,7 +163,7 @@ export const STAGING_CHAIN_OVERRIDES = {
     priceService: {
       type: "enigma",
       url: "https://lowcap-price-staging.enigma.bz",
-      wsUrl: "wss://lowcap-price.rasa.capital/ws",
+      wsUrl: "wss://lowcap-price-staging.enigma.bz/ws",
     },
     muon: {
       urls: [

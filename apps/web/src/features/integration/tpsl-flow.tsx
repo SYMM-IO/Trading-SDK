@@ -1,6 +1,6 @@
 "use client";
 
-import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
+import { ResultError, ResultNote } from "@/components/result";
 import { useSessionKey } from "@/features/session-keys/use-session-key";
 import {
   PositionType,
@@ -15,6 +15,7 @@ import {
   usePriceByMarketId,
   useQuoteTpSl,
   useSetQuoteTpSl,
+  useSymmioChainId,
   useSymmioConfig,
   useTpSlConfig,
   useVirtualAccount,
@@ -37,6 +38,8 @@ import { WalletPanel } from "../inspector/wallet-panel";
 import { FlowLayout } from "./flow-layout";
 import type { FlowStep } from "./flow-rail";
 import { SubaccountStep } from "./subaccount-step";
+import { TpSlConfirmationStatus } from "./tp-sl-confirmation-status";
+import { useTpSlSubmissionFeedback } from "./use-tp-sl-submission-feedback";
 
 const WEI_DECIMALS = 18;
 const DELEGATION_TTL_SECONDS = 365 * 24 * 60 * 60;
@@ -59,6 +62,7 @@ export function TpSlFlow({ owner, subAccount, subAccountName, onSelectSubAccount
   const sessionKey = sessionKeyAddress ?? undefined;
 
   const config = useSymmioConfig();
+  const chainId = useSymmioChainId();
   const cohWalletAddress = config.getSolver().tpsl?.cohWalletAddress;
 
   const [virtualAccount, setVirtualAccount] = useState<Address>();
@@ -217,6 +221,7 @@ export function TpSlFlow({ owner, subAccount, subAccountName, onSelectSubAccount
         />
       ) : (
         <SetTpSlStep
+          key={`${config.getChainConfigKey(chainId)}:${owner}:${subAccount}:${virtualAccount}:${sessionKey}:${selectedPosition!.id}`}
           subAccount={subAccount!}
           virtualAccount={virtualAccount!}
           sessionKey={sessionKey!}
@@ -499,7 +504,7 @@ function PositionPickerStep({
 // Set TP/SL
 // ---------------------------------------------------------------------------
 
-function SetTpSlStep({
+export function SetTpSlStep({
   subAccount,
   virtualAccount,
   sessionKey,
@@ -529,10 +534,12 @@ function SetTpSlStep({
   const priceQuery = usePriceByMarketId({ marketId: position.symbolId });
   const markPriceDecimal = priceQuery.markPrice ?? "";
 
-  const current = useQuoteTpSl({ quoteId: position.id, account: subAccount });
+  const chainId = useSymmioChainId();
+  const current = useQuoteTpSl({ quoteId: position.id, account: subAccount, chainId });
 
   const tpslConfig = useTpSlConfig();
   const mutation = useSetQuoteTpSl();
+  const confirmation = useTpSlSubmissionFeedback({ account: subAccount, chainId });
   const deleteMutation = useDeleteQuoteTpSl();
 
   const [tpPrice, setTpPrice] = useState("");
@@ -611,7 +618,8 @@ function SetTpSlStep({
 
   async function handleSubmit() {
     if (!canSubmit) return;
-    await mutation.mutateAsync({
+    const parameters = {
+      chainId,
       from: sessionKey,
       quoteId: position.id,
       virtualAccount,
@@ -623,7 +631,20 @@ function SetTpSlStep({
       slippage: slippageNumber,
       tp: submitTp ? { triggerPrice: tpPrice, priceType: tpPriceType } : undefined,
       sl: submitSl ? { triggerPrice: slPrice, priceType: slPriceType } : undefined,
-    });
+    };
+    const accepted = confirmation.begin(parameters);
+    await mutation.mutateAsync(parameters);
+    accepted(parameters);
+  }
+
+  function deleteSide(side: "take_profit" | "stop_loss", cohQuoteId: string) {
+    // Deleting a side the last submit set ends that submit's result; the
+    // delete's own cancel report must not read as a failed submission.
+    if (side === "take_profit" ? mutation.variables?.tp : mutation.variables?.sl) mutation.reset();
+    deleteMutation.mutate(
+      { from: sessionKey, quoteId: position.id, virtualAccount, cohQuoteId, conditionalOrderType: side },
+      { onSuccess: () => setDeletingSides((prev) => ({ ...prev, [side === "take_profit" ? "tp" : "sl"]: true })) },
+    );
   }
 
   return (
@@ -687,22 +708,13 @@ function SetTpSlStep({
                 cohQuoteId={current.data.tpCohQuoteId}
                 side="take_profit"
                 disabled={
-                  !sessionKey || !current.data.tp || current.data.tpState === "confirming" || deleteMutation.isPending
+                  !sessionKey ||
+                  !current.data.tp ||
+                  current.data.tpState === "confirming" ||
+                  deleteMutation.isPending ||
+                  mutation.isPending
                 }
-                onDelete={(cohQuoteId) =>
-                  deleteMutation.mutate(
-                    {
-                      from: sessionKey,
-                      quoteId: position.id,
-                      virtualAccount,
-                      cohQuoteId,
-                      conditionalOrderType: "take_profit",
-                    },
-                    {
-                      onSuccess: () => setDeletingSides((prev) => ({ ...prev, tp: true })),
-                    },
-                  )
-                }
+                onDelete={(cohQuoteId) => deleteSide("take_profit", cohQuoteId)}
               />
             </dd>
             <dt className="text-muted-foreground">SL</dt>
@@ -720,22 +732,13 @@ function SetTpSlStep({
                 cohQuoteId={current.data.slCohQuoteId}
                 side="stop_loss"
                 disabled={
-                  !sessionKey || !current.data.sl || current.data.slState === "confirming" || deleteMutation.isPending
+                  !sessionKey ||
+                  !current.data.sl ||
+                  current.data.slState === "confirming" ||
+                  deleteMutation.isPending ||
+                  mutation.isPending
                 }
-                onDelete={(cohQuoteId) =>
-                  deleteMutation.mutate(
-                    {
-                      from: sessionKey,
-                      quoteId: position.id,
-                      virtualAccount,
-                      cohQuoteId,
-                      conditionalOrderType: "stop_loss",
-                    },
-                    {
-                      onSuccess: () => setDeletingSides((prev) => ({ ...prev, sl: true })),
-                    },
-                  )
-                }
+                onDelete={(cohQuoteId) => deleteSide("stop_loss", cohQuoteId)}
               />
             </dd>
           </dl>
@@ -793,12 +796,7 @@ function SetTpSlStep({
       {mutation.error ? (
         <ResultError testId="tpsl-error" kind={mutation.error.kind} message={mutation.error.message} />
       ) : null}
-      {mutation.isSuccess ? (
-        <ResultSuccess testId="tpsl-success">
-          Handler accepted (200). Sides marked <strong>processing</strong> — final confirmation arrives over the
-          WebSocket.
-        </ResultSuccess>
-      ) : null}
+      {mutation.isSuccess ? <TpSlConfirmationStatus idPrefix="tpsl" status={confirmation.status} /> : null}
     </div>
   );
 }

@@ -12,7 +12,7 @@ One leg of a conditional-order message body. Built by [`buildConditionalOrderLeg
     Slippage-shifted fill price (decimal string, rounded to market precision).
   </Property>
   <Property name="orderType" type="number">
-    Wire `order_type` (`1` = market).
+    Wire `order_type`: `2` = market-best-effort (the default), `0` = limit. The handler rejects `1` (market) for TP/SL.
   </Property>
   <Property name="conditionalPrice" type="string">
     Trigger price (decimal string, rounded to market precision).

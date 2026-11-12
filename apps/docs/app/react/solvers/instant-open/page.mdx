@@ -129,6 +129,8 @@ Like [`useInstantOpenFees`](../../instant-layer#useinstantopenfees), it pre-fetc
 
 The hook has no fixed estimate polling interval. Call `refetchEstimatedPrice(options?)` when your frontend wants a fresh SDK-managed estimate. It forwards the estimate query's existing refetch function and returns its query result; its promise finishes when the estimate request finishes. A changed estimate triggers the existing preview recalculation, so continue to gate submission on `isReady`. The existing `refetch()` reruns the calculation using cached inputs. If you supply `estimatedOpenPrice`, refresh that value yourself: supplied estimates continue to take precedence.
 
+The optional `estimatedOpenPriceWithoutShadow` is diagnostic data from the **same settled SDK-managed estimate** as `estimatedOpenPrice`. It is absent when the solver omits it, while inputs are debouncing/refetching, for failed/placeholder estimates, when disabled, or when the caller supplies `estimatedOpenPrice` (including `null`). A cached no-shadow value is never paired with a caller override. This field does not enter core preparation, fees or submission and creates no additional request. Use it only for an explanation; all trading calculations continue to use the shadow-inclusive `estimatedOpenPrice`.
+
 The returned `estimatedOpenPrice` is a decimal string when available, `null` when the estimate settled but was unavailable, and `undefined` while pending or on a non-lowcap solver. Forward it unchanged to submission, including `null`, so core does not fetch an unavailable estimate again. With automatic or explicit full-balance sizing, the estimate affects the final quantity and funding decision as well as `margin.amount`.
 
 For automatic fallback, pass the raw available balance as `availableBalance` alongside `initialMargin`. The hook returns `data.fundingMode` (`"initial-margin"` or `"full-balance"`) from core. Keep the typed input editable and show an adjustment message when the effective mode is `"full-balance"`. Prefer this resolved funding check to comparing the typed amount against a fee-adjusted allowance. See [automatic fallback](../../../core/solvers/instant-open#automatic-fallback-from-typed-margin) for the exact rules.
@@ -194,9 +196,10 @@ Orchestrator that opens a position and immediately attaches TP/SL against the re
 2. `setQuoteTpSl` with `quoteId: tempQuoteId` → creates the conditional-order legs.
 
 ```tsx
-const open = useInstantOpenWithTpSl();
+const open = useInstantOpenWithTpSl({ tpslState: "sdk" });
 
 open.mutate({
+  tpslQuantityMode: "prepared",
   ...instantOpenInputs,
   tpsl: hasTpOrSl
     ? {
@@ -216,9 +219,23 @@ open.mutate({
 
 `virtualAccount` is the position's VA, which does not exist on-chain yet — derive it with [`usePredictedNextVirtualAccount`](../../account-layer#usepredictednextvirtualaccount) keyed by `isolationTypeForSide(positionType)` and `symbolId`. `tpsl: undefined` (both legs empty) collapses the call to a plain `useInstantOpenAuto`. The open and the TP/SL leg fail independently: a rejected TP/SL still resolves the mutation and surfaces `data.tpslError` rather than throwing away a landed open.
 
-In full-balance mode (`fund: { mode: "full-balance", balance }` instead of `initialMargin`) the submitted quantity is the **SDK-rescaled** one — not what the trade form derived from a typed margin. Take the `tpsl.quantity` from [`usePrepareInstantOpenParams`](#useprepareinstantopenparams)'s `data.order.quantity` (or [`useInstantOpenFees`](../../instant-layer#useinstantopenfees)'s `data.quantity`): both run the same sizing as the open, so they equal what the open submits.
+Pass `tpslQuantityMode: "prepared"` to prepare the open once and attach using the exact submitted quantity, including full-balance rescaling. A previous preview can differ from the actual submission. The default `"provided"` retains caller-supplied `tpsl.quantity` for compatibility.
 
-On success, `useTpSlStore` is populated with the confirming record keyed by `tempQuoteId`. When the position anchors on-chain, the solver maps `tempQuoteId ↔ quoteId` and the same TP/SL record is reachable by either id. Confirmation is WebSocket-driven — the record sits in `confirming` until the handler's `report` frame flips it to `new`; read it with `useQuoteTpSl({ quoteId, account })`.
+Pass `useInstantOpenWithTpSl({ tpslState: "external" })` when the application owns TP/SL optimism and REST reconciliation. This skips writes to the SDK TP/SL store; existing instant-open and balance refreshes remain. The default `"sdk"` retains the store behavior below.
+
+`data.tpslParameters` contains the resolved attachment inputs, including submitted quantity and quote ID, whenever they could be constructed. It is present on attachment rejection as well as acceptance, and contains no signature. An absent or invalid attachment ID after an accepted open returns `data.tpslError`; the accepted open is preserved. Recovery must call only `setQuoteTpSl`, never the open mutation again. Do not replay an ambiguous write automatically: acceptance is separate from observed order state.
+
+On acceptance, `useTpSlStore` is populated with the confirming record keyed by `tempQuoteId`. Resolve the on-chain ID through `useInstantOpenQuoteId` when the position anchors. The shared order record becomes reachable by both IDs once its alias is learned from a read or notification carrying the relationship; an on-chain-only notification cannot establish that relationship by itself. The handler's WebSocket `report` can flip the record from `confirming` to `new`; matching REST rows can also settle it through the SDK's existing reconciliation. Read current orders with `useQuoteTpSl({ quoteId, account })`.
+
+The reference app uses prepared quantity and SDK-owned order state. Its submission result is a separate presentation policy: `useWatchTpSlNotifications` subscribes before dispatch and HTTP acceptance keeps **Setting TP/SL…** visible until a matching `new` or `edit` report arrives for every submitted side. Successful cancellation reports and unsuccessful reports show an error, including after a timeout. A trigger report shows **TP/SL confirmed; a trigger has fired**, without claiming that trade execution finished. Current-order REST reads remain unchanged, but cannot independently complete this submission message or turn an absent row into a failure.
+
+For an at-open result, the reference app uses `useInstantOpenQuoteId` with the submitted deployment and solver, polling every two seconds until anchoring. It retains the temporary ID, including negative IDs, and checks reports against the resolved ID too. Reports arriving before the HTTP response or ID resolution are retained for this submission; unrelated pre-resolution reports are bounded to the latest 128 entries. The two listeners in the existing-position editor share the SDK's pooled socket: one updates current orders, the other controls the submission message. The at-open result does not mount an additional current-order query.
+
+If a report is still missing 90 seconds after acceptance, the reference app shows **TP/SL not confirmed yet — check current orders** without an automatic retry. Late reports can still replace that warning. A fresh submission starts a new waiting window; context changes discard old feedback and completions. This matches reports by position and submitted side, not a backend mutation ID. Overlapping writes and delayed reports from earlier mutations remain unsupported; this UI does not introduce a correlation or replay guarantee.
+
+An explicit `SET_TPSL_REJECTED` response offers a user-triggered **Retry TP/SL only** action through `useSetQuoteTpSl`, using the returned `tpslParameters`. A malformed response or transport failure shows unconfirmed protection and asks the user to check current orders; it does not enable a blind retry. A fresh empty read cannot prove that an ambiguous request will not complete later. Switching wallet, session, account, deployment or solver discards the old form's recovery controls.
+
+`external` is intended for consumers that already own optimism and reconciliation; selecting it in the reference app would remove its existing state owner without a replacement. Acceptance and recovery messaging above does not change the SDK store's existing notification/read policy.
 
 See [TP/SL](../../tpsl) for the store + reconciliation model.
 

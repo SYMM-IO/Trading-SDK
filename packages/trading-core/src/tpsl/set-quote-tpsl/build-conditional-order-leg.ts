@@ -1,3 +1,4 @@
+import { OrderType } from "../../symmio-contracts/symmio/types";
 import type { TpSlConditionalOrderLeg, TpSlPriceType } from "../types";
 
 /** `order_type` field — `1` = market. */
@@ -16,13 +17,13 @@ export function buildConditionalOrderLeg(parameters: {
   /** Trigger price (decimal string, rounded to market precision). */
   conditionalPrice: string;
   priceType: TpSlPriceType;
-  /** Defaults to `TPSL_LEG_ORDER_TYPE_MARKET`. */
+  /** Defaults to `OrderType.MARKET_BEST_EFFORT` (2), a close-only order type. */
   orderType?: number;
 }): TpSlConditionalOrderLeg {
   return {
     quantity: parameters.quantity,
     price: parameters.price,
-    orderType: parameters.orderType ?? TPSL_LEG_ORDER_TYPE_MARKET,
+    orderType: parameters.orderType ?? OrderType.MARKET_BEST_EFFORT,
     conditionalPrice: parameters.conditionalPrice,
     conditionalPriceType: parameters.priceType === "lastPrice" ? "last_close" : "market",
   };

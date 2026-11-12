@@ -47,6 +47,34 @@ describe("getEstimatedPrice", () => {
     expect(result).toEqual({ estimatedPrice: "0.0925" });
   });
 
+  it.each(["open", "close"] as const)(
+    "returns the optional no-shadow price without replacing the %s fill",
+    async (entry) => {
+      estimatedPriceRequest.mockResolvedValue({
+        data: { price: "2000.000000", price_without_shadow: "1900.123457" },
+      });
+
+      expect(await getEstimatedPrice(config, { ...OPEN_LONG, entry })).toEqual({
+        estimatedPrice: "2000.000000",
+        estimatedPriceWithoutShadow: "1900.123457",
+      });
+      expect(estimatedPriceRequest).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([undefined, null, "", 1900])("does not invent a no-shadow price for %s", async (priceWithoutShadow) => {
+    estimatedPriceRequest.mockResolvedValue({ data: { price: "2000", price_without_shadow: priceWithoutShadow } });
+    expect(await getEstimatedPrice(config, OPEN_LONG)).toEqual({ estimatedPrice: "2000" });
+  });
+
+  it("does not substitute the no-shadow price when the primary price is unavailable", async () => {
+    estimatedPriceRequest.mockResolvedValue({ data: { price_without_shadow: "1900.123457" } });
+    expect(await getEstimatedPrice(config, OPEN_LONG)).toEqual({
+      estimatedPrice: "0",
+      estimatedPriceWithoutShadow: "1900.123457",
+    });
+  });
+
   it("encodes short + close on the wire", async () => {
     estimatedPriceRequest.mockResolvedValue({ data: { price: "1" } });
     await getEstimatedPrice(config, {

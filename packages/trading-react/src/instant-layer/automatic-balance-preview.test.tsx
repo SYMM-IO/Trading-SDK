@@ -123,9 +123,9 @@ describe("automatic balance previews", () => {
     solverInfo.mockReset().mockReturnValue({});
     prepare.mockReset().mockResolvedValue(PREPARED);
     fees.mockReset().mockResolvedValue(FEES);
-    fetchEstimate.mockReset().mockResolvedValue({ estimatedPrice: "100.5" });
+    fetchEstimate.mockReset().mockResolvedValue({ estimatedPrice: "100.5", estimatedPriceWithoutShadow: "100.1" });
     estimate.mockReset().mockReturnValue({
-      data: { estimatedPrice: "100.5" },
+      data: { estimatedPrice: "100.5", estimatedPriceWithoutShadow: "100.1" },
       isFetched: true,
       isFetching: false,
       isDebouncing: false,
@@ -158,7 +158,8 @@ describe("automatic balance previews", () => {
       await act(async () => vi.advanceTimersByTimeAsync(60_000));
       expect(fetchEstimate).toHaveBeenCalledTimes(1);
 
-      fetchEstimate.mockResolvedValueOnce({ estimatedPrice: "100.8" });
+      expect(result.current.prepare.estimatedOpenPriceWithoutShadow).toBe("100.1");
+      fetchEstimate.mockResolvedValueOnce({ estimatedPrice: "100.8", estimatedPriceWithoutShadow: "100.2" });
       await act(async () => {
         const refreshed = await result.current[preview].refetchEstimatedPrice({ throwOnError: true });
         expect(refreshed.data?.estimatedPrice).toBe("100.8");
@@ -171,8 +172,68 @@ describe("automatic balance previews", () => {
         }
       });
       expect(result.current.prepare.estimatedOpenPrice).toBe("100.8");
+      expect(result.current.prepare.estimatedOpenPriceWithoutShadow).toBe("100.2");
+      for (const action of [prepare, fees]) {
+        expect(action.mock.lastCall?.[0]).not.toHaveProperty("estimatedOpenPriceWithoutShadow");
+      }
     },
   );
+
+  it.each(["101", "100.5", null])(
+    "does not pair cached no-shadow data with a supplied estimate %s",
+    async (supplied) => {
+      const config = createPreviewConfig();
+      estimate.mockReturnValue({
+        data: { estimatedPrice: "100.5", estimatedPriceWithoutShadow: "100.1" },
+        isFetched: true,
+        isFetching: false,
+        isDebouncing: false,
+      });
+      const { result } = renderHookWithProviders(() =>
+        usePrepareInstantOpenParams({ ...params, config, estimatedOpenPrice: supplied }),
+      );
+      await waitFor(() => expect(result.current.isReady).toBe(true));
+      expect(result.current.estimatedOpenPrice).toBe(supplied);
+      expect(result.current.estimatedOpenPriceWithoutShadow).toBeUndefined();
+    },
+  );
+
+  it("drops no-shadow diagnostics while inputs change, on errors and for older solvers", async () => {
+    const config = createPreviewConfig();
+    const settled = {
+      data: { estimatedPrice: "100.5", estimatedPriceWithoutShadow: "100.1" },
+      isFetched: true,
+      isFetching: false,
+      isDebouncing: false,
+    };
+    estimate.mockReturnValue(settled);
+    const { result, rerender } = renderHookWithProviders(() => usePrepareInstantOpenParams({ ...params, config }));
+    await waitFor(() => expect(result.current.isReady).toBe(true));
+    expect(result.current.estimatedOpenPriceWithoutShadow).toBe("100.1");
+
+    for (const state of [
+      { isDebouncing: true },
+      { isFetching: true },
+      { isPlaceholderData: true },
+      { isError: true },
+      { data: { estimatedPrice: "0", estimatedPriceWithoutShadow: "100.1" } },
+      { data: { estimatedPrice: "100.5" } },
+    ]) {
+      estimate.mockReturnValue({ ...settled, ...state });
+      rerender();
+      expect(result.current.estimatedOpenPriceWithoutShadow).toBeUndefined();
+    }
+  });
+
+  it("does not expose a cached no-shadow estimate on a solver without that read", async () => {
+    const config = createPreviewConfig();
+    const { result } = renderHookWithProviders(() =>
+      usePrepareInstantOpenParams({ ...params, config, solverId: "rasa", availableBalance: undefined }),
+    );
+    await waitFor(() => expect(result.current.isReady).toBe(true));
+    expect(result.current.estimatedOpenPrice).toBeUndefined();
+    expect(result.current.estimatedOpenPriceWithoutShadow).toBeUndefined();
+  });
 
   it.each([true, false])("reports an over-balance margin synchronously, online=%s", (online) => {
     onlineManager.setOnline(online);
@@ -414,7 +475,9 @@ describe("automatic balance previews", () => {
       { initialProps: { enabled: true } },
     );
     await waitFor(() => expect(result.current.isReady).toBe(true));
+    expect(result.current.estimatedOpenPriceWithoutShadow).toBe("100.1");
     rerender({ enabled: false });
     expect(result.current.isReady).toBe(false);
+    expect(result.current.estimatedOpenPriceWithoutShadow).toBeUndefined();
   });
 });
