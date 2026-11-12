@@ -1,3 +1,4 @@
+import type { QueryFunctionContext } from "@tanstack/query-core";
 import type { Compute } from "../shared/types/properties";
 import type { QueryParameter, SymmioQueryOptions } from "../shared/types/query";
 import { filterQueryOptions } from "../shared/utils/query";
@@ -42,7 +43,13 @@ export type GetCandlesOptions = Compute<
 >;
 
 /** TanStack Query options returned by {@link getCandlesQueryOptions}. */
-export type GetCandlesQueryOptions = SymmioQueryOptions<GetCandlesData, Error, GetCandlesData, GetCandlesQueryKey>;
+export type GetCandlesQueryOptions = Omit<
+  SymmioQueryOptions<GetCandlesData, Error, GetCandlesData, GetCandlesQueryKey>,
+  "queryFn"
+> & {
+  /** Pass TanStack's context to abort obsolete history requests. Direct calls may omit it. */
+  queryFn: (context?: Pick<QueryFunctionContext<GetCandlesQueryKey>, "signal">) => Promise<GetCandlesData>;
+};
 
 /**
  * Build TanStack Query options for a {@link CandleSource}'s historical bars.
@@ -75,6 +82,6 @@ export function getCandlesQueryOptions(source: CandleSource, options: GetCandles
     ...options.query,
     queryKey: getCandlesQueryKey({ sourceId: source.id, marketName, resolution, from, to, limit }),
     enabled: options.query?.enabled ?? true,
-    queryFn: () => source.getCandles({ marketName, resolution, from, to, limit }),
+    queryFn: (context) => source.getCandles({ marketName, resolution, from, to, limit, signal: context?.signal }),
   };
 }

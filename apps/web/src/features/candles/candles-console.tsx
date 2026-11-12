@@ -194,8 +194,7 @@ export function CandlesConsole() {
         <ResultNote testId="method-useCandles-unlisted">
           This source has no bars for <code>{marketName}</code>. <code>getSymbol</code> did not resolve it, which is how
           a <code>CandleSource</code> reports a market it does not carry — the same check that filters the picker above
-          down to what Binance lists. Lowcaps have no listing at all; those chart from their liquidity pool instead, in
-          the card below.
+          down to what Binance lists. Use the lowcap price-service card below for lowcap candle history.
         </ResultNote>
       ) : null}
 

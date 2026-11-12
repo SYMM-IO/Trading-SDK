@@ -14,6 +14,7 @@ import {
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useEffect, useRef } from "react";
+import { watchCandleChartNavigation } from "./candle-chart-navigation";
 
 interface Props {
   /** Historical bars, ascending by time. Replaces the series whenever it changes. */
@@ -24,6 +25,8 @@ interface Props {
   pricePrecision?: number;
   /** Rendered when there is nothing to draw yet. */
   emptyLabel?: string;
+  /** Request an older window after the user pans or zooms toward the left edge. */
+  onLoadOlder?: () => void;
 }
 
 /**
@@ -84,8 +87,9 @@ function readTheme(element: HTMLElement): ChartTheme {
  * re-read when the theme class changes, so the chart matches light and dark
  * without duplicating the palette.
  */
-export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabel }: Props) {
+export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabel, onLoadOlder }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
@@ -96,8 +100,16 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
    */
   const candlesRef = useRef<readonly Candle[]>(candles);
   candlesRef.current = candles;
+  const liveCandleRef = useRef(liveCandle);
+  liveCandleRef.current = liveCandle;
   /** Set once per history load so the first paint fits, but panning is not fought afterwards. */
   const fittedKeyRef = useRef<string | null>(null);
+  const drawnCandlesRef = useRef<readonly Candle[]>([]);
+  const lastDrawnTimeRef = useRef<number | undefined>(undefined);
+  const lastDrawnLiveRef = useRef<Candle | null>(null);
+  const onLoadOlderRef = useRef(onLoadOlder);
+  onLoadOlderRef.current = onLoadOlder;
+  const navigationRef = useRef<ReturnType<typeof watchCandleChartNavigation> | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -143,12 +155,25 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
     candleSeriesRef.current = candleSeries;
     volumeSeriesRef.current = volumeSeries;
 
+    const navigation = watchCandleChartNavigation({
+      container: frameRef.current ?? container,
+      timeScale: chart.timeScale(),
+      hasData: () => candleSeries.data().length > 0,
+      onLoadOlder: () => onLoadOlderRef.current?.(),
+    });
+    navigationRef.current = navigation;
+
     return () => {
+      navigation.dispose();
+      navigationRef.current = null;
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
       fittedKeyRef.current = null;
+      drawnCandlesRef.current = [];
+      lastDrawnTimeRef.current = undefined;
+      lastDrawnLiveRef.current = null;
     };
     /**
      * Mount-only. The chart owns live subscriptions and drawn data, so it must
@@ -212,13 +237,42 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
     const volumeSeries = volumeSeriesRef.current;
     if (!candleSeries || !volumeSeries) return;
 
+    navigationRef.current?.reset();
+    const timeScale = chartRef.current?.timeScale();
+    const visible = onLoadOlderRef.current ? timeScale?.getVisibleLogicalRange() : null;
+    const previous = drawnCandlesRef.current;
+    const anchor = visible ? previous[Math.max(0, Math.min(previous.length - 1, Math.ceil(visible.from)))] : undefined;
+    const anchorIndex = anchor ? timeScale?.timeToIndex(toChartTime(anchor.time)) : null;
+
     const { up, down } = colorsRef.current;
     candleSeries.setData(candles.map(toCandlestickData));
     volumeSeries.setData(candles.map((candle) => toVolumeData(candle, up, down)));
+    lastDrawnTimeRef.current = candles.at(-1)?.time;
+    lastDrawnLiveRef.current = null;
+    /** A newer live interval survives a lagging snapshot; refreshed values for the same bar take precedence. */
+    const live = liveCandleRef.current;
+    const newestHistory = candles.at(-1);
+    if (
+      live &&
+      (live.time > (newestHistory?.time ?? -Infinity) ||
+        (previous.at(-1) === newestHistory && live.time === newestHistory?.time))
+    ) {
+      candleSeries.update(toCandlestickData(live));
+      volumeSeries.update(toVolumeData(live, up, down));
+      lastDrawnTimeRef.current = live.time;
+      lastDrawnLiveRef.current = live;
+    }
+    drawnCandlesRef.current = candles;
 
     const key = `${candles.length}:${candles[0]?.time ?? 0}:${candles.at(-1)?.time ?? 0}`;
-    if (candles.length > 0 && fittedKeyRef.current !== key) {
-      chartRef.current?.timeScale().fitContent();
+    if (visible && anchor && anchorIndex !== null && anchorIndex !== undefined) {
+      const nextIndex = timeScale?.timeToIndex(toChartTime(anchor.time), true);
+      if (nextIndex !== null && nextIndex !== undefined) {
+        const shift = nextIndex - anchorIndex;
+        timeScale?.setVisibleLogicalRange({ from: visible.from + shift, to: visible.to + shift });
+      }
+    } else if (candles.length > 0 && fittedKeyRef.current !== key) {
+      timeScale?.fitContent();
       fittedKeyRef.current = key;
     }
   }, [candles]);
@@ -226,17 +280,21 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
   useEffect(() => {
     const candleSeries = candleSeriesRef.current;
     const volumeSeries = volumeSeriesRef.current;
-    if (!candleSeries || !volumeSeries || !liveCandle) return;
+    if (!candleSeries || !volumeSeries || !liveCandle || liveCandle === lastDrawnLiveRef.current) return;
+    const lastDrawnTime = lastDrawnTimeRef.current;
+    if (lastDrawnTime !== undefined && liveCandle.time < lastDrawnTime) return;
 
     const { up, down } = colorsRef.current;
     candleSeries.update(toCandlestickData(liveCandle));
     volumeSeries.update(toVolumeData(liveCandle, up, down));
+    lastDrawnTimeRef.current = liveCandle.time;
+    lastDrawnLiveRef.current = liveCandle;
   }, [liveCandle]);
 
   return (
-    <div className="relative h-105 w-full" data-testid="candle-chart">
+    <div ref={frameRef} className="relative h-105 w-full" data-testid="candle-chart">
       <div ref={containerRef} className="h-full w-full" />
-      {candles.length === 0 && emptyLabel ? (
+      {candles.length === 0 && !liveCandle && emptyLabel ? (
         <p className="text-muted-foreground absolute inset-0 flex items-center justify-center text-sm">{emptyLabel}</p>
       ) : null}
     </div>

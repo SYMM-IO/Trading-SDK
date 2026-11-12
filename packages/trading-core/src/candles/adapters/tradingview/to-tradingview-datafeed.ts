@@ -25,10 +25,17 @@ export interface ToTradingViewDatafeedOptions {
   timezone?: string;
 }
 
-/** Strips an exchange prefix, so `"BINANCE:BTCUSDT"` resolves as `"BTCUSDT"`. */
-function toMarketName(symbolName: string): string {
+/** Strip an exchange prefix while preserving `::` inside a market name. */
+function toMarketName(symbolName: string, exchange: string): string {
+  const prefix = `${exchange}:`;
+  if (symbolName.startsWith(prefix) && symbolName[prefix.length] !== ":") {
+    return symbolName.slice(prefix.length);
+  }
+
   const separatorIndex = symbolName.indexOf(":");
-  return separatorIndex === -1 ? symbolName : symbolName.slice(separatorIndex + 1);
+  return separatorIndex === -1 || symbolName[separatorIndex + 1] === ":"
+    ? symbolName
+    : symbolName.slice(separatorIndex + 1);
 }
 
 function toTradingViewBar(candle: {
@@ -111,7 +118,7 @@ export function toTradingViewDatafeed(
     },
 
     resolveSymbol(symbolName, onResolve, onError) {
-      const marketName = toMarketName(symbolName);
+      const marketName = toMarketName(symbolName, exchange);
 
       source
         .getSymbol(marketName)

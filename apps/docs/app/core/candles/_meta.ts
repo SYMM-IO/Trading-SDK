@@ -4,6 +4,7 @@ export default {
   "get-candles": "getCandlesQueryOptions",
   "-- live": { type: "separator", title: "Live bars" },
   "create-source": "createBinanceCandleSource",
+  "lowcap-source": "createLowcapCandleSource",
   "watch-binance-klines": "watchBinanceKlines",
   "-- adapters": { type: "separator", title: "Adapters" },
   "tradingview-datafeed": "toTradingViewDatafeed",

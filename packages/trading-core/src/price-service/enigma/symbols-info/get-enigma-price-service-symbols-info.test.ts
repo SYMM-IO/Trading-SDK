@@ -56,14 +56,14 @@ describe("getEnigmaPriceServiceSymbolsInfo", () => {
     getSymbolsInfoApiV1SymbolsInfoGet.mockReset();
   });
 
-  it("calls the generated client exactly once with only the configured price-service base URL", async () => {
+  it("calls the generated client exactly once with the configured price-service base URL and a bounded timeout", async () => {
     getSymbolsInfoApiV1SymbolsInfoGet.mockResolvedValue({ data: SYMBOLS });
 
     const { config } = mockConfig();
     await getEnigmaPriceServiceSymbolsInfo(config, { chainId: SymmioSupportedChainId.ARBITRUM });
 
     expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledTimes(1);
-    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: PRICE_SERVICE_URL });
+    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: PRICE_SERVICE_URL, timeout: 30_000 });
   });
 
   it("returns `response.data` verbatim, preserving row order", async () => {
@@ -99,7 +99,7 @@ describe("getEnigmaPriceServiceSymbolsInfo", () => {
 
     await expect(getEnigmaPriceServiceSymbolsInfo(config)).resolves.toEqual(SYMBOLS);
     expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledTimes(1);
-    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: PRICE_SERVICE_URL });
+    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: PRICE_SERVICE_URL, timeout: 30_000 });
   });
 
   it("reads the base URL from the resolved chain config, so a per-chain override is honored", async () => {
@@ -118,7 +118,7 @@ describe("getEnigmaPriceServiceSymbolsInfo", () => {
     await getEnigmaPriceServiceSymbolsInfo(overridden, {});
 
     expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledTimes(1);
-    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: overriddenUrl });
+    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: overriddenUrl, timeout: 30_000 });
   });
 
   it("wraps an axios rejection in a SymmApiError carrying the request coordinates", async () => {

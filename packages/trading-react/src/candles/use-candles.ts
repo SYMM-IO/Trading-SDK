@@ -53,9 +53,9 @@ export function useCandles(parameters: UseCandlesParameters): UseCandlesReturnTy
 
   return useQuery({
     ...queryOptions,
-    queryFn: async () => {
+    queryFn: async (context) => {
       try {
-        return await queryOptions.queryFn();
+        return await queryOptions.queryFn(context);
       } catch (err) {
         throw normalizeSymmError(err);
       }

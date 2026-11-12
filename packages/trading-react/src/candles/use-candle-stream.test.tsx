@@ -28,6 +28,20 @@ function createControllableSource() {
 }
 
 describe("useCandleStream", () => {
+  it("clears the old market's candle and ignores its late subscription callbacks", async () => {
+    const { source, emit } = createControllableSource();
+    const { result, rerender } = renderHookWithProviders(
+      ({ marketName }) => useCandleStream({ source, marketName, resolution: "1m" }),
+      { initialProps: { marketName: "FIRST" } },
+    );
+    await waitFor(() => expect(source.watchCandles).toHaveBeenCalledOnce());
+    const old = emit();
+    act(() => old?.onCandle(CANDLE, { closed: false }));
+    rerender({ marketName: "SECOND" });
+    await waitFor(() => expect(result.current.candle).toBeNull());
+    act(() => old?.onCandle({ ...CANDLE, close: 99 }, { closed: false }));
+    expect(result.current.candle).toBeNull();
+  });
   it("subscribes and exposes the latest bar", async () => {
     const { source, emit } = createControllableSource();
 
@@ -82,6 +96,9 @@ describe("useCandleStream", () => {
 
     act(() => emit()?.onReset?.());
     expect(onReset).toHaveBeenCalledTimes(1);
+    const range = { from: CANDLE.time, to: CANDLE.time + 60_000 };
+    act(() => emit()?.onReset?.(range));
+    expect(onReset).toHaveBeenLastCalledWith(range);
   });
 
   it("stays unsubscribed when disabled", () => {

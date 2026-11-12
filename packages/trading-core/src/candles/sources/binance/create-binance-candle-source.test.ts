@@ -178,6 +178,8 @@ describe("createBinanceCandleSource", () => {
       description: "BTC / USDT",
       pricePrecision: 2,
       volumePrecision: 2,
+      volumeUnit: "base",
+      volumeCurrency: "BTC",
     });
     expect(second).toEqual(first);
   });

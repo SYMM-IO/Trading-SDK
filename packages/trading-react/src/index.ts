@@ -1166,14 +1166,19 @@ export {
  */
 export {
   useBinanceCandleSource,
+  useCandleHistory,
   useCandleStream,
   useCandles,
+  useLowcapCandleSource,
   useTradingViewDatafeed,
   type UseBinanceCandleSourceParameters,
+  type UseCandleHistoryParameters,
+  type UseCandleHistoryReturnType,
   type UseCandleStreamParameters,
   type UseCandleStreamReturnType,
   type UseCandlesParameters,
   type UseCandlesReturnType,
+  type UseLowcapCandleSourceParameters,
   type UseTradingViewDatafeedParameters,
 } from "./candles";
 

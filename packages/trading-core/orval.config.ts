@@ -225,6 +225,45 @@ export default defineConfig({
       },
     },
   },
+  enigmaPriceServiceOhlcv: {
+    input: {
+      // Keep OHLCV generation scoped to its route and response schemas.
+      target: "https://lowcap-price.enigma.bz/openapi.json",
+      override: {
+        transformer: (spec) => {
+          const path = "/api/v1/prices/{symbol_address}/ohlcv";
+          const operation = spec.paths?.[path]?.get;
+          if (!operation) throw new Error("Price-service schema is missing the OHLCV route.");
+          // This public route only references schemas. Unused auth components
+          // have invalid OpenAPI names containing spaces in the vendor spec.
+          return {
+            ...spec,
+            paths: { [path]: { get: operation } },
+            components: { schemas: spec.components?.schemas },
+          };
+        },
+      },
+      filters: {
+        schemas: [
+          "AggregatedOhlcCandleResponse",
+          "OhlcvResponse",
+          "PriceTimeframe",
+          "HTTPValidationError",
+          "ValidationError",
+        ],
+      },
+    },
+    output: {
+      clean: true,
+      mode: "single",
+      httpClient: "axios",
+      formatter: "prettier",
+      target: "./src/price-service/enigma/ohlcv/generated/enigma-price-service-ohlcv.ts",
+      override: {
+        enumGenerationType: "enum",
+      },
+    },
+  },
   listingBackend: {
     input: {
       target: "https://listing85.enigma.bz/openapi.json",
