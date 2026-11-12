@@ -1,4 +1,4 @@
-import { defineConfig, type OpenApiDocument } from "orval";
+import { defineConfig, type OpenApiDocument, type OpenApiSchemasObject } from "orval";
 
 /**
  * Protocol-instance key of the GasLessQ staging deployment — the instance the
@@ -37,11 +37,20 @@ function stripGaslessProtocolInstance(spec: OpenApiDocument): OpenApiDocument {
 export default defineConfig({
   enigmaSolver: {
     input: {
-      // Arbitrum staging solver — the spec of record for the enigma generation
-      // this release targets (perps-core v0.8.6). Staging because it carries
-      // endpoints production has not shipped yet; swap back to
-      // https://solver.enigma.bz/api/swagger/doc.json once production catches up.
       target: "https://solver.enigma.bz/api/swagger/doc.json",
+      override: {
+        // Staging's /estimated-price schema adds this optional field; production
+        // has not published it yet. Keep the production generation base and
+        // older responses compatible. Remove this extension once the spec catches up.
+        transformer: (spec: OpenApiDocument & { definitions?: OpenApiSchemasObject }) => {
+          const response = (spec.components?.schemas ?? spec.definitions)?.["api.GetEstimatedPriceResponse"];
+          if (response && typeof response === "object" && !("$ref" in response)) {
+            response.properties ??= {};
+            response.properties.price_without_shadow ??= { type: "string" };
+          }
+          return spec;
+        },
+      },
     },
     output: {
       clean: true,

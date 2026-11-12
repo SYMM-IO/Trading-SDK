@@ -85,6 +85,8 @@ export type SymmioSolverKind = (typeof SUPPORTED_SOLVER_KINDS)[number];
  * to `false` — a solver must **declare** a capability to enable it.
  */
 export interface SolverCapabilitiesConfig {
+  /** Whether this solver deployment offers timelock approval. Unset means unspecified; consumers may discover support. */
+  timelockApproval?: boolean;
   /**
    * Whether the solver supports closing a whole market + side group of quotes in
    * one flow. Enigma (Virtual-Account isolation, one VA per market + side)
@@ -239,7 +241,7 @@ interface SymmioNotificationsConfigBase {
   url: string;
   /**
    * Base URL of the notification REST service that backs `searchNotifications`
-   * (`POST /api/v1/search`), e.g. `https://notification.rasa.capital/notification`.
+   * (`POST /api/v1/search`), e.g. `https://notification.rasa.capital`.
    * Optional — when unset, `searchNotifications` requires a per-call `baseUrl`.
    */
   searchUrl?: string;
@@ -453,6 +455,20 @@ export interface SymmioGaslessStatusStreamConfig {
 }
 
 /**
+ * Context supplied to {@link SymmioGaslessConfig.getRequestHeaders} for each HTTP attempt.
+ * Applications must also bind their own deployment and authentication identity;
+ * a chain id alone does not distinguish deployments sharing a chain.
+ */
+export interface GaslessRequestContext {
+  /** Chain selected for the request. */
+  chainId: number;
+  /** Gasless sub-service addressed by the request. */
+  service: "operations" | "deposits";
+  /** HTTP method of this attempt. */
+  method: "GET" | "POST";
+}
+
+/**
  * Chain-level configuration for the GaslessQ relayer service.
  *
  * GaslessQ relays user-signed InstantLayer operations so account actions need
@@ -467,6 +483,26 @@ export interface SymmioGaslessStatusStreamConfig {
  * and has not disabled anonymous access.
  */
 export interface SymmioGaslessConfig {
+  /**
+   * Resolve application-owned HTTP headers immediately before each GET or POST
+   * attempt, including retries and exact resubmissions. Useful for an
+   * authenticated application proxy. Values override `apiKey` case-insensitively;
+   * the SDK retains its JSON Accept and Content-Type headers.
+   *
+   * Rejection aborts that attempt with `GASLESS_REQUEST_HEADERS_FAILED` without
+   * exposing the callback's error or credentials. An earlier uncertain submit
+   * remains uncertain. Headers never enter submission snapshots or WebSockets.
+   *
+   * @param context - Chain, service and HTTP method for this attempt.
+   * @returns Fresh headers, synchronously or asynchronously.
+   * @example
+   * ```ts
+   * getRequestHeaders: async () => ({ Authorization: `Bearer ${await getToken()}` })
+   * ```
+   */
+  getRequestHeaders?: (
+    context: GaslessRequestContext,
+  ) => Readonly<Record<string, string>> | Promise<Readonly<Record<string, string>>>;
   /**
    * Where the SDK reaches the GaslessQ gateway. One of:
    *
@@ -558,6 +594,8 @@ export interface SymmioChainConfig {
   chainId: number;
   /** Contracts generation deployed on this chain. See {@link SymmioContractsVersion}. */
   contractsVersion: SymmioContractsVersion;
+  /** Explicit deployment capability. `false` disables timelock calls; omitted means unknown. */
+  timelockSupported?: boolean;
   /** Contract addresses */
   addresses: SymmioContractAddresses;
   /** Subgraph endpoints */

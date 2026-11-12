@@ -30,11 +30,19 @@ function pickerSignature(item: AbiFunction): string {
   return `${item.name}(${item.inputs.map((input) => [input.type, input.name].filter(Boolean).join(" ")).join(", ")})`;
 }
 
+/**
+ * Who signs one write of the batch: whoever signs the batch, or a signer of its
+ * own — which becomes the call's `from`.
+ */
+export type BatchEntrySigner = "batch" | "wallet" | "session-key";
+
+const BATCH_ENTRY_SIGNERS: readonly BatchEntrySigner[] = ["batch", "wallet", "session-key"];
+
 /** One batch entry as the editor holds it, before it becomes a call. */
 export type BatchEntryInput =
-  /** A relayable write: which function, and its arguments as JSON. */
-  | { type: "write"; functionName: string; argsText: string }
-  /** One call the owner's GaslessWallet makes, as raw calldata. */
+  /** A relayable write: which function, its arguments as JSON, and who signs it (the batch's signer when unset). */
+  | { type: "write"; functionName: string; argsText: string; signer?: BatchEntrySigner }
+  /** One call the owner's GaslessWallet makes, as raw calldata. It is always signed by the batch's signer. */
   | { type: "wallet"; walletIdText: string; target: string; data: string };
 
 /** A {@link BatchEntryInput} with the stable key its row renders under. */
@@ -43,12 +51,21 @@ export type BatchEntryDraft = BatchEntryInput & { key: number };
 /** An entry resolved to the call the batch relays — or why it cannot be yet. */
 export type ResolvedBatchEntry = { call: GaslessBatchCall; label: string } | { error: string };
 
+/** The addresses a write's own {@link BatchEntrySigner} resolves to. */
+export interface BatchSigners {
+  /** The connected wallet. */
+  wallet?: Address;
+  /** The loaded session key, when there is one. */
+  sessionKey?: Address;
+}
+
 /**
  * Turn an entry into its batch call, encoding a write's arguments up front so
  * a type mismatch is reported on the entry itself rather than as a failed
- * estimate for the whole batch.
+ * estimate for the whole batch. A write with a signer of its own carries it as
+ * the call's `from`.
  */
-export function resolveBatchEntry(entry: BatchEntryInput): ResolvedBatchEntry {
+export function resolveBatchEntry(entry: BatchEntryInput, signers: BatchSigners): ResolvedBatchEntry {
   if (entry.type === "wallet") {
     const walletId = parseGaslessWalletIdText(entry.walletIdText);
     if (walletId === null) return { error: "Enter a wallet id." };
@@ -69,7 +86,19 @@ export function resolveBatchEntry(entry: BatchEntryInput): ResolvedBatchEntry {
   } catch (err) {
     return { error: err instanceof BaseError ? err.shortMessage : "These arguments do not encode." };
   }
-  return { call: { functionName: item.name, args: parsed.args }, label: item.name };
+
+  const signer = entry.signer ?? "batch";
+  if (signer === "session-key" && !signers.sessionKey) {
+    return { error: "No session key is loaded — sign this call with the wallet or the batch’s signer." };
+  }
+  if (signer === "wallet" && !signers.wallet) return { error: "Connect a wallet to sign this call." };
+  const from = signer === "session-key" ? signers.sessionKey : signer === "wallet" ? signers.wallet : undefined;
+  return { call: { functionName: item.name, args: parsed.args, ...(from ? { from } : {}) }, label: item.name };
+}
+
+/** Read a signer choice back from the picker, which only offers {@link BATCH_ENTRY_SIGNERS}. */
+function toBatchEntrySigner(value: string): BatchEntrySigner {
+  return BATCH_ENTRY_SIGNERS.find((signer) => signer === value) ?? "batch";
 }
 
 interface Props {
@@ -80,17 +109,19 @@ interface Props {
   account?: Address;
   /** The whole batch, once every entry resolves; the entry shows its own row of the batch's quote. */
   batch?: { account: Address; calls: readonly GaslessBatchCall[] };
+  /** Who a write's own signer choice can name — the session key option needs a loaded key. */
+  signers: BatchSigners;
   onChange: (next: BatchEntryDraft) => void;
   onRemove: () => void;
 }
 
 /** One entry of the batch editor: its call form, its validation, and its share of the fee. */
-export function GaslessBatchEntry({ index, entry, resolved, account, batch, onChange, onRemove }: Props) {
+export function GaslessBatchEntry({ index, entry, resolved, account, batch, signers, onChange, onRemove }: Props) {
   const idPrefix = `gasless-batch-entry-${index}`;
 
   return (
     <div
-      className="border-border/70 bg-muted/20 space-y-3 rounded-xl border p-3"
+      className="border-border/70 bg-muted/20 @container space-y-3 rounded-xl border p-3"
       data-testid={`${idPrefix}`}
       data-valid={"call" in resolved}
     >
@@ -119,26 +150,59 @@ export function GaslessBatchEntry({ index, entry, resolved, account, batch, onCh
 
       {entry.type === "write" ? (
         <>
-          <Field label="Relayable write" htmlFor={`${idPrefix}-function`}>
-            <Select
-              value={entry.functionName}
-              onValueChange={(functionName) => {
-                const item = GASLESS_RELAYABLE_FUNCTIONS.get(functionName);
-                onChange({ ...entry, functionName, argsText: item ? batchArgsSkeleton(item, account) : "[]" });
-              }}
-            >
-              <SelectTrigger id={`${idPrefix}-function`} data-testid={`${idPrefix}-function`}>
-                <SelectValue placeholder="Pick a write" />
-              </SelectTrigger>
-              <SelectContent>
-                {RELAYABLE_WRITES.map((item) => (
-                  <SelectItem key={item.name} value={item.name} description={pickerSignature(item)}>
-                    {item.name}
+          <div className="grid gap-3 @xl:grid-cols-[minmax(0,1fr)_13rem]">
+            <Field label="Relayable write" htmlFor={`${idPrefix}-function`}>
+              <Select
+                value={entry.functionName}
+                onValueChange={(functionName) => {
+                  const item = GASLESS_RELAYABLE_FUNCTIONS.get(functionName);
+                  onChange({ ...entry, functionName, argsText: item ? batchArgsSkeleton(item, account) : "[]" });
+                }}
+              >
+                <SelectTrigger id={`${idPrefix}-function`} data-testid={`${idPrefix}-function`}>
+                  <SelectValue placeholder="Pick a write" />
+                </SelectTrigger>
+                <SelectContent>
+                  {RELAYABLE_WRITES.map((item) => (
+                    <SelectItem key={item.name} value={item.name} description={pickerSignature(item)}>
+                      {item.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Signed by" htmlFor={`${idPrefix}-signer`}>
+              <Select
+                value={entry.signer ?? "batch"}
+                onValueChange={(signer) => onChange({ ...entry, signer: toBatchEntrySigner(signer) })}
+              >
+                <SelectTrigger id={`${idPrefix}-signer`} data-testid={`${idPrefix}-signer`}>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    value="batch"
+                    description="Whoever signs the batch — the session key while this card’s key toggle is on, else your wallet."
+                  >
+                    Batch signer
                   </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+                  <SelectItem
+                    value="wallet"
+                    description="Prompts your wallet. A delegation grant must be signed here: only the owner can grant."
+                  >
+                    Wallet
+                  </SelectItem>
+                  <SelectItem
+                    value="session-key"
+                    disabled={!signers.sessionKey}
+                    description="Signs in memory, before any wallet prompt. Needs a delegation for this call — a grant earlier in the batch counts."
+                  >
+                    Session key
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
           <Field
             label="Arguments (JSON array)"
             htmlFor={`${idPrefix}-args`}

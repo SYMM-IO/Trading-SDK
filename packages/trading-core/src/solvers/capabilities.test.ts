@@ -15,6 +15,7 @@ describe("getSolverCapabilities / supportsGroupClose / supportsLimitOrder", () =
       groupClose: true,
       limitOrder: false,
       listingService: true,
+      timelockApproval: false,
     });
     expect(supportsGroupClose(config, { chainId: HYPER })).toBe(true);
     expect(supportsLimitOrder(config, { chainId: HYPER })).toBe(false);
@@ -25,6 +26,7 @@ describe("getSolverCapabilities / supportsGroupClose / supportsLimitOrder", () =
       groupClose: false,
       limitOrder: true,
       listingService: false,
+      timelockApproval: false,
     });
     expect(supportsGroupClose(config, { chainId: BASE })).toBe(false);
     expect(supportsLimitOrder(config, { chainId: BASE })).toBe(true);
@@ -35,7 +37,28 @@ describe("getSolverCapabilities / supportsGroupClose / supportsLimitOrder", () =
       groupClose: false,
       limitOrder: false,
       listingService: false,
+      timelockApproval: false,
     });
     expect(supportsLimitOrder(config, { chainId: 1 })).toBe(false);
+  });
+
+  it("resolves timelock support from each solver's deployment configuration", () => {
+    const enabled = createConfig({
+      getClient: () => ({}) as PublicClient,
+      symmioConfig: {
+        [HYPER]: {
+          addresses: { affiliatesAddress: "0x0000000000000000000000000000000000000001" },
+          solvers: { enigma: { capabilities: { timelockApproval: true } } },
+        },
+      },
+    });
+    expect(getSolverCapabilities(enabled, { chainId: HYPER })).toMatchObject({
+      timelockApproval: true,
+      groupClose: true,
+    });
+    expect(getSolverCapabilities(enabled, { chainId: BASE })).toMatchObject({
+      timelockApproval: false,
+      limitOrder: true,
+    });
   });
 });

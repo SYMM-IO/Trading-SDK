@@ -1,10 +1,12 @@
 "use client";
 
+import { migratePriceServiceOverrides } from "@/config/migrate-price-service-overrides";
 import { symmioChains } from "@/config/symmio";
 import { countOverrides } from "@/config/symmio-config-schema";
 import { findGaslessDeployment } from "@/config/symmio-presets";
 import type { CreateConfigParameters } from "@symmio/trading-core";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { rebaseStagingTimelockCapability } from "./staging-timelock-capability";
 
 type ChainOverrides = CreateConfigParameters["symmioConfig"];
 
@@ -120,6 +122,16 @@ function readStored(): ChainOverrides | undefined {
   }
 }
 
+function writeStored(overrides: ChainOverrides) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!overrides || Object.keys(overrides).length === 0) window.localStorage.removeItem(STORAGE_KEY);
+    else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(overrides));
+  } catch {
+    // Storage can be unavailable; the in-memory configuration still applies.
+  }
+}
+
 /**
  * Holds the app's runtime SDK config overrides. Seeds from the app baseline,
  * rehydrates any persisted edits after mount, and exposes a setter that both
@@ -138,7 +150,12 @@ export function SymmioOverridesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const stored = readStored();
-    if (stored !== undefined) setOverridesState(rebaseGaslessDeploymentFacts(stored));
+    if (stored !== undefined) {
+      const migrated = migratePriceServiceOverrides(stored);
+      const rebased = rebaseStagingTimelockCapability(rebaseGaslessDeploymentFacts(migrated));
+      setOverridesState(rebased);
+      if (migrated !== stored) writeStored(rebased);
+    }
     setHasHydrated(true);
   }, []);
 
@@ -150,15 +167,9 @@ export function SymmioOverridesProvider({ children }: { children: ReactNode }) {
      * whose addresses name a deployment but whose relayer is gone, and every
      * gasless surface would switch itself off until the preset was re-applied.
      */
-    const rebased = rebaseGaslessDeploymentFacts(next);
+    const rebased = rebaseStagingTimelockCapability(rebaseGaslessDeploymentFacts(next));
     setOverridesState(rebased);
-    if (typeof window === "undefined") return;
-    try {
-      if (!rebased || Object.keys(rebased).length === 0) window.localStorage.removeItem(STORAGE_KEY);
-      else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(rebased));
-    } catch {
-      /** Storage can be unavailable (private mode, quota); overrides still work in-memory. */
-    }
+    writeStored(rebased);
   }, []);
 
   const value = useMemo<SymmioOverridesContextValue>(

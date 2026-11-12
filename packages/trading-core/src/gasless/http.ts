@@ -6,6 +6,7 @@ import { SymmApiError, SymmError } from "../shared/errors/symm-error";
 import { readHttpHeader } from "../shared/utils/http-header";
 import { parseGaslessErrorDetail } from "./errors";
 import { assertGaslessUrlServes, parseGaslessUrl } from "./gasless-url";
+import { resolveGaslessRequestHeaders } from "./request-headers";
 import { resolveGaslessService } from "./resolve-gasless";
 import type { GaslessService } from "./types";
 import {
@@ -40,6 +41,9 @@ export const GASLESS_PROTOCOL_INSTANCE_HEADER = "x-gaslessq-protocol-instance";
  * @internal
  */
 export interface GaslessHttpContext {
+  /** Sub-service and fresh application authentication for each HTTP attempt. */
+  service: GaslessService;
+  getRequestHeaders?: SymmioGaslessConfig["getRequestHeaders"];
   /** Final service base, e.g. `…/v1/instances/<protocol-instance>/operations`. */
   baseURL: string;
   /** Request headers: `Accept`, plus `Authorization: Bearer …` only when an `apiKey` is configured. */
@@ -114,6 +118,8 @@ export function buildGaslessHttpContext(
   return {
     baseURL,
     headers,
+    service,
+    ...(gasless.getRequestHeaders ? { getRequestHeaders: gasless.getRequestHeaders } : {}),
     protocolInstance: url.protocolInstance,
     requireInstanceHeader: url.form !== "proxy-root",
     submitTimeoutMs: gasless.execution?.submitTimeoutMs ?? GASLESS_SUBMIT_TIMEOUT_MS,
@@ -194,7 +200,7 @@ export async function gaslessGet<data>(
   try {
     const response = await axios.get<data>(path, {
       baseURL: context.baseURL,
-      headers: context.headers,
+      headers: await resolveGaslessRequestHeaders(context, "GET"),
       signal: options.signal,
     });
     assertGaslessInstance(context, response);
@@ -238,7 +244,7 @@ async function postGaslessOnce<data>(
   try {
     return await axios.post<data>(path, body, {
       baseURL: context.baseURL,
-      headers: { ...context.headers, "Content-Type": "application/json" },
+      headers: await resolveGaslessRequestHeaders(context, "POST"),
       timeout: context.submitTimeoutMs,
     });
   } catch (err) {
@@ -288,6 +294,7 @@ async function postGaslessOnce<data>(
  * @param path - The submit route (see {@link GASLESS_SUBMIT_ROUTES}).
  * @param body - The exact JSON body to send.
  * @param idempotencyKey - The key inside `body`, recorded on an unconfirmed submit.
+ * @param options - A replay already has an uncertain earlier attempt, even before its first retry here.
  * @returns The acceptance body.
  *
  * @internal
@@ -297,12 +304,14 @@ export async function postGaslessSubmit<data extends { request_id?: string | nul
   path: GaslessSubmitPath,
   body: unknown,
   idempotencyKey: string,
+  options: { replay?: boolean } = {},
 ): Promise<data> {
   const { service, code } = GASLESS_SUBMIT_ROUTES[path];
   const retriesEndAt = Date.now() + context.submitTimeoutMs;
   let throttleRetries = 0;
+  let ambiguousRetries = 0;
   /** Set once an attempt failed ambiguously: the service may hold that attempt. */
-  let mayBeAccepted = false;
+  let mayBeAccepted = options.replay ?? false;
 
   for (;;) {
     let response: AxiosResponse<data>;
@@ -321,21 +330,19 @@ export async function postGaslessSubmit<data extends { request_id?: string | nul
       }
 
       /**
-       * An answer speaks only for the attempt it came back for. Once an
-       * earlier attempt was ambiguous, that attempt may be executing whatever
-       * this one was told, so the failure is unconfirmed, never a rejection.
-       */
-      if (mayBeAccepted) throw unconfirmedGaslessSubmitError(context, { service, path, body, idempotencyKey }, err);
-      if (failure !== "ambiguous") throw err;
-
-      /**
        * The vendor's prescribed recovery for a lost response: resend the
        * identical request under the same key, after a backoff, which either
        * lands it or returns the record it already created.
        */
-      mayBeAccepted = true;
-      await sleep(gaslessSubmitRetryDelay(null));
-      continue;
+      if (failure === "ambiguous" && ambiguousRetries === 0) {
+        ambiguousRetries += 1;
+        mayBeAccepted = true;
+        await sleep(gaslessSubmitRetryDelay(null));
+        continue;
+      }
+      // A refusal describes only this attempt, not any earlier uncertain one.
+      if (mayBeAccepted) throw unconfirmedGaslessSubmitError(context, { service, path, body, idempotencyKey }, err);
+      throw err;
     }
 
     const mismatch = readGaslessInstanceMismatch(context, response);
@@ -466,13 +473,4 @@ export function classifyGaslessHttpStatus(err: unknown): GaslessHttpFailureClass
     default:
       return status >= 500 ? "ambiguous" : "service";
   }
-}
-
-/**
- * Generate a random idempotency key for one gasless submit. Reuse the same key
- * only when retrying the byte-identical request; any change to the payload
- * needs a fresh key.
- */
-export function generateGaslessIdempotencyKey(): string {
-  return globalThis.crypto.randomUUID();
 }

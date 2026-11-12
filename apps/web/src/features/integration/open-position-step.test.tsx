@@ -16,11 +16,25 @@ const mock = vi.hoisted(() => ({
   feedbackStatus: "pending" as TpSlSubmissionStatus,
   feedbackBegin: vi.fn(),
   feedbackAccepted: vi.fn(),
+  preview: vi.fn(),
+  timelock: { ready: true, unsupported: true, policy: { data: undefined as { ready: boolean } | undefined } },
+  prepared: {
+    estimatedOpenPrice: undefined as string | null | undefined,
+    estimatedOpenPriceWithoutShadow: undefined as string | undefined,
+  },
+}));
+vi.mock("@/features/timelock/use-timelock-context", () => ({
+  useTimelockContext: () => mock.timelock,
 }));
 vi.mock("./use-tp-sl-submission-feedback", () => ({
   useTpSlSubmissionFeedback: () => ({ status: mock.feedbackStatus, begin: mock.feedbackBegin }),
 }));
-vi.mock("./estimated-price-preview", () => ({ EstimatedPricePreview: () => null }));
+vi.mock("./estimated-price-preview", () => ({
+  EstimatedPricePreview: (props: unknown) => {
+    mock.preview(props);
+    return null;
+  },
+}));
 vi.mock("./instant-open-fees-preview", () => ({ InstantOpenFeesPreview: () => null }));
 vi.mock("@symmio/trading-react", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@symmio/trading-react")>();
@@ -59,7 +73,7 @@ vi.mock("@symmio/trading-react", async (importOriginal) => {
     useFeeForUser: emptyRead,
     useNotionalCapBySymbolId: emptyRead,
     useAvailableInstantOpenMargin: emptyRead,
-    usePrepareInstantOpenParams: emptyRead,
+    usePrepareInstantOpenParams: () => mock.prepared,
     usePredictedNextVirtualAccount: emptyRead,
   };
 });
@@ -92,6 +106,9 @@ beforeEach(() => {
   mock.feedbackStatus = "pending";
   mock.feedbackBegin.mockReset().mockReturnValue(mock.feedbackAccepted);
   mock.feedbackAccepted.mockReset();
+  mock.preview.mockReset();
+  mock.timelock = { ready: true, unsupported: true, policy: { data: undefined } };
+  mock.prepared = { estimatedOpenPrice: undefined, estimatedOpenPriceWithoutShadow: undefined };
   mock.nextData = {
     instantOpen: { kind: "enigma", success: true, tempQuoteId: "-123" },
     tpslParameters: parameters,
@@ -105,6 +122,24 @@ beforeEach(() => {
   };
 });
 afterEach(cleanup);
+
+test("open form forwards the preparation hook's paired estimate to its preview", () => {
+  mock.prepared = { estimatedOpenPrice: "105", estimatedOpenPriceWithoutShadow: "104" };
+  render(<OpenPositionStep {...props} />);
+  expect(mock.preview.mock.lastCall?.[0].preparedEstimate).toEqual({ price: "105", priceWithoutShadow: "104" });
+});
+
+test("the keyed form preserves the trading protection readiness check", () => {
+  mock.timelock = { ready: false, unsupported: false, policy: { data: { ready: false } } };
+  const view = render(<OpenPositionStep {...props} />);
+  expect(screen.getByText("Review trading protection before opening a position.")).toBeDefined();
+  expect(screen.getByRole("link", { name: "Open timelock settings" }).getAttribute("href")).toBe(
+    `/contracts/timelock?account=${props.subAccount}`,
+  );
+  mock.timelock = { ready: true, unsupported: false, policy: { data: { ready: true } } };
+  view.rerender(<OpenPositionStep {...props} />);
+  expect(screen.queryByText("Review trading protection before opening a position.")).toBeNull();
+});
 
 test("accepted at-open attachment renders its notification feedback instead of HTTP success", () => {
   mock.nextData = { ...mock.nextData!, tpslError: undefined, tpsl: { success: true } };

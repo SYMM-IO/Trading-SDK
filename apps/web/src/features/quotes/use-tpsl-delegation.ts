@@ -1,8 +1,10 @@
 "use client";
 
+import { useSupportsGrantDelegations } from "@/lib/use-supports-grant-delegations";
 import {
   REQUEST_TO_CLOSE_POSITION_SELECTOR,
   useGrantDelegation,
+  useGrantDelegations,
   useInstantTradeRequiredSelectors,
   useIsDelegationActive,
   useSymmioConfig,
@@ -23,7 +25,11 @@ export interface UseTpSlDelegationResult {
   isEnabling: boolean;
   /** `true` when no session key exists yet — delegation cannot be granted until one does. */
   needsSessionKey: boolean;
-  /** Grant both delegations (session key + COH wallet). No-op without a session key or COH wallet. */
+  /**
+   * Grant both delegations (session key + COH wallet) — in one call where the
+   * InstantLayer has `grantDelegations`, else one after the other. No-op
+   * without a session key or COH wallet.
+   */
   enable: () => Promise<void>;
   /** Normalized enable error, when the last attempt failed. */
   error: Error | null;
@@ -69,6 +75,8 @@ export function useTpSlDelegation(parameters: { subAccount?: Address; sessionKey
   });
 
   const grant = useGrantDelegation();
+  const grantBoth = useGrantDelegations();
+  const grantsInOneCall = useSupportsGrantDelegations();
   const [isEnabling, setIsEnabling] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -77,16 +85,22 @@ export function useTpSlDelegation(parameters: { subAccount?: Address; sessionKey
     setIsEnabling(true);
     setError(null);
     try {
+      const account = { addr: subAccount, isPartyB: false };
       const expiryTimestamp = BigInt(Math.floor(Date.now() / 1000) + DELEGATION_TTL_SECONDS);
-      // Sequential: each grant is its own signed transaction from the connected
-      // wallet, so serializing avoids two simultaneous prompts.
-      for (const delegatedSigner of [sessionKey, cohWallet]) {
-        await grant.mutateAsync({
-          account: { addr: subAccount, isPartyB: false },
-          delegatedSigner,
-          selectors: requiredSelectors,
-          expiryTimestamp,
-        });
+      const delegations = [sessionKey, cohWallet].map((delegatedSigner) => ({
+        delegatedSigner,
+        selectors: requiredSelectors,
+        expiryTimestamp,
+      }));
+      if (grantsInOneCall) {
+        /** Both delegates in one grant: one wallet transaction, or one signature when relayed. */
+        await grantBoth.mutateAsync({ account, delegations });
+      } else {
+        /**
+         * An InstantLayer without `grantDelegations` takes one grant per
+         * delegate. Sequential, so the wallet never shows two prompts at once.
+         */
+        for (const delegation of delegations) await grant.mutateAsync({ account, ...delegation });
       }
       await Promise.all([sessionDelegation.refetch(), cohDelegation.refetch()]);
     } catch (err) {
@@ -94,7 +108,17 @@ export function useTpSlDelegation(parameters: { subAccount?: Address; sessionKey
     } finally {
       setIsEnabling(false);
     }
-  }, [subAccount, sessionKey, cohWallet, requiredSelectors, grant, sessionDelegation, cohDelegation]);
+  }, [
+    subAccount,
+    sessionKey,
+    cohWallet,
+    requiredSelectors,
+    grantsInOneCall,
+    grant,
+    grantBoth,
+    sessionDelegation,
+    cohDelegation,
+  ]);
 
   return {
     ready: sessionDelegation.data === true && cohDelegation.data === true,

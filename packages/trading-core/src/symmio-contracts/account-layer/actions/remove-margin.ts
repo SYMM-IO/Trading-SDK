@@ -4,6 +4,8 @@ import type { Config } from "../../../core/config";
 import { maybeRelayAsGasless } from "../../../gasless/dispatch/maybe-relay-as-gasless";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { shouldSimulateBeforeWrite } from "../../../shared/utils/simulate-before-write";
+import { executeProtectedCall, type TimelockAuthorization } from "../../../timelock/execute-protected-call";
+import { rethrowTimelockRevert } from "../../../timelock/normalize-timelock-revert";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import type { SingleUpnlSig } from "../types";
 import { simulateRemoveMargin } from "./simulate-remove-margin";
@@ -14,6 +16,8 @@ import { simulateRemoveMargin } from "./simulate-remove-margin";
 export type RemoveMarginParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for a timelocked selector. */
+      timelock?: TimelockAuthorization;
       /**
        * The virtual account (VA) to remove margin from. The connected wallet must
        * be the VA's on-chain owner; the contract reverts (`onlyAccountOwner`) otherwise.
@@ -74,6 +78,19 @@ export async function removeMargin(
 ): Promise<RemoveMarginReturnType> {
   const { chainId, virtualAccount, amount, upnlSig, from } = parameters;
 
+  if (parameters.timelock)
+    return executeProtectedCall(config, {
+      ...parameters,
+      account: virtualAccount,
+      target: "account-layer",
+      timelock: parameters.timelock,
+      callData: encodeFunctionData({
+        abi: accountLayerAbi,
+        functionName: "removeMargin",
+        args: [virtualAccount, amount, upnlSig],
+      }),
+    });
+
   const { addresses } = config.getChainConfig(chainId);
 
   /**
@@ -108,15 +125,17 @@ export async function removeMargin(
       amount,
       upnlSig,
       from: walletClient.account.address,
-    });
+    }).catch(rethrowTimelockRevert);
   }
 
-  return walletClient.writeContract({
-    address: addresses.accountLayerAddress,
-    abi: accountLayerAbi,
-    functionName: "removeMargin",
-    args: [virtualAccount, amount, upnlSig],
-    account: walletClient.account,
-    chain: walletClient.chain,
-  });
+  return walletClient
+    .writeContract({
+      address: addresses.accountLayerAddress,
+      abi: accountLayerAbi,
+      functionName: "removeMargin",
+      args: [virtualAccount, amount, upnlSig],
+      account: walletClient.account,
+      chain: walletClient.chain,
+    })
+    .catch(rethrowTimelockRevert);
 }

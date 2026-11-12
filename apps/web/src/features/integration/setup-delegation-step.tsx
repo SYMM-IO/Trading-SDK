@@ -8,7 +8,7 @@ import { Button } from "@symmio/ui/components/button";
 import { Checkbox } from "@symmio/ui/components/checkbox";
 import { Label } from "@symmio/ui/components/label";
 import { Spinner } from "@symmio/ui/components/spinner";
-import { formatRelativeTimestamp } from "@symmio/utils";
+import { formatRelativeTimestamp, shortenAddress } from "@symmio/utils";
 import Link from "next/link";
 
 interface Props {
@@ -37,13 +37,18 @@ interface Props {
 export function SetupDelegationStep({ delegation, withdraw, onWithdrawChange, hasSessionKey }: Props) {
   const scope = !delegation.supportsAccountScope
     ? "trade only — this chain has no gasless account management"
-    : withdraw
-      ? "trade + account + withdraw"
-      : "trade + account";
+    : delegation.includesProtectedCalls
+      ? "trade + account + withdraw + protected Core calls"
+      : withdraw
+        ? "trade + account + withdraw"
+        : "trade + account";
 
   return (
     <div className="flex flex-col gap-4">
       <DataList>
+        {delegation.delegationAccount ? (
+          <DataRow label="Authority account" value={shortenAddress(delegation.delegationAccount)} />
+        ) : null}
         <DataRow label="Status" value={<DelegationStatus delegation={delegation} />} />
         <DataRow label="Scope" value={`${delegation.requiredSelectors.length} selectors — ${scope}`} />
         <DataRow
@@ -70,9 +75,10 @@ export function SetupDelegationStep({ delegation, withdraw, onWithdrawChange, ha
           <span className="flex flex-col gap-1">
             <span className="text-sm font-medium">Also allow withdrawals (off by default)</span>
             <span className="text-muted-foreground text-xs leading-5 font-normal">
-              Adds <code className="font-mono">initiateWithdraw</code>, which lets this key send the sub-account’s
-              collateral to any address it picks. Leave it off unless the key must run withdrawals unattended — the
-              Integration console’s withdraw flow prompts the wallet instead when it is off.
+              Allows this key to withdraw collateral to any address it chooses.
+              {delegation.includesProtectedCalls
+                ? " Includes _call authority for protected withdrawals and other Core operations on the root account and its virtual accounts. This authority is broader than withdrawal alone."
+                : " Leave it off unless this key should initiate withdrawals."}
             </span>
           </span>
         </Label>
@@ -88,7 +94,7 @@ export function SetupDelegationStep({ delegation, withdraw, onWithdrawChange, ha
         type="button"
         size="lg"
         className="w-full"
-        disabled={!hasSessionKey || delegation.isWriting || delegation.isReady}
+        disabled={!hasSessionKey || delegation.isLoading || delegation.isWriting || delegation.isReady}
         onClick={() => void delegation.grant()}
         data-testid="button-setup-delegation-grant"
       >

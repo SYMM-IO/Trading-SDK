@@ -1,5 +1,89 @@
 # @symmio/trading-react
 
+## 4.5.0
+
+### Minor Changes
+
+- 6778398: Add executeAccountCalls for atomic named SYMMIO core writes through AccountLayer or the configured gasless dispatcher. Reuse simulation, owner validation and relay restrictions without adding automatic wallet fallback.
+
+  Expose getWithdrawCooldownOf and getDeallocateDebounceTime with deployment-scoped query factories for withdrawal and deallocation readiness, and the matching `useWithdrawCooldownOf` and `useDeallocateDebounceTime` hooks. `useDeallocate`, `useDeallocateAndInitiateWithdraw`, `useWithdraw` and relayed batches that deallocate now refresh the withdraw-cooldown read; `useDeallocate` and deallocating batches also refresh the withdrawable time, which the deallocation moves.
+
+- e7e1c93: Add complete multi-account pending withdrawal reads with `getPendingWithdrawRequestsBatch` and `usePendingWithdrawRequestsBatch`. Normalize account sets, scan every bounded page even when earlier pages are empty, and reject incomplete results on RPC failure. Refresh batch queries in the affected deployment after confirmed withdrawal writes.
+- 2c2beb4: Add generic AccountLayer timelock policy, approval, schedule, cancellation, and execution APIs with React hooks and transparent gasless support. Expose the canonical 22-selector instant-open policy, validate provider approval responses, surface ambiguous POST outcomes without automatic retries, and support delayed on-chain fallback status.
+
+  Allow Enigma instant opens without additional margin to submit only `sendQuote`, while retaining the timelock wrapper for margin-bearing opens.
+
+  Expose deployment timelock metadata through solver info, complete root-aware policy reports, confirmed setup with an injectable indexing observer, and one-attempt early withdrawal actions/hooks. Preserve issued approvals and transaction hashes on recovery errors. Add typed solver errors, immutable prepared instant-open submission, independent embedded approval deadlines and post-signing deadline checks. Existing non-timelock solver flows remain unchanged.
+
+  Refresh timelock policy and schedule reads after successful React gasless batches, including withdrawal and account reads affected by operations inside timelock wrappers.
+
+  Allow gasless batches to use an explicit shorter signature deadline, rejecting invalid or expired authorization before submission while preserving the default lifetime.
+
+  Share wrapped-operation cache effects with direct timelock execution hooks. Confirmed sub-account deletion refreshes account lists and details; failed or unconfirmed execution does not refresh them. Preserve existing submission, approval, and gasless behavior.
+
+  Expose policy-change authorization requirements before setup, including exact calldata, affected existing unlockers and the no-approval schedule delay. Report missing or unusable authorization without prompting a wallet; preserve execution through an already mature schedule. Accept byte-encoded EIP-1271 approval signatures without imposing an EOA signature length.
+
+  Declare timelock approval support as a solver capability and expose React routing for normal, approval and delayed paths. Keep delayed account reads independent of solver availability and require reconciliation for ambiguous attempts.
+
+  Allow consumers to disable automatic timelock discovery and policy reads, and expose the Core-call encoder through a React hook for exact scheduled-operation recovery.
+
+  Expose the pinned AccountLayer ABI from the React entry point for exact-call encoding and decoding in React consumers.
+
+  Retain positively discovered solver timelock capability per deployment for the React QueryClient lifetime. Protected writes still read the current selector policy and obtain separate approvals; reloading or clearing the query cache starts discovery again.
+
+- f92258e: **One-signature delegation setup.**
+  - **`grantDelegations` / `useGrantDelegations`** (plus `simulateGrantDelegations` / `useSimulateGrantDelegations`) grant several delegates of one account in a single `InstantLayer.grantDelegations` call. Relayed, that is one owner signature instead of one per delegate. An empty list or a PartyB account fails before any prompt with `GRANT_DELEGATIONS_EMPTY` / `GRANT_DELEGATIONS_PARTYB_UNSUPPORTED`. The InstantLayer ABI is re-pinned to the full perps-core v0.8.6 file, which adds `grantDelegations` and `TEMPLATE_MANAGER_ROLE`.
+  - **Per-call signers in `relayGaslessBatch`.** A write call takes an optional `from`, so one batch can mix signers. The delegation pre-flight credits a grant made earlier in the same batch, and in-memory signers such as a session key sign before any wallet prompt. "The owner grants a key, the key approves the fee charger" is now one wallet prompt.
+  - **`approveOperationalFeeAllowance` / `useApproveOperationalFeeAllowance`** set a fee allowance with the diamond's two-argument `approveOperationalFee`, leaving the fee multiplier untouched. It is relayable under its own selector, so a session key delegated only that selector can sign it.
+  - **`useGrantDelegation` refreshes more, and on the right chain.** It now also invalidates `getActiveDelegations` and `getPendingRevocationEtas` reads, which a grant changes. It keys every refresh on the chain the write went to; an omitted `chainId` used to refresh the wallet's chain instead.
+
+- 1ae102b: Add independent, opt-in `coreCalls` and `timelockScheduling` scopes to the session-key selector builder and React hook. Existing defaults and withdrawal grants are unchanged. The console uses the shared scope builder for its existing protected-withdrawal opt-in and historical revocation checks.
+- f92258e: **`SymmioProvider` accepts a custom read client.** The new optional `getClient` prop replaces wagmi's public client for every on-chain SDK read, every write's dry-run and every receipt wait. An app that reads through its own viem client (a dedicated RPC URL, request batching, an instrumented transport) now keeps that client under the SDK hooks too. Without the prop, the provider reads through wagmi exactly as before. Memoize the resolver: a new function identity rebuilds the SDK config.
+- f92258e: **Virtual-account reads.**
+  - **`getVirtualAccountsOfSubAccount` / `useVirtualAccountsOfSubAccount`** list a subaccount's virtual accounts with their details (market, parent, isolation type) in one AccountLayer call, instead of one call per VA.
+  - **`getVirtualAccountsCountOfSubAccount` / `useVirtualAccountsCountOfSubAccount`** read how many there are, to page past the default limit of 200.
+  - **`getActiveVirtualAccountByKey` / `useActiveVirtualAccountByKey`** read the VA active for an isolation key (`getActiveVAByKey`), returning `null` instead of the zero address when none is active.
+
+  The existing virtual-account reads (`getVirtualAccount`, `getVirtualAccountsAddressesOfSubAccount`, `getSubAccountVirtualNonce`) are now documented too.
+
+### Patch Changes
+
+- 8832ed3: Support per-entry signers on GaslessWallet batch entries and resolve default wallets only when needed. Validate owner grants in execution order before counting their permissions for later contract or wallet entries, including canonical virtual-account delegation scope.
+
+  Refresh delegation status, expiry, active delegations, and pending revocations after either grant form in a confirmed React batch.
+
+- 8832ed3: **Gasless submit fixes.**
+  - **A refused replay stays unconfirmed.** `resubmitGaslessRequest` reports any refusal of the replay — a service verdict, a `409`, a `429` — as `GASLESS_SUBMIT_UNCONFIRMED` with the answer as its `cause`: it describes the replay only, while the original attempt may have executed. It is never grounds for a wallet-paid retry.
+  - **Transparent relays send the billing account.** A relayed write now sends its billing sub-account as `accountId`, so the request is tracked under the account it bills.
+  - **`useCreateSubAccounts` refreshes every owner's account lists.** The signer may be a session key or an embedded wallet unrelated to wagmi's connected address, so the account-list, address-list and count queries are invalidated for every owner.
+
+- Updated dependencies [6778398]
+- Updated dependencies [8832ed3]
+- Updated dependencies [e7e1c93]
+- Updated dependencies [8832ed3]
+- Updated dependencies [7190d9a]
+- Updated dependencies [8832ed3]
+- Updated dependencies [8832ed3]
+- Updated dependencies [2c2beb4]
+- Updated dependencies [f92258e]
+- Updated dependencies [1ae102b]
+- Updated dependencies [f92258e]
+- Updated dependencies [f92258e]
+- Updated dependencies [f92258e]
+  - @symmio/trading-core@4.4.0
+
+## 4.4.0
+
+### Minor Changes
+
+- 6ca167f: Expose the solver's optional no-shadow estimated price as diagnostic data while retaining the shadow-inclusive execution price for all trading calculations. Older solvers keep the secondary price absent. Open preparation exposes matching, settled diagnostics through its existing shared estimate query without additional requests or pairing cached data with caller-supplied estimates.
+
+### Patch Changes
+
+- c9a7290: Reset Enigma price-hook state when its SDK configuration or chain changes, and ignore callbacks from disposed subscriptions. Preserve last prices during reconnects and stop/start on the same target.
+- Updated dependencies [6ca167f]
+  - @symmio/trading-core@4.3.0
+
 ## 4.3.0
 
 ### Minor Changes

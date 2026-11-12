@@ -352,14 +352,27 @@ function coerceField(field: ConfigFieldDef, value: string): string | number {
   return value;
 }
 
+/** Copy only fields the editor does not own. Never mutate an applied preset. */
+function unmodeledFields(value: object | undefined, group: ConfigFieldGroup): Record<string, unknown> {
+  const result: Record<string, unknown> = { ...value };
+  for (const field of CONFIG_FIELDS) {
+    if (field.group === group) delete result[field.key];
+  }
+  return result;
+}
+
 /**
  * Build the SDK `symmioConfig` object from an editor draft. Only fields that are
  * valid and differ from the built-in default become overrides; everything else
  * inherits the default — **except** each chain's `addresses.affiliatesAddress`,
  * which is mandatory (see {@link SymmioChainConfigInput}) and is always emitted
- * from the edited value or the app baseline.
+ * from the edited value or the app baseline. Unmodeled settings are preserved
+ * from currentOverrides; resetting a modeled field still restores its SDK default.
  */
-export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters["symmioConfig"] {
+export function buildChainOverrides(
+  draft: ConfigDraft,
+  currentOverrides: CreateConfigParameters["symmioConfig"] = symmioChains,
+): CreateConfigParameters["symmioConfig"] {
   const result: NonNullable<CreateConfigParameters["symmioConfig"]> = {};
 
   for (const chainId of SUPPORTED_CHAIN_IDS) {
@@ -389,30 +402,33 @@ export function buildChainOverrides(draft: ConfigDraft): CreateConfigParameters[
       symmioChains?.[chainId]?.addresses?.affiliatesAddress;
     if (affiliate) groups.addresses.affiliatesAddress = affiliate;
 
-    /**
-     * Seed from the app baseline so the blocks this editor does not model —
-     * `listing`, `inventory`, `priceService`, `muon`, `contractsVersion` —
-     * survive an Apply instead of being dropped. The gasless endpoint is not
-     * modelled either (only its `execution.mode` is editable), but it does not
-     * come from the baseline: it is re-applied from the chain's deployment
-     * below, so the resolved config can never hold one deployment's addresses
-     * beside another deployment's gateway.
-     */
-    const baseline = symmioChains?.[chainId];
+    // Preserve current unmodeled fields without keeping stale edited values.
+    const baseline = { ...symmioChains?.[chainId], ...currentOverrides?.[chainId] };
     const chainOverride: Record<string, unknown> = {
       ...baseline,
-      addresses: { ...baseline?.addresses, ...groups.addresses },
+      addresses: { ...unmodeledFields(baseline.addresses, "addresses"), ...groups.addresses },
     };
-    /**
-     * Notifications are per-solver, so they nest inside the solver override
-     * rather than sitting beside it on the chain (see `SymmioSolverConfig`).
-     */
-    const solverOverride: Record<string, unknown> = { ...groups.solver };
-    if (Object.keys(groups.notifications).length) solverOverride.notifications = groups.notifications;
-    if (Object.keys(solverOverride).length) {
-      chainOverride.solvers = { [getChainConfig(chainId).defaultSolverId]: solverOverride };
-    }
-    if (Object.keys(groups.subgraphs).length) chainOverride.subgraphs = groups.subgraphs;
+    const solverId = getChainConfig(chainId).defaultSolverId;
+    const previousSolver = baseline.solvers?.[solverId];
+    const solverOverride: Record<string, unknown> = {
+      ...unmodeledFields(previousSolver, "solver"),
+      ...groups.solver,
+    };
+    const notifications = {
+      ...unmodeledFields(previousSolver?.notifications, "notifications"),
+      ...groups.notifications,
+    };
+    if (Object.keys(notifications).length) solverOverride.notifications = notifications;
+    else delete solverOverride.notifications;
+    const solvers = { ...baseline.solvers };
+    if (Object.keys(solverOverride).length) solvers[solverId] = solverOverride;
+    else delete solvers[solverId];
+    if (Object.keys(solvers).length) chainOverride.solvers = solvers;
+    else delete chainOverride.solvers;
+
+    const subgraphs = { ...unmodeledFields(baseline.subgraphs, "subgraphs"), ...groups.subgraphs };
+    if (Object.keys(subgraphs).length) chainOverride.subgraphs = subgraphs;
+    else delete chainOverride.subgraphs;
     /**
      * The whole gasless block is emitted whenever the chain resolves a relayer,
      * even when the draft matches the SDK default. The editor models the mode
@@ -490,7 +506,7 @@ export function countChainOverrides(overrides: CreateConfigParameters["symmioCon
   return total;
 }
 
-/** Structural equality of two overrides objects, compared field-by-field. */
+/** Compare editable fields and effective price services, including hidden preset endpoints. */
 export function sameOverrides(
   a: CreateConfigParameters["symmioConfig"],
   b: CreateConfigParameters["symmioConfig"],
@@ -498,6 +514,17 @@ export function sameOverrides(
   const da = draftFromOverrides(a);
   const db = draftFromOverrides(b);
   for (const chainId of SUPPORTED_CHAIN_IDS) {
+    const defaults = getChainConfig(chainId);
+    const pricesA = a?.[chainId]?.priceService ?? defaults.priceService;
+    const pricesB = b?.[chainId]?.priceService ?? defaults.priceService;
+    const solverId = defaults.defaultSolverId;
+    const solverPricesA =
+      a?.[chainId]?.solvers?.[solverId]?.priceService ?? defaults.solvers[solverId]?.priceService ?? pricesA;
+    const solverPricesB =
+      b?.[chainId]?.solvers?.[solverId]?.priceService ?? defaults.solvers[solverId]?.priceService ?? pricesB;
+    for (const key of ["type", "url", "wsUrl"] as const) {
+      if (pricesA[key] !== pricesB[key] || solverPricesA[key] !== solverPricesB[key]) return false;
+    }
     for (const field of CONFIG_FIELDS) {
       const path = fieldPath(field);
       const va = (da[chainId]?.[path] ?? "").trim();

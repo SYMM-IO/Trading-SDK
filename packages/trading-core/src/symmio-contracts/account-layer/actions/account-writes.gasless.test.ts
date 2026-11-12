@@ -1,13 +1,13 @@
-import { decodeFunctionData, type Address } from "viem";
+import { decodeFunctionData, encodeFunctionData, type Address, type PublicClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getChainConfig, SymmioSupportedChainId } from "../../../core/chains";
-import { mockConfig, TEST_TX_HASH } from "../../../shared/test/mock-config";
+import type { Config } from "../../../core/config";
+import { gaslessWriteTestConfig, TEST_GASLESS_SIGNER, TEST_GASLESS_TX_HASH } from "../../../gasless/test/config";
 import { accountLayerAbi } from "../../abi/v0.8.6/account-layer";
 import { SubAccountIsolationType } from "../types";
 
-const maybeRelayAsGasless = vi.hoisted(() => vi.fn());
-
-vi.mock("../../../gasless/dispatch/maybe-relay-as-gasless", () => ({ maybeRelayAsGasless }));
+const { post, get } = vi.hoisted(() => ({ post: vi.fn(), get: vi.fn() }));
+vi.mock("axios", () => ({ default: { post, get }, isAxiosError: () => false }));
 
 import { createSubAccounts } from "./create-sub-accounts";
 import { deleteSubAccount } from "./delete-sub-account";
@@ -21,71 +21,60 @@ const SUB_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const AFFILIATE: Address = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const CORE: Address = "0xcccccccccccccccccccccccccccccccccccccccc";
 const RELAYED_HASH = `0x${"ee".repeat(32)}` as const;
+const HEADERS = { "x-gaslessq-protocol-instance": "arbitrum-42161-test" };
 
 /**
- * Each case is one AccountLayer write that gained the transparent seam: how it
- * is invoked, the function its calldata must encode, and the billing account the
- * dispatcher is asked to relay under. `signerAccount` is `undefined` for
- * `createSubAccounts` alone — it has no account of its own, so the caller must
- * name one via `gasless.account`.
+ * Exercise each public action through its actual dispatcher. Only the external
+ * wallet, chain and HTTP boundaries are stubbed, so moving an action between
+ * shared executors does not bypass its gasless behavior in these tests.
  */
 const CASES = [
   {
     name: "deleteSubAccount",
     functionName: "deleteSubAccount",
-    signerAccount: SUB_ACCOUNT,
-    accountMaybeVirtual: undefined,
-    call: (config: ReturnType<typeof mockConfig>["config"], gasless?: true) =>
-      deleteSubAccount(config, { chainId: CHAIN, subAccount: SUB_ACCOUNT, gasless, simulateBeforeWrite: false }),
+    call: (config: Config, gasless?: true) =>
+      deleteSubAccount(config, { chainId: CHAIN, subAccount: SUB_ACCOUNT, gasless, simulateBeforeWrite: true }),
   },
   {
     name: "editAccountName",
     functionName: "editAccountName",
-    signerAccount: SUB_ACCOUNT,
-    accountMaybeVirtual: undefined,
-    call: (config: ReturnType<typeof mockConfig>["config"], gasless?: true) =>
+    call: (config: Config, gasless?: true) =>
       editAccountName(config, {
         chainId: CHAIN,
         account: SUB_ACCOUNT,
         name: "Main",
         gasless,
-        simulateBeforeWrite: false,
+        simulateBeforeWrite: true,
       }),
   },
   {
     name: "depositForAccount",
     functionName: "depositForAccount",
-    signerAccount: undefined,
-    accountMaybeVirtual: SUB_ACCOUNT,
-    call: (config: ReturnType<typeof mockConfig>["config"], gasless?: true) =>
+    call: (config: Config, gasless?: true) =>
       depositForAccount(config, {
         chainId: CHAIN,
         account: SUB_ACCOUNT,
         amount: 1_000000n,
         gasless,
-        simulateBeforeWrite: false,
+        simulateBeforeWrite: true,
       }),
   },
   {
     name: "depositAndAllocateForAccount",
     functionName: "depositAndAllocateForAccount",
-    signerAccount: undefined,
-    accountMaybeVirtual: SUB_ACCOUNT,
-    call: (config: ReturnType<typeof mockConfig>["config"], gasless?: true) =>
+    call: (config: Config, gasless?: true) =>
       depositAndAllocateForAccount(config, {
         chainId: CHAIN,
         account: SUB_ACCOUNT,
         amount: 1_000000n,
         gasless,
-        simulateBeforeWrite: false,
+        simulateBeforeWrite: true,
       }),
   },
   {
     name: "createSubAccounts",
     functionName: "createSubAccounts",
-    signerAccount: undefined,
-    accountMaybeVirtual: undefined,
-    call: (config: ReturnType<typeof mockConfig>["config"], gasless?: true) =>
+    call: (config: Config, gasless?: true) =>
       createSubAccounts(config, {
         chainId: CHAIN,
         affiliate: AFFILIATE,
@@ -98,52 +87,75 @@ const CASES = [
             singleVAMode: true,
           },
         ],
-        gasless,
-        simulateBeforeWrite: false,
+        gasless: gasless ? { enabled: true, account: SUB_ACCOUNT } : undefined,
+        simulateBeforeWrite: true,
       }),
   },
 ] as const;
 
+function setup() {
+  const base = gaslessWriteTestConfig({ execution: { preflightFee: false } });
+  const simulateContract = vi.fn().mockResolvedValue({ result: undefined });
+  const config: Config = {
+    ...base.config,
+    getClient: () => ({ ...base.config.getClient(), simulateContract }) as unknown as PublicClient,
+  };
+  base.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
+    if (functionName === "instantLayer") return ARBITRUM.addresses.instantLayerAddress;
+    if (functionName === "getSubAccount") return { owner: TEST_GASLESS_SIGNER, isExists: true };
+    if (functionName === "getVirtualAccount") return { isExists: false };
+    if (functionName === "nonces") return 1n;
+    throw new Error(`Unexpected read: ${functionName}`);
+  });
+  post.mockResolvedValue({ headers: HEADERS, data: { request_id: "account-write-1", status: "queued" } });
+  get.mockResolvedValue({
+    headers: HEADERS,
+    data: { id: "account-write-1", status: "submitted", tx_hash: RELAYED_HASH, payload: {} },
+  });
+  return { ...base, config, simulateContract };
+}
+
 describe.each(CASES)("$name — gasless seam", (testCase) => {
   beforeEach(() => {
-    maybeRelayAsGasless.mockReset();
+    vi.resetAllMocks();
   });
 
   it("returns the relayer's broadcast hash, indistinguishable from a wallet submit", async () => {
-    maybeRelayAsGasless.mockResolvedValue(RELAYED_HASH);
-    const { config, writeContract } = mockConfig();
+    const { config, writeContract } = setup();
 
     await expect(testCase.call(config, true)).resolves.toBe(RELAYED_HASH);
     expect(writeContract).not.toHaveBeenCalled();
   });
 
   it("relays the same AccountLayer calldata the wallet path would send", async () => {
-    maybeRelayAsGasless.mockResolvedValue(RELAYED_HASH);
-    const { config } = mockConfig();
+    const { config, writeContract } = setup();
 
     await testCase.call(config, true);
+    await testCase.call(config);
 
-    const parameters = maybeRelayAsGasless.mock.calls[0]?.[1];
-    expect(parameters.calls).toHaveLength(1);
-    expect(parameters.calls[0].target).toBe(ARBITRUM.addresses.accountLayerAddress);
-    expect(parameters.signerAccount).toBe(testCase.signerAccount);
-    expect(parameters.accountMaybeVirtual).toBe(testCase.accountMaybeVirtual);
+    const parameters = post.mock.calls[0]![1];
+    expect(parameters.signedOps).toHaveLength(1);
+    expect(parameters.accountId).toBe(SUB_ACCOUNT);
+    expect(parameters.signedOps[0]).toMatchObject({
+      target: ARBITRUM.addresses.accountLayerAddress,
+      callData: encodeFunctionData(writeContract.mock.calls[0]![0]),
+    });
 
-    const decoded = decodeFunctionData({ abi: accountLayerAbi, data: parameters.calls[0].callData });
+    const decoded = decodeFunctionData({ abi: accountLayerAbi, data: parameters.signedOps[0].callData });
     expect(decoded.functionName).toBe(testCase.functionName);
   });
 
-  it("falls through to the wallet path when the dispatcher declines", async () => {
-    maybeRelayAsGasless.mockResolvedValue(null);
-    const { config, writeContract } = mockConfig();
+  it("uses the wallet path when gasless is disabled", async () => {
+    const { config, writeContract, simulateContract } = setup();
 
-    await expect(testCase.call(config)).resolves.toBe(TEST_TX_HASH);
+    await expect(testCase.call(config)).resolves.toBe(TEST_GASLESS_TX_HASH);
+    expect(simulateContract).toHaveBeenCalledOnce();
     expect(writeContract).toHaveBeenCalledOnce();
+    expect(post).not.toHaveBeenCalled();
   });
 
   it("skips the local dry-run when relayed — the relayer simulates its own bundle", async () => {
-    maybeRelayAsGasless.mockResolvedValue(RELAYED_HASH);
-    const { config, simulateContract } = mockConfig();
+    const { config, simulateContract } = setup();
 
     await testCase.call(config, true);
 

@@ -21,7 +21,7 @@ What this package does **not** own:
 
 This is the **implemented** React layer (no longer scaffolding). It mirrors wagmi's react package:
 
-- **`SymmioProvider`** builds the core `Config` once (memoized over the host's stable wagmi config) and supplies it via context. Its viem-client resolvers are wagmi's `getPublicClient` / `getWalletClient` (from `wagmi/actions`) — **this is the only place the SDK touches wagmi.** Mount it inside the host's `WagmiProvider` and `QueryClientProvider`.
+- **`SymmioProvider`** builds the core `Config` once (memoized over the host's stable wagmi config) and supplies it via context. Its viem-client resolvers default to wagmi's `getPublicClient` / `getWalletClient` (from `wagmi/actions`); a host can replace either through the `getClient` / `getWalletClient` props — **this is the only place the SDK touches wagmi.** Mount it inside the host's `WagmiProvider` and `QueryClientProvider`.
 - **`useSymmioConfig(parameters)`** = `parameters.config ?? context` (mirrors wagmi's `useConfig`). **`useSymmioChainId()`** reads the connected chain from wagmi.
 - **Hooks are thin.** Pattern: `const config = useSymmioConfig(parameters); const chainId = useSymmioChainId(); return useQuery(getXQueryOptions(config, { ...parameters, chainId: parameters.chainId ?? chainId }))`. Mutations use `useMutation(xMutationOptions(config))`. The query/mutation logic lives in `core`; the hook only wires config + chainId, error normalization, and cache invalidation.
 - **Error normalization.** Every hook wraps the core `queryFn` / `mutationFn` and runs failures through `normalizeSymmError` → `SymmioRequestError` (discriminated by `kind`).

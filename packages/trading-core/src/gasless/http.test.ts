@@ -13,7 +13,6 @@ import {
   classifyGaslessHttpStatus,
   gaslessGet,
   gaslessSubmitRetryDelay,
-  generateGaslessIdempotencyKey,
   isGaslessAcceptedInstanceMismatchError,
   postGaslessSubmit,
   resolveGaslessHttp,
@@ -486,15 +485,6 @@ describe("classifyGaslessHttpStatus", () => {
   it("returns null for anything that is not an HTTP failure", () => {
     expect(classifyGaslessHttpStatus(new SymmError("config", "GASLESS_URL_INVALID", "bad"))).toBeNull();
     expect(classifyGaslessHttpStatus(new Error("boom"))).toBeNull();
-  });
-});
-
-describe("generateGaslessIdempotencyKey", () => {
-  it("mints a fresh UUID for every submit", () => {
-    const first = generateGaslessIdempotencyKey();
-
-    expect(first).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-    expect(generateGaslessIdempotencyKey()).not.toBe(first);
   });
 });
 

@@ -4,10 +4,15 @@ import { DataList, DataRow } from "@/components/data-list";
 import { Field } from "@/components/field";
 import { ResultNote, ResultSuccess } from "@/components/result";
 import { GaslessFailureNote } from "@/features/gasless/gasless-failure-note";
+import { ProtectedWriteNotice, useProtectedWrite } from "@/features/timelock/use-protected-write";
 import { formatUsd, isUnlimitedAllowance, WEI_DECIMALS } from "@/lib/format";
 import {
+  OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER,
   useAccountBalanceOf,
   useApproveOperationalFee,
+  useSymmioChainId,
+  useSymmioConfig,
+  useWalletAccount,
   type UseOperationalFeeAllowanceReturnType,
 } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
@@ -53,11 +58,26 @@ export function SetupFeeAllowanceStep({ subAccount, allowance, nativeBalance }: 
   const [amount, setAmount] = useState(DEFAULT_APPROVAL_USDC);
   const [chosen, setChosen] = useState<ApprovalRoute>();
   const balance = useAccountBalanceOf({ account: subAccount });
-  const approve = useApproveOperationalFee();
+  const approve = useApproveOperationalFee({ automaticTimelock: false });
+  const wallet = useWalletAccount();
 
   const cannotPayGas = nativeBalance !== undefined && nativeBalance === 0n;
   const route = chosen ?? (cannotPayGas ? "relayed" : "wallet");
   const parsed = parseApproval(amount);
+  const chainId = useSymmioChainId();
+  const charger = useSymmioConfig().getChainConfig(chainId).gasless?.gaslessLayerAddress;
+  const protection = useProtectedWrite(
+    subAccount,
+    wallet.address,
+    "approveOperationalFeeWithMultiplier",
+    charger && parsed !== null
+      ? {
+          target: "core",
+          functionName: "approveOperationalFeeWithMultiplier",
+          args: [[charger], [parsed], [OPERATIONAL_FEE_LIST_PRICE_MULTIPLIER]],
+        }
+      : undefined,
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -134,10 +154,17 @@ export function SetupFeeAllowanceStep({ subAccount, allowance, nativeBalance }: 
         type="button"
         size="lg"
         className="w-full"
-        disabled={parsed === null || approve.isPending}
+        disabled={parsed === null || !protection.available || approve.isPending}
         onClick={() => {
           if (parsed === null) return;
-          approve.mutate({ account: subAccount, amounts: [parsed], gasless: route === "relayed" });
+          void protection.run((timelock) =>
+            approve.mutateAsync({
+              account: subAccount,
+              amounts: [parsed],
+              gasless: route === "relayed",
+              ...(timelock ? { timelock } : {}),
+            }),
+          );
         }}
         data-testid="button-setup-fee-allowance-approve"
       >
@@ -145,6 +172,7 @@ export function SetupFeeAllowanceStep({ subAccount, allowance, nativeBalance }: 
         {parsed === null ? "Enter a budget" : route === "relayed" ? "Approve without gas" : "Approve"}
       </Button>
 
+      <ProtectedWriteNotice protection={protection} />
       {approve.error ? (
         <GaslessFailureNote error={approve.error} testId="setup-fee-allowance-error" />
       ) : approve.isSuccess ? (

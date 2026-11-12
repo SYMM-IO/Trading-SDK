@@ -72,6 +72,10 @@ export const GASLESS_RELAYABLE_WRITES: ReadonlyMap<Hex, GaslessRelayableWrite> =
     selectorFromAbi(symmioAbi as Abi, "approveOperationalFeeWithMultiplier"),
     { target: "symmio", operationType: "approveOperationalFee" },
   ],
+  [
+    selectorFromAbi(symmioAbi as Abi, "approveOperationalFee"),
+    { target: "symmio", operationType: "approveOperationalFeeAllowance" },
+  ],
   /**
    * Direct AccountLayer writes. The billing `signerAccount` differs per write:
    * the VA's parent sub-account for margin, the named sub-account for the rest,
@@ -80,6 +84,26 @@ export const GASLESS_RELAYABLE_WRITES: ReadonlyMap<Hex, GaslessRelayableWrite> =
    */
   [selectorFromAbi(accountLayerAbi as Abi, "addMargin"), { target: "accountLayer", operationType: "addMargin" }],
   [selectorFromAbi(accountLayerAbi as Abi, "removeMargin"), { target: "accountLayer", operationType: "removeMargin" }],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "setupTimelocks"),
+    { target: "accountLayer", operationType: "setupTimelocks" },
+  ],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "clearTimelocks"),
+    { target: "accountLayer", operationType: "clearTimelocks" },
+  ],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "scheduleTimelockOp"),
+    { target: "accountLayer", operationType: "scheduleTimelockOp" },
+  ],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "cancelTimelockOp"),
+    { target: "accountLayer", operationType: "cancelTimelockOp" },
+  ],
+  [
+    selectorFromAbi(accountLayerAbi as Abi, "executeTimelockOp"),
+    { target: "accountLayer", operationType: "executeTimelockOp" },
+  ],
   [
     selectorFromAbi(accountLayerAbi as Abi, "createSubAccounts"),
     { target: "accountLayer", operationType: "createSubAccounts" },
@@ -100,10 +124,14 @@ export const GASLESS_RELAYABLE_WRITES: ReadonlyMap<Hex, GaslessRelayableWrite> =
     selectorFromAbi(accountLayerAbi as Abi, "depositAndAllocateForAccount"),
     { target: "accountLayer", operationType: "depositAndAllocateForAccount" },
   ],
-  /** Direct InstantLayer write (signerAccount = the granting sub-account itself). */
+  /** Direct InstantLayer writes (signerAccount = the granting sub-account itself). */
   [
     selectorFromAbi(instantLayerAbi as Abi, "grantDelegation"),
     { target: "instantLayer", operationType: "grantDelegation" },
+  ],
+  [
+    selectorFromAbi(instantLayerAbi as Abi, "grantDelegations"),
+    { target: "instantLayer", operationType: "grantDelegations" },
   ],
 ]);
 

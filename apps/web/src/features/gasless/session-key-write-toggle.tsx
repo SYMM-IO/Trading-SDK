@@ -58,13 +58,19 @@ export function SessionKeyWriteToggle({ method, gaslessBlockedReason }: Props) {
   const source = isOverridden
     ? " This card overrides the wallet menu's default."
     : " Set it for every card from the wallet menu.";
+  const protectedExecution = method.startsWith("timelockAccount:") || method.startsWith("timelockNamed:");
 
   return (
     <WriteModeSwitch
       testId={`session-key-toggle-${method}`}
       label={`Sign ${method} with the session key`}
       tooltip={
-        enabled ? (
+        protectedExecution ? (
+          <>
+            {enabled ? "Execution uses" : "Use"} session key {key} for the relayed transaction. Solver approval may
+            still require the owner wallet. The key needs delegation for the selected operation.{source}
+          </>
+        ) : enabled ? (
           <>
             Signed by session key {key} — no wallet prompt, relayed. Click to sign with the wallet.{source}
           </>

@@ -1,5 +1,6 @@
 export * from "./gasless-relay-types";
 export * from "./use-approve-operational-fee";
+export * from "./use-approve-operational-fee-allowance";
 export * from "./use-gasless-batch-fee-quote";
 export * from "./use-gasless-deposit-policy";
 export * from "./use-gasless-fee-quote";

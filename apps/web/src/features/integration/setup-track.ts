@@ -19,6 +19,7 @@ export type SetupStepId =
   | "fee-allowance"
   | "session-key"
   | "delegation"
+  | "timelock"
   | "ready";
 
 /** How one track is presented in the picker. */
@@ -62,10 +63,12 @@ export const SETUP_TRACKS: readonly SetupTrackInfo[] = [
 ];
 
 /** The step ladder for one track, in the order the contracts force. */
-export function getSetupStepIds(track: SetupTrack): readonly SetupStepId[] {
-  if (track === "wallet") return ["connect", "account", "collateral", "ready"];
-  if (track === "gasless") return ["connect", "account", "collateral", "fee-allowance", "ready"];
-  return ["connect", "account", "collateral", "fee-allowance", "session-key", "delegation", "ready"];
+export function getSetupStepIds(track: SetupTrack, includeTimelock = false): readonly SetupStepId[] {
+  const steps: SetupStepId[] = ["connect", "account", "collateral"];
+  if (track !== "wallet") steps.push("fee-allowance");
+  if (track === "session-key") steps.push("session-key", "delegation");
+  if (includeTimelock) steps.push("timelock");
+  return [...steps, "ready"];
 }
 
 /** The rail's title for each step. */
@@ -76,5 +79,6 @@ export const SETUP_STEP_LABELS: Readonly<Record<SetupStepId, string>> = {
   "fee-allowance": "Fee allowance",
   "session-key": "Session key",
   delegation: "Delegation",
+  timelock: "Setup timelock",
   ready: "Ready to trade",
 };

@@ -50,8 +50,17 @@ if (!decoded || !decoded.sessionPrivateKey) {
   return;
 }
 
-await manager.importPrivateKey(decoded.owner, decoded.sessionPrivateKey);
+await manager.importPrivateKey(
+  decoded.owner,
+  decoded.sessionPrivateKey,
+  decoded.expiresAt === undefined ? undefined : { expiresAt: decoded.expiresAt },
+);
 ```
+
+Passing `expiresAt` preserves the original session lifetime. Import rejects a past or invalid expiry; it never silently
+extends it. When the envelope has no expiry, explicitly decide whether your application permits the default lifetime.
+On subsequent startup, a linked device should use `manager.load(owner)` to restore only that existing key. Missing,
+expired, or unreadable storage must lead to the app's relinking flow rather than generating an undelegated replacement.
 
 <Properties>
   <Property name="raw" type="string" required>

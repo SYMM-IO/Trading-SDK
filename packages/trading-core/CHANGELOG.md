@@ -1,5 +1,80 @@
 # @symmio/trading-core
 
+## 4.4.0
+
+### Minor Changes
+
+- 6778398: Add executeAccountCalls for atomic named SYMMIO core writes through AccountLayer or the configured gasless dispatcher. Reuse simulation, owner validation and relay restrictions without adding automatic wallet fallback.
+
+  Expose getWithdrawCooldownOf and getDeallocateDebounceTime with deployment-scoped query factories for withdrawal and deallocation readiness, and the matching `useWithdrawCooldownOf` and `useDeallocateDebounceTime` hooks. `useDeallocate`, `useDeallocateAndInitiateWithdraw`, `useWithdraw` and relayed batches that deallocate now refresh the withdraw-cooldown read; `useDeallocate` and deallocating batches also refresh the withdrawable time, which the deallocation moves.
+
+- 8832ed3: Add optional per-configuration gasless HTTP headers for authenticated application proxies. Resolve fresh headers for every read, submission attempt and exact replay without persisting credentials or exposing callback errors. Preserve uncertainty when authentication fails after an earlier ambiguous submission. `DeepPartial` keeps function types intact, so callbacks such as `gasless.getRequestHeaders` stay typed in a partial chain configuration.
+- e7e1c93: Add complete multi-account pending withdrawal reads with `getPendingWithdrawRequestsBatch` and `usePendingWithdrawRequestsBatch`. Normalize account sets, scan every bounded page even when earlier pages are empty, and reject incomplete results on RPC failure. Refresh batch queries in the affected deployment after confirmed withdrawal writes.
+- 8832ed3: Support per-entry signers on GaslessWallet batch entries and resolve default wallets only when needed. Validate owner grants in execution order before counting their permissions for later contract or wallet entries, including canonical virtual-account delegation scope.
+
+  Refresh delegation status, expiry, active delegations, and pending revocations after either grant form in a confirmed React batch.
+
+- 8832ed3: **Caller-owned idempotency keys for gasless writes.**
+  - **`gasless.idempotencyKey`** on every relayable write, and an `idempotencyKey` parameter on `relayGaslessBatch`, `gaslessWalletExecute` and `relayGrantDelegation` (shared `GaslessIdempotencyKeyParameter`; `relayInstantOperations` and both deposit settlements adopt it). Give each user action its own key, save it before calling, and call again under the same key after an unknown outcome: while the service holds a key, it accepts it at most once. A key makes a transparent write strictly gasless — no wallet path and no automatic fallback; combining it with `enabled: false` or `fallback: "wallet"` throws the new `GASLESS_IDEMPOTENCY_KEY_INVALID` before any prompt, as does a blank key or one longer than 128 characters.
+  - **Same-key retries never wait for their own pending submit.** A retry under the same key signs at once instead of waiting up to two minutes on the nonce stream and failing with `GASLESS_NONCE_STREAM_BUSY`. When the config already saw that key accepted, the retry follows the earlier request (or returns its receipt) without signing. Different keys still wait for each other.
+  - **Signature deadlines are fixed when a call starts**, so an attempt started at `T` can never execute after `T + GASLESS_SIGNATURE_LIFETIME_SECONDS` (new export, 20 minutes).
+  - **New helpers:** `generateGaslessIdempotencyKey` creates a key for one user action; `getGaslessDeploymentKey` fingerprints the deployment a key belongs to, to check before any retry; `isConfirmedGaslessRefusalError` is the SDK's own wallet-fallback rule; `isGaslessRequestRejectedOrRevertedError` tells when an accepted request ended without any on-chain effect (a `failed` request is not included — its transaction may still mine).
+
+- 2c2beb4: Add generic AccountLayer timelock policy, approval, schedule, cancellation, and execution APIs with React hooks and transparent gasless support. Expose the canonical 22-selector instant-open policy, validate provider approval responses, surface ambiguous POST outcomes without automatic retries, and support delayed on-chain fallback status.
+
+  Allow Enigma instant opens without additional margin to submit only `sendQuote`, while retaining the timelock wrapper for margin-bearing opens.
+
+  Expose deployment timelock metadata through solver info, complete root-aware policy reports, confirmed setup with an injectable indexing observer, and one-attempt early withdrawal actions/hooks. Preserve issued approvals and transaction hashes on recovery errors. Add typed solver errors, immutable prepared instant-open submission, independent embedded approval deadlines and post-signing deadline checks. Existing non-timelock solver flows remain unchanged.
+
+  Refresh timelock policy and schedule reads after successful React gasless batches, including withdrawal and account reads affected by operations inside timelock wrappers.
+
+  Allow gasless batches to use an explicit shorter signature deadline, rejecting invalid or expired authorization before submission while preserving the default lifetime.
+
+  Share wrapped-operation cache effects with direct timelock execution hooks. Confirmed sub-account deletion refreshes account lists and details; failed or unconfirmed execution does not refresh them. Preserve existing submission, approval, and gasless behavior.
+
+  Expose policy-change authorization requirements before setup, including exact calldata, affected existing unlockers and the no-approval schedule delay. Report missing or unusable authorization without prompting a wallet; preserve execution through an already mature schedule. Accept byte-encoded EIP-1271 approval signatures without imposing an EOA signature length.
+
+  Declare timelock approval support as a solver capability and expose React routing for normal, approval and delayed paths. Keep delayed account reads independent of solver availability and require reconciliation for ambiguous attempts.
+
+  Allow consumers to disable automatic timelock discovery and policy reads, and expose the Core-call encoder through a React hook for exact scheduled-operation recovery.
+
+  Expose the pinned AccountLayer ABI from the React entry point for exact-call encoding and decoding in React consumers.
+
+  Retain positively discovered solver timelock capability per deployment for the React QueryClient lifetime. Protected writes still read the current selector policy and obtain separate approvals; reloading or clearing the query cache starts discovery again.
+
+- f92258e: **One-signature delegation setup.**
+  - **`grantDelegations` / `useGrantDelegations`** (plus `simulateGrantDelegations` / `useSimulateGrantDelegations`) grant several delegates of one account in a single `InstantLayer.grantDelegations` call. Relayed, that is one owner signature instead of one per delegate. An empty list or a PartyB account fails before any prompt with `GRANT_DELEGATIONS_EMPTY` / `GRANT_DELEGATIONS_PARTYB_UNSUPPORTED`. The InstantLayer ABI is re-pinned to the full perps-core v0.8.6 file, which adds `grantDelegations` and `TEMPLATE_MANAGER_ROLE`.
+  - **Per-call signers in `relayGaslessBatch`.** A write call takes an optional `from`, so one batch can mix signers. The delegation pre-flight credits a grant made earlier in the same batch, and in-memory signers such as a session key sign before any wallet prompt. "The owner grants a key, the key approves the fee charger" is now one wallet prompt.
+  - **`approveOperationalFeeAllowance` / `useApproveOperationalFeeAllowance`** set a fee allowance with the diamond's two-argument `approveOperationalFee`, leaving the fee multiplier untouched. It is relayable under its own selector, so a session key delegated only that selector can sign it.
+  - **`useGrantDelegation` refreshes more, and on the right chain.** It now also invalidates `getActiveDelegations` and `getPendingRevocationEtas` reads, which a grant changes. It keys every refresh on the chain the write went to; an omitted `chainId` used to refresh the wallet's chain instead.
+
+- 1ae102b: Add independent, opt-in `coreCalls` and `timelockScheduling` scopes to the session-key selector builder and React hook. Existing defaults and withdrawal grants are unchanged. The console uses the shared scope builder for its existing protected-withdrawal opt-in and historical revocation checks.
+- f92258e: **`encodeSubAccountHookMetadata`.** Builds the `metadata` blob a new subaccount hands its affiliate's `onAccountCreation` hook: `abi.encode((string rflCode, uint256 referrerTokenId, address partyBToBind))`, the format the chains' default affiliate hook decodes. A missing PartyB encodes as the zero address, so a referral code or referrer is never dropped; only an all-empty input returns `0x`. Pass it to `createSubAccounts` or `settleGaslessDepositNewAccount`; an affiliate with its own hook needs its own encoding.
+- f92258e: **Virtual-account reads.**
+  - **`getVirtualAccountsOfSubAccount` / `useVirtualAccountsOfSubAccount`** list a subaccount's virtual accounts with their details (market, parent, isolation type) in one AccountLayer call, instead of one call per VA.
+  - **`getVirtualAccountsCountOfSubAccount` / `useVirtualAccountsCountOfSubAccount`** read how many there are, to page past the default limit of 200.
+  - **`getActiveVirtualAccountByKey` / `useActiveVirtualAccountByKey`** read the VA active for an isolation key (`getActiveVAByKey`), returning `null` instead of the zero address when none is active.
+
+  The existing virtual-account reads (`getVirtualAccount`, `getVirtualAccountsAddressesOfSubAccount`, `getSubAccountVirtualNonce`) are now documented too.
+
+### Patch Changes
+
+- 7190d9a: Recognize solver info responses with `timelock_enabled: false` and `timelock_approval: null` as disabled timelocks. Preserve solver fees and the plain-margin instant-open path while continuing to reject malformed or wrong-deployment metadata.
+- 8832ed3: **Gasless submit fixes.**
+  - **A refused replay stays unconfirmed.** `resubmitGaslessRequest` reports any refusal of the replay — a service verdict, a `409`, a `429` — as `GASLESS_SUBMIT_UNCONFIRMED` with the answer as its `cause`: it describes the replay only, while the original attempt may have executed. It is never grounds for a wallet-paid retry.
+  - **Transparent relays send the billing account.** A relayed write now sends its billing sub-account as `accountId`, so the request is tracked under the account it bills.
+  - **`useCreateSubAccounts` refreshes every owner's account lists.** The signer may be a session key or an embedded wallet unrelated to wagmi's connected address, so the account-list, address-list and count queries are invalidated for every owner.
+
+- f92258e: **Arbitrum notification search uses the reachable endpoint.** The built-in Arbitrum `notifications.searchUrl` now points at the service's host root, `https://notification.rasa.capital`. Cloudflare answers the previous `/notification` prefix with a 403 block page, so `searchNotifications` / `useSearchNotifications` failed on Arbitrum unless the caller passed `baseUrl`.
+
+  **Retired Muon gateway removed.** `muon-oracle4.rasa.capital` no longer resolves, so it is gone from the Base and Arbitrum Muon lists. Oracles 1–3 remain and are still tried in order.
+
+## 4.3.0
+
+### Minor Changes
+
+- 6ca167f: Expose the solver's optional no-shadow estimated price as diagnostic data while retaining the shadow-inclusive execution price for all trading calculations. Older solvers keep the secondary price absent. Open preparation exposes matching, settled diagnostics through its existing shared estimate query without additional requests or pairing cached data with caller-supplied estimates.
+
 ## 4.2.1
 
 ### Patch Changes

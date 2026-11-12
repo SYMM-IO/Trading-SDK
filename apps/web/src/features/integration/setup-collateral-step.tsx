@@ -152,7 +152,12 @@ export function SetupCollateralStep({ owner, subAccount, isolationType, decimals
               : "Deposit"}
       </Button>
 
-      <StatusArea approve={approve} deposit={activeDeposit} approved={!needsApproval && parsed !== undefined} />
+      <StatusArea
+        approve={approve}
+        deposit={activeDeposit}
+        approved={!needsApproval && parsed !== undefined}
+        account={subAccount}
+      />
     </div>
   );
 }
@@ -187,10 +192,12 @@ function StatusArea({
   approve,
   deposit,
   approved,
+  account,
 }: {
   approve: ReturnType<typeof useApproveCollateral>;
   deposit: ReturnType<typeof useDeposit>;
   approved: boolean;
+  account?: Address;
 }) {
   if (approve.isPending) {
     return (
@@ -210,7 +217,15 @@ function StatusArea({
     );
   }
   if (deposit.error) {
-    return <ResultError testId="setup-collateral-status" kind={deposit.error.kind} message={deposit.error.message} />;
+    return (
+      <ResultError
+        testId="setup-collateral-status"
+        kind={deposit.error.kind}
+        code={deposit.error.code}
+        timelockAccount={account}
+        message={deposit.error.message}
+      />
+    );
   }
   if (deposit.isSuccess) {
     return (

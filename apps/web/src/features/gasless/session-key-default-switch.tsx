@@ -64,7 +64,7 @@ export function SessionKeyDefaultSwitch({ onNavigate }: Props) {
       <div className="flex items-end justify-between gap-3">
         <p className="text-muted-foreground text-xs leading-5">
           {supported
-            ? "Also signs withdraw, cancel and card writes, relayed with no wallet prompt. Instant trades and TP/SL always use the key."
+            ? "Signs delegated withdraw, cancel and card writes without a wallet prompt. Missing withdrawal authority uses your wallet. Instant trades and TP/SL always use the key."
             : "Instant trades and TP/SL always sign with this key. This chain has no gasless relayer, so withdraw and cancel use your wallet."}
         </p>
         <Link

@@ -32,7 +32,10 @@ function useAppGetWalletClient(manager: SessionKeyManager) {
 </SymmioProvider>;
 ```
 
-`sessionKeyWalletClient(manager, chainId)` is a small helper **the consuming app owns** — it turns the session-key private key into a viem `walletClient` bound to the chain. `@symmio/session-key` does not ship it; the manager gives you the address (`getAddress`) and the signing primitives (`sign`, `signTypedData`) to build one. Every SDK write that sets `from` to the session key's address then signs via this path without a wallet prompt.
+`sessionKeyWalletClient(manager, chainId)` is a small helper **the consuming app owns** — pass `manager.getAccount()`
+to viem's `createWalletClient` and bind the client to the requested chain. Never reconstruct it from `getPrivateKey()`:
+the account returned by the manager checks lifecycle revocation and expiry before and after signing. The consuming app
+also checks its password lock, owner, and deployment before signing and before returning the signature.
 
 <Callout type="info">
   When you leave `getWalletClient` unset, `SymmioProvider` defaults to the wagmi wallet for every write — so a wallet

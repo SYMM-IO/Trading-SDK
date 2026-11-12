@@ -172,7 +172,18 @@ describe("every relayable write has a real seam", () => {
   /** Writes whose action does not live under its target's action directory. */
   const ACTION_PATH_OVERRIDES: Record<string, string> = {
     forceClosePosition: "solvers/force-close/force-close-position.ts",
+    setupTimelocks: "symmio-contracts/account-layer/setup-timelocks/setup-timelocks.ts",
+    clearTimelocks: "symmio-contracts/account-layer/clear-timelocks/clear-timelocks.ts",
+    scheduleTimelockOp: "symmio-contracts/account-layer/schedule-timelock-op/schedule-timelock-op.ts",
+    cancelTimelockOp: "symmio-contracts/account-layer/cancel-timelock-op/cancel-timelock-op.ts",
+    executeTimelockOp: "symmio-contracts/account-layer/execute-timelock-op/execute-timelock-op.ts",
   };
+  const SHARED_ACTION_PATHS: Record<string, readonly string[]> = Object.fromEntries(
+    ["setupTimelocks", "clearTimelocks", "scheduleTimelockOp", "cancelTimelockOp", "executeTimelockOp"].map((name) => [
+      name,
+      ["symmio-contracts/account-layer/timelock-types.ts", "symmio-contracts/account-layer/write-timelock.ts"],
+    ]),
+  );
 
   function actionSourcePath(write: GaslessRelayableWrite): string {
     const override = ACTION_PATH_OVERRIDES[write.operationType];
@@ -183,17 +194,25 @@ describe("every relayable write has a real seam", () => {
 
   for (const [selector, write] of GASLESS_RELAYABLE_WRITES) {
     it(`${write.operationType} accepts \`gasless\` and dispatches through a seam`, () => {
-      const source = readFileSync(actionSourcePath(write), "utf8");
+      const source = [
+        actionSourcePath(write),
+        ...(SHARED_ACTION_PATHS[write.operationType] ?? []).map((path) => join(import.meta.dirname, "..", path)),
+      ]
+        .map((path) => readFileSync(path, "utf8"))
+        .join("\n");
 
       expect(source, `${write.operationType} (${selector}) does not accept the \`gasless\` parameter`).toContain(
         "GaslessWriteParameter",
       );
       /**
-       * Either the action calls the dispatcher itself (a direct-to-contract
-       * write) or it goes through `callAsSubAccount`, whose `_call` proxy
-       * carries the seam for it.
+       * A direct write uses the shared contract executor or the compatibility
+       * dispatcher. Proxy writes use `callAsSubAccount`, whose `_call` proxy
+       * carries the seam for them.
        */
-      const dispatches = source.includes("maybeRelayAsGasless") || source.includes("callAsSubAccount");
+      const dispatches =
+        (source.includes("executeContractWrite") && source.includes("billingAccount:")) ||
+        source.includes("maybeRelayAsGasless") ||
+        source.includes("callAsSubAccount");
       expect(dispatches, `${write.operationType} (${selector}) never reaches the gasless dispatcher`).toBe(true);
     });
   }

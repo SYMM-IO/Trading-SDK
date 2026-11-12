@@ -4,8 +4,7 @@ import { AddressTag } from "@/components/address-tag";
 import { DataList, DataRow } from "@/components/data-list";
 import { ResultNote, ResultSuccess } from "@/components/result";
 import { formatUsd } from "@/lib/format";
-import { encodeSubAccountHookMetadata } from "@/lib/subaccount-metadata";
-import type { GaslessDepositSubmitReceipt } from "@symmio/trading-core";
+import { encodeSubAccountHookMetadata, type GaslessDepositSubmitReceipt } from "@symmio/trading-core";
 import {
   SubAccountIsolationType,
   useGaslessDepositPolicy,

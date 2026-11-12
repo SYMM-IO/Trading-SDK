@@ -367,6 +367,8 @@ export interface SessionKeyDefault {
   enabled: boolean;
   /** The session key's address, when one is loaded. */
   sessionKeyAddress?: Address;
+  /** Local key lifetime; withdrawal signer selection must not outlive it. */
+  sessionKeyExpiresAtMs?: number;
   /**
    * Make the session key (`true`) or the connected wallet (`false`) the default
    * signer. Persists across reloads, and clears every card's own choice.
@@ -396,6 +398,7 @@ export function useSessionKeyDefault(): SessionKeyDefault {
     supported: useSupportsGaslessService(),
     enabled: ctx.sessionKeyDefault,
     sessionKeyAddress: ctx.sessionKeyAddress,
+    sessionKeyExpiresAtMs: ctx.sessionKeyExpiresAtMs,
     setEnabled: ctx.setSessionKeyDefault,
   };
 }

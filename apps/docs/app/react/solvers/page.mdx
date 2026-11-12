@@ -86,7 +86,7 @@ const pct = (btc?.nextFundingRateLong ?? 0) * 100; // long-side funding %
 
 ### `useEstimatedPrice`
 
-Ask the solver what price an open or close would **fill at** — a read-only simulation of the trade → `{ estimatedPrice }`. Use it to preview the fill price, price impact ([`calculatePriceImpact`](../../core/solvers#calculatepriceimpact)) and — for a close — an estimated PnL, before the user submits. Pass the **slippage-adjusted request price** (what the SDK sends to the solver), **not** the raw mark; `positionType` and `entry` (`"open"` | `"close"`) pick the direction. Disabled until `quantity` and `price` are non-empty. `quantity` and `price` are **debounced internally** (`debounceMs`, default `500`) so typing an amount fires one request once the user settles — pass the raw input, no external debounce needed; set `debounceMs: 0` to disable.
+Ask the solver what price an open or close would **fill at** — a read-only simulation of the trade → `{ estimatedPrice, estimatedPriceWithoutShadow? }`. Use it to preview the fill price, price impact ([`calculatePriceImpact`](../../core/solvers#calculatepriceimpact)) and — for a close — an estimated PnL, before the user submits. Pass the **slippage-adjusted request price** (what the SDK sends to the solver), **not** the raw mark; `positionType` and `entry` (`"open"` | `"close"`) pick the direction. Disabled until `quantity` and `price` are non-empty. `quantity` and `price` are **debounced internally** (`debounceMs`, default `500`) so typing an amount fires one request once the user settles — pass the raw input, no external debounce needed; set `debounceMs: 0` to disable.
 
 ```ts
 const { data } = useEstimatedPrice({
@@ -100,6 +100,8 @@ const impact = data
   ? calculatePriceImpact({ estimatedPrice: data.estimatedPrice, referencePrice: String(markPrice) })
   : 0;
 ```
+
+`data.estimatedPrice` is the shadow-inclusive execution price and remains the input to trading calculations. The optional `data.estimatedPriceWithoutShadow` is diagnostic only and stays absent for older solvers; see the [core result contract](/core/solvers#getestimatedprice). Both values arrive through the same query, so no second estimate request is needed.
 
 `UseEstimatedPriceReturnType` also includes `isDebouncing`. While it is true, the quantity or price is still waiting for the debounce interval and cached data may describe previous inputs. Wait for both `!isDebouncing` and `!isFetching` before treating an estimate as current for submission.
 
@@ -143,14 +145,23 @@ The solver's general information from the **Enigma-only** `/info` endpoint — t
 const info = useSolverInfo();
 info.data?.staticSolverFeeOpen; // "0.5"  — USD per instant open
 info.data?.staticSolverFeeClose; // "0.25" — USD per instant close (incl. partial closes)
+info.data?.timelockApproval; // Optional TimelockApprovalCapability from this deployment.
+info.knownTimelockApproval; // Last positively discovered capability in this QueryClient.
 ```
 
-Returns `UseQueryResult<EnigmaSolverInfo, SymmioRequestError>`:
+Returns `UseSolverInfoReturnType`, a `UseQueryResult<EnigmaSolverInfo, SymmioRequestError>` with `knownTimelockApproval`:
 
-| Field                  | Type                  | Notes                                                                         |
-| ---------------------- | --------------------- | ----------------------------------------------------------------------------- |
-| `staticSolverFeeOpen`  | `string \| undefined` | Configured USD amount per instant open. `undefined` when the solver omits it. |
-| `staticSolverFeeClose` | `string \| undefined` | Configured USD amount per instant close, including each partial close.        |
+`knownTimelockApproval` retains the last validated positive timelock capability for the selected chain,
+AccountLayer, solver and solver URL while this QueryClient exists. A failed refresh or a response omitting
+the capability does not erase it. `data` and `error` still describe the current `/info` query; a browser
+reload or clearing the query cache starts discovery again. This value does not cache the account policy or
+an operation's approval.
+
+| Field                  | Type                                      | Notes                                                                                                              |
+| ---------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `staticSolverFeeOpen`  | `string \| undefined`                     | Configured USD amount per instant open. `undefined` when the solver omits it.                                      |
+| `staticSolverFeeClose` | `string \| undefined`                     | Configured USD amount per instant close, including each partial close.                                             |
+| `timelockApproval`     | `TimelockApprovalCapability \| undefined` | Unlocker, minimum delay, validity and signing domain; see [policy metadata](/core/account-layer/timelocks/policy). |
 
 Amounts are USD decimal strings exactly as the solver reports them — no decimal scaling. **Enigma-only:** on a rasa-kind solver the query fails before the wire with a `SymmioRequestError` carrying `code: "UNSUPPORTED_BY_SOLVER"`; a failed request carries `FETCH_SOLVER_INFO_FAILED`.
 
@@ -178,7 +189,7 @@ Gate a flow or UI on what the resolved solver declares it supports, so an unsupp
 
 ### `useSolverCapabilities`
 
-The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService }`, all definite booleans). `listingService` is declarative metadata — the listing functions do not gate on it (see [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service)).
+The resolved `SolverCapabilities` object (`{ groupClose, limitOrder, listingService, timelockApproval }`, all definite booleans). `timelockApproval` declares whether the configured solver deployment offers timelock approvals; an unset flag is false. It does not prove that a particular on-chain selector is unlocked or that the service is online. `listingService` is declarative metadata — the listing functions do not gate on it (see [Pools listing service](/core/concepts/solvers-and-chains#pools-listing-service)).
 
 ```tsx
 const { limitOrder, groupClose } = useSolverCapabilities();

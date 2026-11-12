@@ -37,6 +37,12 @@ export type UsePrepareInstantOpenParamsReturnType = UseQueryResult<
    * preview bit-for-bit.
    */
   estimatedOpenPrice: string | null | undefined;
+  /**
+   * Diagnostic no-shadow price from the same settled SDK-managed estimate.
+   * Absent for older solvers, pending/failed estimates or caller-supplied
+   * estimatedOpenPrice. Never use it for preparation, fees or submission.
+   */
+  estimatedOpenPriceWithoutShadow?: string;
   /** Arrival time of the fetched estimate in epoch milliseconds. The frontend decides when to refresh or expire it. */
   estimatedOpenPriceTimestamp: number | undefined;
   /**
@@ -118,6 +124,7 @@ export function usePrepareInstantOpenParams(
     refetchEstimatedPrice: inputs.refetchEstimatedPrice,
     validationError: inputs.validationError,
     estimatedOpenPrice: inputs.prefills.estimatedOpenPrice,
+    estimatedOpenPriceWithoutShadow: inputs.estimatedOpenPriceWithoutShadow,
     estimatedOpenPriceTimestamp: parameters.estimatedOpenPriceTimestamp ?? inputs.estimatedOpenPriceTimestamp,
     isReady: inputs.ready && query.isSuccess && !query.isFetching && !query.isPlaceholderData,
   };

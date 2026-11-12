@@ -2,6 +2,8 @@ import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
+import type { TimelockBatchAuthorization } from "../../../timelock/execute-protected-batch";
+import type { TimelockAuthorization } from "../../../timelock/execute-protected-call";
 import { SubAccountIsolationType, type SingleUpnlSig } from "../../account-layer/types";
 import type { WithdrawReceiverPart } from "../types";
 import { deallocateAndInitiateWithdraw } from "./deallocate-and-initiate-withdraw";
@@ -13,6 +15,8 @@ import { initiateWithdraw } from "./initiate-withdraw";
 export type WithdrawParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Authorization for the single withdrawal call or the atomic CUSTOM batch. */
+      timelock?: TimelockAuthorization | TimelockBatchAuthorization;
       /**
        * The subaccount to withdraw from. Both underlying actions route the call
        * through the AccountLayer `_call` proxy so the core attributes it to this
@@ -116,6 +120,12 @@ export type WithdrawReturnType = Hash;
  */
 export async function withdraw(config: Config, parameters: WithdrawParameters): Promise<WithdrawReturnType> {
   if (parameters.isolationType === SubAccountIsolationType.CUSTOM) {
+    if (parameters.timelock && !("calls" in parameters.timelock))
+      throw new SymmError(
+        "validation",
+        "TIMELOCK_BATCH_REQUIRED",
+        "CUSTOM withdrawal needs per-call batch authorizations.",
+      );
     if (parameters.amount === undefined) {
       throw new SymmError(
         "validation",
@@ -134,9 +144,16 @@ export async function withdraw(config: Config, parameters: WithdrawParameters): 
       from: parameters.from,
       simulateBeforeWrite: parameters.simulateBeforeWrite,
       gasless: parameters.gasless,
+      ...(parameters.timelock ? { timelock: parameters.timelock } : {}),
     });
   }
 
+  if (parameters.timelock && "calls" in parameters.timelock)
+    throw new SymmError(
+      "validation",
+      "TIMELOCK_SINGLE_CALL_REQUIRED",
+      "This withdrawal needs a single-call authorization.",
+    );
   return initiateWithdraw(config, {
     account: parameters.account,
     parts: parameters.parts,
@@ -146,5 +163,6 @@ export async function withdraw(config: Config, parameters: WithdrawParameters): 
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
     gasless: parameters.gasless,
+    ...(parameters.timelock ? { timelock: parameters.timelock } : {}),
   });
 }

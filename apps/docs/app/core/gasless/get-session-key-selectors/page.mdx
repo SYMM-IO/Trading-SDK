@@ -41,7 +41,27 @@ Because the contract enforces that `grantDelegation` is owner-only, this grant i
   <Property name="withdraw" type="boolean" optional>
     `initiateWithdraw`. Defaults to **`false`** — see below.
   </Property>
+  <Property name="coreCalls" type="boolean" optional>
+    AccountLayer `_call`, including delegated timelock approval requests. Defaults to **`false`**.
+  </Property>
+  <Property name="timelockScheduling" type="boolean" optional>
+    AccountLayer `scheduleTimelockOp`. Defaults to **`false`**, independently of `coreCalls`.
+  </Property>
 </Properties>
+
+`coreCalls` grants broad Core-call authority, not a withdrawal-only permission. It is never enabled by
+`withdraw: true` or by solver capability detection. The consumer must explicitly request it with appropriate consent.
+These flags build a delegation scope; they do not configure the account's timelock policy or submit an operation.
+
+```ts
+// Explicitly allow this key to sign protected withdrawal approval requests.
+const selectors = getSessionKeySelectors(config, { chainId, withdraw: true, coreCalls: true });
+// Only if the key also needs to schedule operations, add timelockScheduling: true.
+```
+
+Values are derived from the pinned ABIs, normalized and de-duplicated. Existing scope order is preserved;
+optional Core-call and scheduling selectors are appended. For revocation, probe every scope the app could
+previously have granted, even when the current consent switch is off.
 
 <Callout type="warning">
   **`withdraw` is opt-in because it is collateral-exit authority.** `initiateWithdraw` takes a caller-supplied
@@ -60,7 +80,7 @@ a receiver, so both can only complete or cancel a withdrawal whose destination t
 ## Throws
 
 <Callout type="error">
-  `SESSION_KEY_SELECTORS_UNSUPPORTED_CHAIN` when `account` or `withdraw` is requested on a chain whose
+  `SESSION_KEY_SELECTORS_UNSUPPORTED_CHAIN` when `account`, `withdraw`, `coreCalls`, or `timelockScheduling` is requested on a chain whose
   `contractsVersion` is not `"0.8.6"`. The account-management selectors exist only on perps-core 0.8.6 deployments, and
   the function refuses rather than silently returning a narrower set than you asked for.
 

@@ -147,7 +147,7 @@ export interface SolverCapabilitiesConfig {
 }
 ```
 
-Today's registry: **enigma** declares `groupClose` and `listingService`, **rasa** declares `limitOrder`. Unlike the other two, `listingService` is **not** gated on by any SDK function — it is metadata (readable via `getSolverCapabilities`); listing resolves at chain level (see [Pools listing service](#pools-listing-service)).
+Today's registry: **enigma** declares `groupClose` and `listingService`, **rasa** declares `limitOrder`. A deployment may also explicitly declare `timelockApproval`; this indicates provider support, not selector policy or service availability. Unset is false. Unlike the other two, `listingService` is **not** gated on by any SDK function — it is metadata (readable via `getSolverCapabilities`); listing resolves at chain level (see [Pools listing service](#pools-listing-service)).
 
 <Callout type="info">
   **TP/SL is not a capability flag.** A solver supports conditional orders exactly when its config carries a `tpsl`

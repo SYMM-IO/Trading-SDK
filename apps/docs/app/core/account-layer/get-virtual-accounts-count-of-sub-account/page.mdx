@@ -1,0 +1,48 @@
+# getVirtualAccountsCountOfSubAccount
+
+Read how many Virtual Accounts (VAs) a subaccount holds. Use it to page the VA lists past their default limit of 200; below that, one list call already returns every VA.
+
+```ts
+import { getVirtualAccountsCountOfSubAccount } from "@symmio/trading-core";
+
+const count = await getVirtualAccountsCountOfSubAccount(config, { subAccount });
+```
+
+## Parameters
+
+<Properties>
+  <Property name="subAccount" type="Address" required>
+    The subaccount whose VAs to count.
+  </Property>
+  <Property name="chainId" type="number" optional>
+    Optional chain override.
+  </Property>
+</Properties>
+
+## Returns
+
+<Returns type="bigint">The number of VAs the subaccount holds.</Returns>
+
+## Query options
+
+```ts
+import { getVirtualAccountsCountOfSubAccountQueryOptions } from "@symmio/trading-core";
+import { useQuery } from "@tanstack/react-query";
+
+useQuery(getVirtualAccountsCountOfSubAccountQueryOptions(config, { subAccount }));
+```
+
+## Raw ABI
+
+For consumers that want to call viem directly:
+
+```ts
+import { accountLayerAbi } from "@symmio/trading-core";
+
+await publicClient.readContract({
+  abi: accountLayerAbi,
+  address: accountLayerAddress,
+  functionName: "getVirtualAccountsCountOfSubAccount",
+  args: [subAccount],
+});
+```

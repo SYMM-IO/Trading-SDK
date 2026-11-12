@@ -1,7 +1,13 @@
 import type { Address, Hash, Hex } from "viem";
 import type { Config } from "../../../core/config";
+import { withGaslessAttemptStart } from "../../../gasless/dispatch/attempt-start";
 import type { Compute, GaslessWriteParameter, WriteContractParameter } from "../../../shared/types/properties";
 import { collateralToCore18 } from "../../../shared/utils/core-units";
+import { assertTimelockBatchUnused, type TimelockBatchAuthorization } from "../../../timelock/execute-protected-batch";
+import {
+  assertTimelockAuthorizationUnused,
+  type TimelockAuthorization,
+} from "../../../timelock/execute-protected-call";
 import { getSubAccount } from "../../account-layer/actions/get-sub-account";
 import type { SingleUpnlSig, SubAccountIsolationType } from "../../account-layer/types";
 import { createClassicWithdrawPart } from "../parts";
@@ -13,6 +19,8 @@ import { withdraw } from "./withdraw";
 export type WithdrawAutoParameters = Compute<
   WriteContractParameter &
     GaslessWriteParameter & {
+      /** Optional authorization for the selected withdrawal route. */
+      timelock?: TimelockAuthorization | TimelockBatchAuthorization;
       /**
        * The subaccount to withdraw from. The action routes the call through the
        * AccountLayer `_call` proxy so the core attributes it to this subaccount; the
@@ -108,7 +116,13 @@ export async function withdrawAuto(
   config: Config,
   parameters: WithdrawAutoParameters,
 ): Promise<WithdrawAutoReturnType> {
+  if (parameters.timelock) {
+    if ("calls" in parameters.timelock) assertTimelockBatchUnused(parameters.timelock);
+    else assertTimelockAuthorizationUnused(parameters.timelock);
+  }
   const chainId = parameters.chainId ?? config.defaultChainId;
+  /** The reads below, and the Muon fetch inside `withdraw`, count against the gasless signature lifetime. */
+  const gasless = withGaslessAttemptStart(parameters.gasless);
 
   // Use the caller-supplied isolation type when present (the React layer reads it
   // from cache); otherwise fetch the subaccount to resolve it.
@@ -137,6 +151,7 @@ export async function withdrawAuto(
     chainId,
     from: parameters.from,
     simulateBeforeWrite: parameters.simulateBeforeWrite,
-    gasless: parameters.gasless,
+    gasless,
+    ...(parameters.timelock ? { timelock: parameters.timelock } : {}),
   });
 }
