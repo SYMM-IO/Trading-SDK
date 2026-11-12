@@ -29,7 +29,9 @@ export type UseListingConfigReturnType = UseQueryResult<ListingConfig, SymmioReq
  * token, resolved from the config, so it can be mounted unconditionally. The
  * three `*Usdc` figures are `bigint` at `LISTING_VALUE_DECIMALS` (18) — descale
  * with `formatUnits` before rendering as USD. `supportedDepositChains` is the
- * source of truth for a deposit-chain picker; do not hardcode the list.
+ * source of truth for a deposit-chain picker; do not hardcode the list. Each
+ * chain's optional `usdToken` preserves its address and native decimals; do not
+ * apply LISTING_VALUE_DECIMALS to that metadata. Older backends may omit it.
  * Enigma-only; errors are normalized to {@link SymmioRequestError}.
  *
  * @example
