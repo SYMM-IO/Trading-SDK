@@ -1,0 +1,51 @@
+# Legacy solver compatibility
+
+These Enigma-only actions support existing SIWE bearer sessions and legacy conditional-order endpoints. Modern signed operations continue to use [TP/SL](/core/tpsl). The SDK owns HTTP and wire normalization; the consumer owns wallet consent, session storage, expiry, and UI refresh.
+
+## SIWE challenge and exchange
+
+```ts
+import { getSolverSignInMessage, authenticateSolver } from "@symmio/trading-core";
+
+const target = { chainId: 42161, solverId: "enigma" as const };
+const challenge = await getSolverSignInMessage(config, {
+  ...target,
+  owner,
+  account,
+  domain: window.location.hostname,
+  issuedAt: new Date().toISOString(),
+  expirationTime: new Date(Date.now() + 3_600_000).toISOString(),
+});
+const signature = await walletClient.signMessage({ account: owner, message: challenge.message });
+const { accessToken } = await authenticateSolver(config, { ...target, challenge, signature });
+```
+
+`GetSolverSignInMessageParameters` requires `chainId: number`, `owner: Address`, `account: Address`, `domain: string`, and ISO strings `issuedAt` / `expirationTime`. Optional `solverId` chooses the solver; `signal?: AbortSignal` cancels HTTP. It reads the owner's nonce and creates the EIP-4361 message for the selected solver's login URI, naming the subaccount in the statement.
+
+The returned `SolverSignInChallenge` contains `message`, `owner`, `nonce`, `issuedAt`, and `expirationTime`. Sign exactly `message`; exchange it using the same config and solver target. Do not reuse a challenge after switching deployments.
+
+`AuthenticateSolverParameters` takes `challenge`, `signature: string`, optional `signType: string` (for example ERC4337), optional `signal`, and the solver target. The returned `SolverAuthentication` contains `accessToken: string`. Neither action signs, stores credentials, or schedules refresh.
+
+## Authenticated legacy actions
+
+Every action accepts `LegacyOrderParameters`: optional `chainId` / `solverId`, required `accessToken: string`, and optional `signal?: AbortSignal`. Credentials are sent in the Bearer authorization header to the selected solver's configured TP/SL service.
+
+| Action                         | Additional input type and fields                                               | Result                                               |
+| ------------------------------ | ------------------------------------------------------------------------------ | ---------------------------------------------------- |
+| `getLegacyOrderHistory`        | `GetLegacyOrderHistoryParameters`: `account: string`                           | `LegacyOrderHistoryEntry[]`, preserving server order |
+| `createLegacyConditionalOrder` | `CreateLegacyConditionalOrderParameters`: `order: LegacyConditionalOrderInput` | `LegacyConditionalOrder`                             |
+| `cancelLegacyConditionalOrder` | `CancelLegacyConditionalOrderParameters`: `orderId: string`                    | `true` after HTTP success                            |
+| `getLegacyCollateralLocked`    | `GetLegacyCollateralLockedParameters`: `account: string`                       | Exact human-unit decimal string                      |
+
+```ts
+import { getLegacyOrderHistory, getLegacyCollateralLocked } from "@symmio/trading-core";
+const parameters = { chainId: 42161, solverId: "enigma" as const, account, accessToken };
+const history = await getLegacyOrderHistory(config, parameters);
+const collateral = await getLegacyCollateralLocked(config, parameters);
+```
+
+`LegacyConditionalOrderInput` contains `account: string`, optional `vaAddress: string`, `symbolId: number`, `conditionalOrderType: "take_profit" | "stop_loss" | "send_quote"`, `quantity: string`, `triggerPrice: string`, optional `limitPrice: string`, `side: "long" | "short"`, and optional `quoteId: number`. Decimal strings are preserved without floating-point conversion.
+
+`LegacyConditionalOrder` adds `id: string` and `createdAt: number` (Unix seconds). Optional fields are `status` (pending/triggered/cancelled/expired), `executedAt` and `modifyTime` (Unix seconds), `state: string`, `closeStatus: string | null`, `cohQuoteId: string`, `conditionalOrderPrice: number`, `price: number`, and `actionPriceType: string`. `LegacyOrderHistoryEntry` requires terminal `status: "triggered" | "cancelled" | "expired"`.
+
+HTTP failures throw [SymmApiError](/core/concepts/errors), preserving status and response data for application error mapping. Unsupported solver kinds throw before transport. Missing nonce/token responses fail rather than creating a session. No action retries a write, refreshes application caches, or substitutes zero for an unknown collateral value.

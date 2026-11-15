@@ -913,7 +913,14 @@ export {
  * value types (`Notification`, `NotificationType`, `SocketStatus`) from
  * `@symmio/trading-core`.
  */
-export { useNotifications, type UseNotificationsParameters, type UseNotificationsReturnType } from "./websocket";
+export {
+  useNotificationEnvelopes,
+  useNotifications,
+  type UseNotificationEnvelopesParameters,
+  type UseNotificationEnvelopesReturnType,
+  type UseNotificationsParameters,
+  type UseNotificationsReturnType,
+} from "./websocket";
 
 /**
  * Notification search hooks

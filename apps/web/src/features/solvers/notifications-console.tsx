@@ -13,6 +13,7 @@ import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle }
 import { useRef, useState } from "react";
 import type { Address } from "viem";
 import { SubAccountPicker } from "../inspector/subaccount-picker";
+import { NotificationEnvelopesCard } from "./notification-envelopes-card";
 import { SolverTargetSelect, useSolverTargetState } from "./solver-target";
 
 /** Max log rows kept on screen. */
@@ -167,6 +168,7 @@ export function NotificationsConsole() {
           )}
         </CardContent>
       </Card>
+      <NotificationEnvelopesCard />
     </>
   );
 }

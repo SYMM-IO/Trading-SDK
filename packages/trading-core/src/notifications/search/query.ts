@@ -78,8 +78,9 @@ export function searchNotificationsQueryOptions(
       configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: options.query?.enabled ?? true,
-    queryFn: () =>
+    queryFn: (context?: { signal?: AbortSignal }) =>
       searchNotifications(config, {
+        signal: options.signal ?? context?.signal,
         chainId: options.chainId,
         solverId: options.solverId,
         account: options.account,

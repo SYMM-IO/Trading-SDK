@@ -131,3 +131,9 @@ useQuery(
 - [NotificationSearchResult](/core/notifications/notification-search-result) — the per-kind union this returns.
 - [NotificationSearchFilter](/core/notifications/notification-search-filter) — the enigma-only advanced filter shape and its known keys.
 - [watchNotifications](/core/notifications/watch-notifications) — the live stream over the same solver channel.
+
+## Cancellation and pagination compatibility
+
+`SearchNotificationsParameters.signal?: AbortSignal` cancels the request for either solver kind. Query options forward TanStack's signal unless an explicit signal is supplied, without adding cancellation to query identity.
+
+Enigma preserves finite numeric pagination counts, including numeric strings from legacy responses. Missing or malformed counts fall back to the returned row count. A non-array notification payload produces an empty row list; it does not invent notification documents.

@@ -52,6 +52,11 @@ export function getSolverInfoQueryOptions(
       configKey: config.getChainConfigKey(options.chainId),
     }),
     enabled: options.query?.enabled ?? true,
-    queryFn: () => getSolverInfo(config, { chainId: options.chainId, solverId: options.solverId }),
+    queryFn: (context?: { signal?: AbortSignal }) =>
+      getSolverInfo(config, {
+        chainId: options.chainId,
+        solverId: options.solverId,
+        signal: options.signal ?? context?.signal,
+      }),
   };
 }

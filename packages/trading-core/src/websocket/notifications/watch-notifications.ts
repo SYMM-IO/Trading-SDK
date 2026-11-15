@@ -16,7 +16,8 @@ export type { Unwatch } from "./types";
  * dispatch — each protocol's subscribe, parse, and socket-sharing story lives
  * in its adapter:
  *
- * - `enigma`: watchers sharing the same endpoint+account share one socket.
+ * - `enigma`: watchers within one Config/deployment share one socket per endpoint,
+ *   including full-envelope watchers.
  * - `rasa`: watchers multiplex every account onto one socket per endpoint (the
  *   subscribe frame carries the full address list).
  *

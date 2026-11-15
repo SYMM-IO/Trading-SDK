@@ -1143,14 +1143,18 @@ export {
   classifyNotification,
   normalizeNotification,
   parseNotificationFrame,
+  watchNotificationEnvelopes,
   watchNotifications,
   type BuildSubscribeMessageParameters,
   type EnigmaNotificationEnvelope,
+  type EnigmaNotificationFrame,
   type Notification,
+  type NotificationEnvelopeSubscription,
   type RawEnigmaPositionNotification,
   type RawPositionNotification,
   type RawRasaPositionNotification,
   type Unwatch,
+  type WatchNotificationEnvelopesParameters,
   type WatchNotificationsParameters,
 } from "./websocket/notifications";
 export type { SocketStatus } from "./websocket/socket";
@@ -3433,3 +3437,26 @@ export {
   type GetListingSignInMessageOptions,
   type GetListingSignInMessageQueryKey,
 } from "./pools/auth/query";
+
+export {
+  authenticateSolver,
+  getSolverSignInMessage,
+  type AuthenticateSolverParameters,
+  type GetSolverSignInMessageParameters,
+  type SolverAuthentication,
+  type SolverSignInChallenge,
+} from "./solvers/legacy-auth";
+export {
+  cancelLegacyConditionalOrder,
+  createLegacyConditionalOrder,
+  getLegacyCollateralLocked,
+  getLegacyOrderHistory,
+  type CancelLegacyConditionalOrderParameters,
+  type CreateLegacyConditionalOrderParameters,
+  type GetLegacyCollateralLockedParameters,
+  type GetLegacyOrderHistoryParameters,
+  type LegacyConditionalOrder,
+  type LegacyConditionalOrderInput,
+  type LegacyOrderHistoryEntry,
+  type LegacyOrderParameters,
+} from "./solvers/legacy-orders";

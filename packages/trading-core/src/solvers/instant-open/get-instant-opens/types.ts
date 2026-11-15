@@ -40,6 +40,8 @@ interface BaseInstantOpen {
  * plus Enigma's `uuid`.
  */
 export interface EnigmaInstantOpen extends BaseInstantOpen {
+  /** Optional creation timestamp in Unix seconds; no client timestamp is invented when absent. */
+  createTime?: number;
   /** Discriminant: from an Enigma solver. */
   kind: "enigma";
   /** Frontend-provided UUID from the V2 `sendQuote` metadata. Enigma-only. */

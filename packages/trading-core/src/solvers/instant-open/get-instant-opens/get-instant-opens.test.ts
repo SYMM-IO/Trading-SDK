@@ -35,6 +35,24 @@ const config = createConfig({
 });
 
 describe("getInstantOpens", () => {
+  it("forwards the optional application header only for Enigma", async () => {
+    getInstantOpenAccountAddress.mockResolvedValue({ data: [] });
+    await getInstantOpens(config, { partyA: PARTY_A, appName: "LOWCAP", solverId: "enigma" });
+    expect(getInstantOpenAccountAddress).toHaveBeenCalledWith(PARTY_A, {
+      baseURL: SOLVER_URL,
+      headers: { "App-Name": "LOWCAP", "Content-Type": "application/json" },
+    });
+    await expect(
+      getInstantOpens(config, { chainId: 8453, solverId: "rasa", partyA: PARTY_A, appName: "LOWCAP" }),
+    ).rejects.toMatchObject({ code: "UNSUPPORTED_BY_SOLVER" });
+  });
+
+  it("preserves optional server creation time without inventing one", async () => {
+    getInstantOpenAccountAddress.mockResolvedValue({ data: [{ create_time: 1780000000 }, {}] });
+    const result = await getInstantOpens(config, { partyA: PARTY_A, solverId: "enigma" });
+    expect(result[0]?.createTime).toBe(1780000000);
+    expect(result[1]?.createTime).toBeUndefined();
+  });
   beforeEach(() => {
     getInstantOpenAccountAddress.mockReset();
   });

@@ -40,8 +40,9 @@ The returned disposer is idempotent — calling it twice is a no-op. Framework l
 
 `watchNotifications`, `watchTpSlNotifications`, `watchEnigmaPrices` and `watchBinancePrices` (and `watchPrices`, which dispatches to the last two) share connections through a pool scoped to the `Config`. The pool key identifies the endpoint and, for the account streams, the account. When two subscribers ask for the same key, the pool hands them the **same** underlying connection with a fan-out dispatcher — one socket, N subscribers, every frame delivered to each.
 
-Two streams connect differently:
+Some streams multiplex or connect differently:
 
+- On an Enigma solver, `watchNotifications` and `watchNotificationEnvelopes` share one socket per Config/deployment/endpoint. The active account/channel union is sent on connection and changes; delivery is filtered per subscriber.
 - On a Rasa solver, `watchNotifications` keeps one socket per endpoint for every watched account, and re-sends the full account list whenever it changes.
 - The Binance kline and depth watchers behind candles and the orderbook open one connection per call.
 

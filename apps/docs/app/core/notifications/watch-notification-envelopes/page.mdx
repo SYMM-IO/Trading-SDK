@@ -1,0 +1,36 @@
+# watchNotificationEnvelopes
+
+Receive full Enigma notification envelopes when an application needs listing, withdrawal, or other channel metadata beyond normalized position notifications. This API preserves the existing server format; it does not introduce a new wire envelope.
+
+```ts
+import { watchNotificationEnvelopes } from "@symmio/trading-core";
+
+const stop = watchNotificationEnvelopes(config, {
+  chainId: 42161,
+  solverId: "enigma",
+  subscriptions: [{ account, channel }],
+  onEnvelope: (envelope) => console.log(envelope.app_name, envelope.data),
+  onStatusChange: (status) => console.log(status),
+});
+stop();
+```
+
+## Inputs and result
+
+`WatchNotificationEnvelopesParameters` accepts optional `chainId` and `solverId`, a required readonly `subscriptions` array, and required `onEnvelope`. Each `NotificationEnvelopeSubscription` contains an `account: Address` and `channel: string`. Optional `onStatusChange` receives `SocketStatus`; `onError` receives a normalized SDK error. The return value is an idempotent unsubscribe function.
+
+`EnigmaNotificationEnvelope` retains the server document fields, including `app_name`, `address`, `primary_identifier`, `secondary_identifier`, `type`, `create_time`, and the full `data` object. No metadata or nested fields are rewritten. Older frames may omit routing metadata at runtime.
+
+## Ownership and routing
+
+Within the same Config, chain/deployment, and notification endpoint, this watcher and [watchNotifications](/core/notifications/watch-notifications) share one physical connection. Account matching is case insensitive; channel matching is exact. An empty subscription opens no connection. Reconnect sends the current subscription union. Final unsubscribe closes the socket.
+
+Removed subscriptions stop receiving frames immediately. A server that accumulates subscription patterns may retain old patterns until reconnect; the SDK still filters their delivery locally. Frames missing routing metadata are delivered only to subscribers covering every matching active pair, avoiding delivery to a narrower ambiguous subscription. Consumer callback errors are isolated from other subscribers.
+
+Optional `reconnect: ReconnectingSocketReconnectOptions` configures the first connection (attempt limit, delay, maximum delay, and jitter). Later watchers inherit that connection's policy until the final watcher releases it. Omit it for SDK defaults.
+
+This API supports Enigma notification protocol only. It does not replay history, buffer application events, invalidate queries, or implement application confirmation rules. For normalized position events use [watchNotifications](/core/notifications/watch-notifications); for React lifecycle use [useNotificationEnvelopes](/react/notifications#usenotificationenvelopes).
+
+## Legacy unwrapped events
+
+The callback receives `EnigmaNotificationFrame`, a union of `EnigmaNotificationEnvelope` and `RawEnigmaPositionNotification & Record<string, unknown>`. Legacy unwrapped events containing `last_seen_action`, `notification_type`, or `state_type` are forwarded unchanged. Check `data` before reading a nested payload. The SDK never synthesizes an envelope; subscription acknowledgements are ignored.
