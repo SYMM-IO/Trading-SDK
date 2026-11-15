@@ -3,11 +3,20 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mockConfig, TEST_USER } from "../../shared/test/mock-config";
 import {
   cancelLegacyConditionalOrder,
+  cancelLegacyConditionalOrderMutationOptions,
   createLegacyConditionalOrder,
+  createLegacyConditionalOrderMutationOptions,
   getLegacyCollateralLocked,
+  getLegacyCollateralLockedQueryOptions,
   getLegacyOrderHistory,
+  getLegacyOrderHistoryQueryOptions,
 } from "../legacy-orders";
-import { authenticateSolver, getSolverSignInMessage } from "./index";
+import {
+  authenticateSolver,
+  authenticateSolverMutationOptions,
+  getSolverSignInMessage,
+  getSolverSignInMessageMutationOptions,
+} from "./index";
 
 const originalAdapter = axios.defaults.adapter;
 const requests: Array<{ url?: string; baseURL?: string; data: unknown; authorization: unknown; signal: unknown }> = [];
@@ -59,6 +68,31 @@ describe("legacy solver compatibility over the real HTTP boundary", () => {
       sign_type: "ERC4337",
     });
     expect(requests[1]?.baseURL).toBe(requests[0]?.baseURL);
+  });
+
+  it.each([
+    ["2026-11-15T00:00:00Z", "2027-11-15T00:00:00Z"],
+    ["2026-11-15T01:00:00+01:00", "2027-11-15T01:00:00+01:00"],
+  ])("uses identical signed and exchanged ISO timestamps: %s", async (issuedAt, expirationTime) => {
+    data = { nonce: "abcdefgh12345678" };
+    const challenge = await getSolverSignInMessage(config, {
+      ...target,
+      owner: TEST_USER,
+      account: TEST_USER,
+      domain: "example.com",
+      issuedAt,
+      expirationTime,
+    });
+    expect(challenge.issuedAt).toBe(new Date(issuedAt).toISOString());
+    expect(challenge.expirationTime).toBe(new Date(expirationTime).toISOString());
+    expect(challenge.message).toContain("Issued At: " + challenge.issuedAt);
+    expect(challenge.message).toContain("Expiration Time: " + challenge.expirationTime);
+    data = { access_token: "test-token" };
+    await authenticateSolver(config, { ...target, challenge, signature: "test-signature" });
+    expect(requests[1]?.data).toMatchObject({
+      issued_at: challenge.issuedAt,
+      expiration_time: challenge.expirationTime,
+    });
   });
 
   it("preserves history ordering, exact decimals and bearer authorization", async () => {
@@ -146,5 +180,48 @@ describe("legacy solver compatibility over the real HTTP boundary", () => {
     await expect(
       getLegacyOrderHistory(config, { chainId: 8453, solverId: "rasa", account: TEST_USER, accessToken: "expired" }),
     ).rejects.toMatchObject({ code: "UNSUPPORTED_BY_SOLVER" });
+  });
+});
+
+describe("legacy query and mutation lifecycle", () => {
+  it("keeps credentials/signals outside read keys and separates account/deployment scopes", async () => {
+    const signal = new AbortController().signal;
+    for (const factory of [getLegacyOrderHistoryQueryOptions, getLegacyCollateralLockedQueryOptions]) {
+      const inputs = { ...target, account: TEST_USER, accessToken: "test-token" };
+      const options = factory(config, inputs);
+      expect(options.queryKey).toEqual(factory(config, { ...inputs, accessToken: "refreshed", signal }).queryKey);
+      expect(JSON.stringify(options.queryKey)).not.toContain("test-token");
+      expect(options.queryKey).not.toEqual(factory(config, { ...inputs, account: "other" }).queryKey);
+      expect(options.queryKey).not.toEqual(factory(config, { ...inputs, chainId: 8453 }).queryKey);
+      expect(factory(config, { ...inputs, accessToken: "" }).enabled).toBe(false);
+      expect(factory(config, { ...inputs, account: "" }).enabled).toBe(false);
+      expect(factory(config, { ...inputs, query: { enabled: false } }).enabled).toBe(false);
+    }
+    data = [];
+    await getLegacyOrderHistoryQueryOptions(config, {
+      ...target,
+      account: TEST_USER,
+      accessToken: "test-token",
+    }).queryFn({ signal });
+    expect(requests[0]?.signal).toBe(signal);
+    data = { collateral_locked: "0.000000000000000123" };
+    expect(
+      await getLegacyCollateralLockedQueryOptions(config, {
+        ...target,
+        account: TEST_USER,
+        accessToken: "test-token",
+      }).queryFn({ signal }),
+    ).toBe("0.000000000000000123");
+    expect(requests[1]?.signal).toBe(signal);
+  });
+  it("does not automatically retry legacy actions or retain inactive credential mutations", () => {
+    for (const factory of [
+      getSolverSignInMessageMutationOptions,
+      authenticateSolverMutationOptions,
+      createLegacyConditionalOrderMutationOptions,
+      cancelLegacyConditionalOrderMutationOptions,
+    ]) {
+      expect(factory(config)).toMatchObject({ retry: false, gcTime: 0 });
+    }
   });
 });

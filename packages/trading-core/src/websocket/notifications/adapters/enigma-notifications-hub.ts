@@ -18,6 +18,8 @@ interface Hub {
   socket?: ReconnectingSocket;
   subscribers: Set<Subscriber>;
   status: SocketStatus;
+  /** Patterns sent during this connection; a cumulative server can retain them. */
+  requested: Map<string, NotificationEnvelopeSubscription>;
 }
 
 const registries = new WeakMap<Config, Map<string, Hub>>();
@@ -45,6 +47,11 @@ function subscribeFrame(hub: Hub): string {
   });
 }
 
+function sendSubscriptions(hub: Hub): void {
+  for (const [key, subscription] of activeSubscriptions(hub)) hub.requested.set(key, subscription);
+  hub.socket?.send(subscribeFrame(hub));
+}
+
 function reportError(subscriber: Subscriber, error: unknown): void {
   try {
     subscriber.parameters.onError?.(toNotificationsError(error));
@@ -55,6 +62,7 @@ function reportError(subscriber: Subscriber, error: unknown): void {
 
 function notifyStatus(hub: Hub, status: SocketStatus): void {
   hub.status = status;
+  if (status === "connecting") hub.requested.clear();
   for (const subscriber of hub.subscribers) {
     try {
       subscriber.parameters.onStatusChange?.(status);
@@ -93,9 +101,9 @@ function dispatch(hub: Hub, data: unknown): void {
       : typeof inner.app_name === "string"
         ? inner.app_name
         : undefined;
-  // Older frames omit channel metadata. Deliver them only when the active
-  // subscriber covers every matching pair in the active subscription union.
-  const matches = [...activeSubscriptions(hub)].filter(
+  // Missing metadata must also consider patterns a cumulative server retained
+  // after unsubscribe. Otherwise an old account's event can reach a new owner.
+  const matches = [...hub.requested].filter(
     ([, subscription]) =>
       (account === undefined || subscription.account.toLowerCase() === account) &&
       (channel === undefined || subscription.channel === channel),
@@ -135,14 +143,18 @@ export function acquireEnigmaNotificationEnvelopes(
     parameters,
   };
   if (!hub) {
-    hub = { subscribers: new Set([subscriber]), status: "connecting" };
+    hub = { subscribers: new Set([subscriber]), status: "connecting", requested: new Map() };
     registry.set(key, hub);
     const created = hub;
     created.socket = createReconnectingSocket({
       url,
       webSocketConstructor,
       reconnect: parameters.reconnect,
-      getOpenMessages: () => [subscribeFrame(created)],
+      getOpenMessages: () => {
+        // Status callbacks may already have sent patterns on this connection.
+        for (const [key, subscription] of activeSubscriptions(created)) created.requested.set(key, subscription);
+        return [subscribeFrame(created)];
+      },
       onMessage: (data) => dispatch(created, data),
       onStatusChange: (status) => notifyStatus(created, status),
       onError: (error) => {
@@ -152,7 +164,7 @@ export function acquireEnigmaNotificationEnvelopes(
   } else {
     const before = subscribeFrame(hub);
     hub.subscribers.add(subscriber);
-    if (hub.socket?.getStatus() === "open" && before !== subscribeFrame(hub)) hub.socket.send(subscribeFrame(hub));
+    if (hub.socket?.getStatus() === "open" && before !== subscribeFrame(hub)) sendSubscriptions(hub);
   }
   try {
     parameters.onStatusChange?.(hub.status);
@@ -173,7 +185,7 @@ export function acquireEnigmaNotificationEnvelopes(
     } else if (current.socket?.getStatus() === "open" && before !== subscribeFrame(current)) {
       // A cumulative server may retain old patterns until reconnect; local
       // filtering stops removed subscriptions immediately in either protocol variant.
-      current.socket.send(subscribeFrame(current));
+      sendSubscriptions(current);
     }
   };
 }

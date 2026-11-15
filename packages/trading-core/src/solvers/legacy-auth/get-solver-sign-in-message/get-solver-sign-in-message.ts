@@ -30,7 +30,10 @@ export async function getSolverSignInMessage(
   }
   if (typeof nonce !== "string" || nonce.length === 0)
     throw new SymmError("api", "INVALID_SOLVER_NONCE", "Solver returned no nonce.");
-  const { owner, account, issuedAt, expirationTime } = parameters;
+  const { owner, account } = parameters;
+  // The exchanged fields must match the timestamp text covered by the signature.
+  const issuedAt = new Date(parameters.issuedAt).toISOString();
+  const expirationTime = new Date(parameters.expirationTime).toISOString();
   const message = createSiweMessage({
     address: owner,
     chainId: parameters.chainId,

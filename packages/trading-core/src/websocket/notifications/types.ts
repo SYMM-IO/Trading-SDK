@@ -118,14 +118,14 @@ export type RawPositionNotification = RawEnigmaPositionNotification | RawRasaPos
  * Envelope used by the `enigma` endpoint: the notification is nested under
  * `data`, with the SubAccount address hoisted to the top level.
  */
-export interface EnigmaNotificationEnvelope extends NotificationDocument {
-  data: RawEnigmaPositionNotification & Record<string, unknown>;
+export interface EnigmaNotificationEnvelope {
+  data: RawEnigmaPositionNotification;
   address: string;
 }
 
 /** Full wire document, including legacy unwrapped position notifications. No wrapper is synthesized. */
 export type EnigmaNotificationFrame =
-  | EnigmaNotificationEnvelope
+  | (NotificationDocument & { data: RawEnigmaPositionNotification & Record<string, unknown> })
   | (RawEnigmaPositionNotification & Record<string, unknown>);
 
 /** One account/channel pair subscribed through the Enigma notification service. */

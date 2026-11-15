@@ -133,6 +133,62 @@ describe("watchNotificationEnvelopes", () => {
     stopSecond();
   });
 
+  it.each(["account", "channel"] as const)(
+    "does not reroute retained metadata-poor frames after removing a %s",
+    (dimension) => {
+      vi.useFakeTimers();
+      const fake = createFakeWebSocket();
+      const { config } = mockConfig({ webSocketConstructor: fake.WebSocket });
+      const remaining = vi.fn();
+      const stopFirst = watchNotificationEnvelopes(config, {
+        subscriptions: [{ account: TEST_USER, channel }],
+        onEnvelope: vi.fn(),
+      });
+      const other = dimension === "account" ? { account: OTHER, channel } : { account: TEST_USER, channel: "listing" };
+      const stopOther = watchNotificationEnvelopes(config, { subscriptions: [other], onEnvelope: remaining });
+      fake.last().simulateOpen();
+      const frame =
+        dimension === "account"
+          ? { app_name: channel, data: { quote_id: 1 } }
+          : { address: TEST_USER, data: { quote_id: 1 } };
+      stopFirst();
+      fake.last().simulateMessage(frame);
+      expect(remaining).not.toHaveBeenCalled();
+      fake.last().simulateMessage({ address: other.account, app_name: other.channel, data: { quote_id: 2 } });
+      expect(remaining).toHaveBeenCalledTimes(1);
+      fake.last().simulateClose();
+      vi.advanceTimersByTime(11000);
+      fake.last().simulateOpen();
+      fake.last().simulateMessage(frame);
+      expect(remaining).toHaveBeenCalledTimes(2);
+      stopOther();
+    },
+  );
+
+  it("retains patterns sent by reentrant open-status callbacks", () => {
+    const fake = createFakeWebSocket();
+    const { config } = mockConfig({ webSocketConstructor: fake.WebSocket });
+    const onEnvelope = vi.fn();
+    const stop = watchNotificationEnvelopes(config, {
+      subscriptions: [{ account: TEST_USER, channel }],
+      onEnvelope,
+      onStatusChange: (status) => {
+        if (status !== "open") return;
+        const release = watchNotificationEnvelopes(config, {
+          subscriptions: [{ account: OTHER, channel }],
+          onEnvelope: vi.fn(),
+        });
+        release();
+      },
+    });
+    fake.last().simulateOpen();
+    fake.last().simulateMessage({ app_name: channel, data: { quote_id: 3 } });
+    expect(onEnvelope).not.toHaveBeenCalled();
+    fake.last().simulateMessage({ address: TEST_USER, app_name: channel, data: { quote_id: 4 } });
+    expect(onEnvelope).toHaveBeenCalledTimes(1);
+    stop();
+  });
+
   it("does not open a socket for an empty subscription and isolates config instances", () => {
     const fake = createFakeWebSocket();
     const one = mockConfig({ webSocketConstructor: fake.WebSocket }).config;

@@ -3460,3 +3460,24 @@ export {
   type LegacyOrderHistoryEntry,
   type LegacyOrderParameters,
 } from "./solvers/legacy-orders";
+
+export { authenticateSolverMutationOptions } from "./solvers/legacy-auth/authenticate-solver/query";
+export { getSolverSignInMessageMutationOptions } from "./solvers/legacy-auth/get-solver-sign-in-message/query";
+export { cancelLegacyConditionalOrderMutationOptions } from "./solvers/legacy-orders/cancel-legacy-conditional-order/query";
+export { createLegacyConditionalOrderMutationOptions } from "./solvers/legacy-orders/create-legacy-conditional-order/query";
+export {
+  getLegacyCollateralLockedQueryKey,
+  getLegacyCollateralLockedQueryOptions,
+  type GetLegacyCollateralLockedData,
+  type GetLegacyCollateralLockedOptions,
+  type GetLegacyCollateralLockedQueryKey,
+  type GetLegacyCollateralLockedQueryOptions,
+} from "./solvers/legacy-orders/get-legacy-collateral-locked/query";
+export {
+  getLegacyOrderHistoryQueryKey,
+  getLegacyOrderHistoryQueryOptions,
+  type GetLegacyOrderHistoryData,
+  type GetLegacyOrderHistoryOptions,
+  type GetLegacyOrderHistoryQueryKey,
+  type GetLegacyOrderHistoryQueryOptions,
+} from "./solvers/legacy-orders/get-legacy-order-history/query";

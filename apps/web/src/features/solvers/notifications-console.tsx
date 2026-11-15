@@ -35,7 +35,7 @@ interface LogEntry {
  * and watch the live notification stream with a connection-status badge and
  * pause/clear controls. Works for both solver kinds (enigma and rasa) — the
  * selected solver's chain id and id are passed to {@link useNotifications}.
- * Renders two cards — a subscription card and a live-log card.
+ * Renders subscription, normalized live-log and full-envelope cards.
  */
 export function NotificationsConsole() {
   const { target, setTarget } = useSolverTargetState();

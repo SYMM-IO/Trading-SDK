@@ -47,5 +47,5 @@ export type SymmioQueryOptions<
   >
 > & {
   queryKey: queryKey;
-  queryFn: () => Promise<queryFnData>;
+  queryFn: (context?: { signal?: AbortSignal }) => Promise<queryFnData>;
 };

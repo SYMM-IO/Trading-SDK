@@ -22,7 +22,7 @@ const { accessToken } = await authenticateSolver(config, { ...target, challenge,
 
 `GetSolverSignInMessageParameters` requires `chainId: number`, `owner: Address`, `account: Address`, `domain: string`, and ISO strings `issuedAt` / `expirationTime`. Optional `solverId` chooses the solver; `signal?: AbortSignal` cancels HTTP. It reads the owner's nonce and creates the EIP-4361 message for the selected solver's login URI, naming the subaccount in the statement.
 
-The returned `SolverSignInChallenge` contains `message`, `owner`, `nonce`, `issuedAt`, and `expirationTime`. Sign exactly `message`; exchange it using the same config and solver target. Do not reuse a challenge after switching deployments.
+The returned `SolverSignInChallenge` contains `message`, `owner`, `nonce`, `issuedAt`, and `expirationTime`. Timestamps are normalized to UTC ISO strings so login fields exactly match the signed text. Sign exactly `message`; exchange it using the same config and solver target. Do not reuse a challenge after switching deployments.
 
 `AuthenticateSolverParameters` takes `challenge`, `signature: string`, optional `signType: string` (for example ERC4337), optional `signal`, and the solver target. The returned `SolverAuthentication` contains `accessToken: string`. Neither action signs, stores credentials, or schedules refresh.
 
@@ -49,3 +49,24 @@ const collateral = await getLegacyCollateralLocked(config, parameters);
 `LegacyConditionalOrder` adds `id: string` and `createdAt: number` (Unix seconds). Optional fields are `status` (pending/triggered/cancelled/expired), `executedAt` and `modifyTime` (Unix seconds), `state: string`, `closeStatus: string | null`, `cohQuoteId: string`, `conditionalOrderPrice: number`, `price: number`, and `actionPriceType: string`. `LegacyOrderHistoryEntry` requires terminal `status: "triggered" | "cancelled" | "expired"`.
 
 HTTP failures throw [SymmApiError](/core/concepts/errors), preserving status and response data for application error mapping. Unsupported solver kinds throw before transport. Missing nonce/token responses fail rather than creating a session. No action retries a write, refreshes application caches, or substitutes zero for an unknown collateral value.
+
+## Query and mutation options
+
+The matching option factories are exported from core:
+
+| Action                       | Factory                                                |
+| ---------------------------- | ------------------------------------------------------ |
+| getSolverSignInMessage       | getSolverSignInMessageMutationOptions(config)          |
+| authenticateSolver           | authenticateSolverMutationOptions(config)              |
+| createLegacyConditionalOrder | createLegacyConditionalOrderMutationOptions(config)    |
+| cancelLegacyConditionalOrder | cancelLegacyConditionalOrderMutationOptions(config)    |
+| getLegacyOrderHistory        | getLegacyOrderHistoryQueryOptions(config, options)     |
+| getLegacyCollateralLocked    | getLegacyCollateralLockedQueryOptions(config, options) |
+
+Mutation factories expose the action's full parameter type as variables, disable automatic retries, and collect inactive mutation entries immediately. Request state still contains signatures/tokens while observed: do not persist or log mutation state.
+
+Read factories accept the required action inputs plus optional TanStack query controls. They export matching QueryKey functions and Data, Options, QueryKey and QueryOptions types prefixed GetLegacyOrderHistory or GetLegacyCollateralLocked. Keys contain account, chain, solver and configuration identity, never accessToken or signal. Empty account/token values disable automatic fetching. TanStack cancellation reaches HTTP unless the caller provides its own signal.
+
+Refreshing a token does not change read identity. Hosts must clear sensitive cached data on logout/account ownership changes and choose when to refetch after accepted orders; HTTP acceptance alone is not execution confirmation. The SDK does not add a polling interval or automatically invalidate application queries.
+
+Use the [React compatibility hooks](/react/solvers/legacy-compatibility) for hook lifecycle and normalized errors.
