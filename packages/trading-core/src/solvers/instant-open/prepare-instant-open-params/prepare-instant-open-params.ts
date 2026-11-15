@@ -13,11 +13,12 @@ import {
   assertOpenEstimateWithinSlippage,
   assertValidSlippage,
   deriveAutoSlippage,
-  fetchOpenEstimatePrice,
 } from "../shared/open-estimate-guard";
+import { assertUsableOpenReferencePrice } from "../shared/open-price";
 import { resolveInstantOpenSizing, validateInstantOpenBalanceFunding } from "../shared/resolve-instant-open-sizing";
+import { resolveOpenEstimate } from "../shared/resolve-open-estimate";
 import { calculateTradeParams, toWeiBigInt } from "../shared/trade-math";
-import { type InstantOpenMarketData, type PositionType } from "../shared/types";
+import { type InstantOpenEstimateMetadata, type InstantOpenMarketData, type PositionType } from "../shared/types";
 import { resolveFeeRates, resolveLockedParams, resolveMarket, resolveMarkPrice, resolveSolverInfo } from "./resolvers";
 
 /**
@@ -173,11 +174,12 @@ export type PrepareInstantOpenParameters = Compute<
   }
 >;
 
-/** Prepared order parameters plus the effective funding mode. Pass directly to instantOpen. */
-export type PrepareInstantOpenParamsReturnType = InstantOpenParameters & {
-  /** Effective sizing mode, including automatic fallback from a typed initial margin. */
-  fundingMode: "initial-margin" | "full-balance";
-};
+/** Prepared order parameters plus effective funding mode and estimate metadata. Pass directly to instantOpen. */
+export type PrepareInstantOpenParamsReturnType = InstantOpenParameters &
+  InstantOpenEstimateMetadata & {
+    /** Effective sizing mode, including automatic fallback from a typed initial margin. */
+    fundingMode: "initial-margin" | "full-balance";
+  };
 
 /**
  * Resolve every input the {@link InstantOpenParameters} primitive needs from a
@@ -187,6 +189,10 @@ export type PrepareInstantOpenParamsReturnType = InstantOpenParameters & {
  * settlement provision) are **lowcap-only** — a majors (non-lowcap) prepare is
  * unchanged: `slippage` required, no estimate fetch, margin = locks +
  * platform fee.
+ * A technically unavailable lowcap estimate retains the reference mark and
+ * explicit slippage, reserves settlement at the signed price bound in either
+ * funding mode, and returns `openEstimateStatus: "unavailable"`. Solver refusals
+ * and cancellation propagate. The estimate request has no added timeout.
  *
  * Funding is a discriminated choice (see {@link PrepareInstantOpenParameters}):
  * a typed `initialMargin`, or `fund` ({@link FullBalanceFunding}, lowcap only)
@@ -209,7 +215,7 @@ export type PrepareInstantOpenParamsReturnType = InstantOpenParameters & {
  *
  * @param config - SDK configuration used to resolve market and account inputs.
  * @param parameters - Trade intent, optional balance budget, and prefetched inputs.
- * @returns Prepared order parameters and the effective funding mode.
+ * @returns Prepared order parameters, the effective funding mode, and estimate metadata.
  *
  * Steps:
  * 1. Validate the user's `slippage` ({@link assertValidSlippage}). On a
@@ -363,6 +369,7 @@ export async function prepareInstantOpenParams(
         })
       : Promise.resolve({ staticSolverFeeOpen: "0", staticSolverFeeClose: "0" }),
   ]);
+  assertUsableOpenReferencePrice(markPrice);
 
   const calculationInput = {
     markPrice,
@@ -378,40 +385,28 @@ export async function prepareInstantOpenParams(
     partyBmmPercent: lockedParams.partyBmm,
   };
 
-  // Auto slippage: dry-run the mark-sized order (quantity is slippage-
-  // independent) and set the price bound to the estimated fill plus 4%
-  // headroom, re-expressed as a percent off mark. A caller-supplied
-  // `estimatedOpenPrice` short-circuits the fetch; either way the estimate is
-  // reused by the gate and the settlement provision so the solver is asked at
-  // most once.
-  let slippage = parameters.slippage;
-  let expectedFillPrice = isLowcap ? (parameters.estimatedOpenPrice ?? undefined) : undefined;
-  let needsEstimate = isLowcap && parameters.estimatedOpenPrice === undefined;
-  if (slippage === undefined) {
-    const sized = calculateTradeParams({ ...calculationInput, slippage: 0 });
-    if (!sized) {
-      throw new SymmError(
-        "validation",
-        "INVALID_TRADE_PARAMETERS",
-        "Invalid trade parameters: markPrice or initialMargin is zero/NaN.",
-      );
-    }
-    if (needsEstimate) {
-      needsEstimate = false;
-      expectedFillPrice = await fetchOpenEstimatePrice(config, {
-        chainId: parameters.chainId,
-        solverId: parameters.solverId,
-        symbolId: parameters.market.id,
-        positionType: parameters.positionType,
-        quantity: sized.quantity,
-        markPrice,
-      });
-    }
-    slippage = deriveAutoSlippage({ markPrice, expectedFillPrice, positionType: parameters.positionType });
+  // Quantity is mark-sized and independent of slippage. Resolve its estimate
+  // once, then share that exact state with the gate, funding, and caller.
+  const sized = calculateTradeParams({ ...calculationInput, slippage: 0 });
+  if (!sized || toWeiBigInt(sized.quantity) <= 0n) {
+    throw new SymmError("validation", "INVALID_TRADE_PARAMETERS", "Trade parameters must produce a positive quantity.");
   }
+  const estimate = await resolveOpenEstimate(config, {
+    chainId: parameters.chainId,
+    solverId: parameters.solverId,
+    symbolId: parameters.market.id,
+    positionType: parameters.positionType,
+    quantity: sized.quantity,
+    markPrice,
+    isLowcap,
+    estimatedOpenPrice: parameters.estimatedOpenPrice,
+  });
+  const expectedFillPrice = estimate.estimatedOpenPrice ?? undefined;
+  const slippage =
+    parameters.slippage ?? deriveAutoSlippage({ markPrice, expectedFillPrice, positionType: parameters.positionType });
 
   const tradeCalc = calculateTradeParams({ ...calculationInput, slippage });
-  if (!tradeCalc) {
+  if (!tradeCalc || toWeiBigInt(tradeCalc.requestedOpenPrice) <= 0n) {
     throw new SymmError(
       "validation",
       "INVALID_TRADE_PARAMETERS",
@@ -419,24 +414,9 @@ export async function prepareInstantOpenParams(
     );
   }
 
-  // The expected fill price funds the settlement-loss provision and feeds the
-  // slippage gate. Fetch it once here when neither the caller nor the
-  // auto-slippage path supplied it — pass `estimatedOpenPrice` to skip the
-  // round-trip on latency-sensitive submits.
-  if (needsEstimate) {
-    expectedFillPrice = await fetchOpenEstimatePrice(config, {
-      chainId: parameters.chainId,
-      solverId: parameters.solverId,
-      symbolId: parameters.market.id,
-      positionType: parameters.positionType,
-      quantity: tradeCalc.quantity,
-      markPrice,
-    });
-  }
-
   // Dry-run gate: reject early when the expected fill deviates from mark
   // beyond the user's slippage — the solver would reject the quote anyway.
-  // Best-effort: an unavailable estimate skips the gate, never blocks the open.
+  // Technical unavailability skips this gate; explicit solver refusals already propagated.
   if (expectedFillPrice !== undefined) {
     await assertOpenEstimateWithinSlippage(config, {
       chainId: parameters.chainId,
@@ -481,6 +461,7 @@ export async function prepareInstantOpenParams(
   });
 
   return {
+    ...estimate,
     fundingMode,
     chainId: parameters.chainId,
     /**

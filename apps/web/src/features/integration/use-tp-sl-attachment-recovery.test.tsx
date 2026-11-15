@@ -28,7 +28,13 @@ function error(code: string): NonNullable<UseInstantOpenWithTpSlData["tpslError"
   return { name: "SymmioRequestError", kind: "api", code, message: "Handler response", retryAfterMs: null };
 }
 const data: UseInstantOpenWithTpSlData = {
-  instantOpen: { kind: "enigma", success: true, tempQuoteId: "-123" },
+  instantOpen: {
+    kind: "enigma",
+    success: true,
+    tempQuoteId: "-123",
+    openEstimateStatus: "available",
+    estimatedOpenPrice: "100",
+  },
   tpslParameters: parameters,
   tpslError: error("SET_TPSL_REJECTED"),
 };

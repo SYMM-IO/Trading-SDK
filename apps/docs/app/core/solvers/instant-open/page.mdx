@@ -28,6 +28,9 @@ import {
   type PrepareLimitOpenParameters,
   type InstantOpenParameters,
   type InstantOpenReturnType,
+  type InstantOpenAutoReturnType,
+  type InstantOpenEstimateMetadata,
+  type OpenEstimateStatus,
   type PendingInstantOpen,
 } from "@symmio/trading-core";
 ```
@@ -57,7 +60,7 @@ Pure resolver. Takes the minimal UI-shaped inputs (wallet, market, side, margin,
 1. Validate the user's `slippage` — a non-finite value or one outside `[0, 100)` throws `INVALID_SLIPPAGE` before any network work. On a **lowcap (Enigma)** solver `slippage` may be omitted and is auto-derived: the SDK dry-runs the mark-sized order and sets the price bound to the estimated fill price plus 4% headroom (flat 4% off mark when the estimate is unavailable). On majors an omitted `slippage` throws `SLIPPAGE_REQUIRED` — the estimate-driven behavior in steps 4–5 is lowcap-only, and a majors prepare is unchanged from the classic flow (locks + platform fee, no estimate fetch).
 2. Resolve market metadata, mark price, locked params, and fee rates — fetched concurrently, with any caller-supplied field short-circuiting its fetch.
 3. Run `calculateTradeParams` to derive `requestedOpenPrice`, the mark-sized `quantity` (`initialMargin × leverage / markPrice`), `cva`, `lf`, `partyAmm`, `partyBmm`, `notional`.
-4. Dry-run the sized order via `GET /estimated-price`: when the expected fill deviates from mark beyond the slippage tolerance (`|estimated − mark| / mark > slippage/100`), the call rejects with `SLIPPAGE_EXCEEDED` instead of submitting an order the solver would refuse. Best-effort — an unavailable estimate (solver down, non-Enigma) skips the gate. Pass a pre-fetched `estimatedOpenPrice` to skip the round-trip on latency-sensitive submits, or `null` when an estimate was already attempted but unavailable.
+4. Dry-run the sized order via `GET /estimated-price`: when the expected fill deviates from mark beyond the slippage tolerance (`|estimated − mark| / mark > slippage/100`), the call rejects with `SLIPPAGE_EXCEEDED`. Technical unavailability permits the [reference-price fallback](#unavailable-estimate-fallback); a solver refusal or cancellation propagates. Pass a pre-fetched `estimatedOpenPrice` to skip the round-trip, or `null` when an estimate was already attempted but unavailable. The request has no added timeout.
 5. Derive the `addMargin` amount via `calculateMargin`: `locks + platformOpenFee + openSolverFee + staticSolverFeeOpen + expectedSettlementLoss` — the **open-side legs only**. Close fees are **not** funded here; the contract charges them at close from the position (see [Fees at close](/core/solvers/instant-close#fees-at-close)). Lowcap only — the open funds the solver's open fee (`hedgerFeeOpen × leveraged notional`), its flat static **open** fee (a USD amount from [`getSolverInfo`](/core/solvers#getsolverinfo), size-independent) and the open-price settlement (side-aware `max(0, adverse fill − mark) × quantity` vs the dry-run estimate) from the **VA balance**, so the SubAccount → VA transfer must fund every open-side leg. A lowcap **SHORT** additionally funds its locks at `mark × 1.01` (`SHORT_FUNDING_BUFFER_PERCENT`) — the request price is a contract floor, so a fill above it rescales the signed locks up and the prefund needs that headroom. On majors the margin stays `locks + platformFee` at the classic basis.
 6. Convert every value to 18-decimal-wei `bigint`.
 
@@ -75,6 +78,16 @@ const resolved = await prepareInstantOpenParams(config, {
 // `resolved` is now inspectable, hashable, and ready to sign.
 console.log(resolved.order.quantity, resolved.order.price, resolved.margin?.amount);
 ```
+
+### Unavailable-estimate fallback
+
+Preparation always needs a positive, finite reference mark that remains positive in contract units. It uses the supplied `markPrice`, or the price service when omitted. A missing mark produces `RESOLVE_MARK_PRICE_NOT_FOUND`; an unusable resolved mark produces `OPEN_PRICE_UNAVAILABLE`. Preparation rejects before signing or submitting a zero-price order. No historical price or no-shadow diagnostic is substituted automatically.
+
+On lowcap solvers, a network failure, an uncoded HTTP 408/429/5xx response, or an explicit technical error category (`internal`, `unavailable`, `timeout`, `rate_limit`) makes the optional estimate unavailable. A missing, malformed, non-finite, nonpositive or sub-unit estimated price also uses fallback. Other solver error envelopes, including unknown coded refusals in HTTP 200 responses, remain `OPEN_ESTIMATE_REJECTED`. Configuration errors, cancellation and unexpected failures propagate. A valid estimate outside the chosen tolerance remains `SLIPPAGE_EXCEEDED`; it never activates fallback.
+
+When unavailable, the mark remains the sizing reference and the signed price remains `mark × (1 + slippage/100)` for LONG or `mark × (1 − slippage/100)` for SHORT, at the market's price precision. Explicit slippage is unchanged. If omitted, the existing lowcap default is 4%. Preparation and fees reserve settlement against that signed bound in both typed-margin and full-balance modes. The eventual fill remains subject to the solver and contract price checks; fallback does not guarantee execution or an exact fill price. See the [contract execution-price rules](https://github.com/SYMM-IO/perps-core/blob/version_0.8.6/docs/v0.8.6/pages/market-open-fee-execution-price.html).
+
+Show a notice when `openEstimateStatus === "unavailable"`, label the displayed mark as a reference estimate, and retain the user's slippage limit. Pending requests stay pending until the response or cancellation; this flow adds no timeout.
 
 ### Full-balance funding (lowcap)
 
@@ -179,7 +192,7 @@ Disabled markets still support metadata resolution and order preparation. The
 frontend can inspect `isValid` in the market listing and decide whether to offer
 order submission.
 
-For both preparation and fee preview, `estimatedOpenPrice` accepts a decimal string, `null` (explicitly unavailable; skip the fetch), or `undefined`/omission (fetch if needed). An unavailable estimate uses the existing fallback: auto slippage uses 4%, the slippage gate is skipped, and full-balance sizing provisions settlement at the price bound. Pass the **same** `estimatedOpenPrice` to preview and submission, preserving `null`. With automatic or explicit full-balance sizing, settlement affects the funding decision and final quantity as well as `margin.amount`. Keep the balance, mark price, fee inputs, and market metadata consistent too. In React, [`usePrepareInstantOpenParams`](../../../react/solvers/instant-open#useprepareinstantopenparams) wraps this and returns the estimate it used for exactly that.
+For both preparation and fee preview, `estimatedOpenPrice` accepts a decimal string, `null` (explicitly unavailable; skip the fetch), or `undefined`/omission (fetch if needed). A technically unavailable estimate uses [reference-price fallback](#unavailable-estimate-fallback): omitted slippage uses 4%, explicit slippage stays unchanged, the estimate gate is skipped, and both funding modes provision settlement at the signed price bound. Pass the **same** `estimatedOpenPrice` to preview and submission, preserving `null`. With automatic or explicit full-balance sizing, settlement affects the funding decision and final quantity as well as `margin.amount`. Keep the balance, mark price, fee inputs, and market metadata consistent too. In React, [`usePrepareInstantOpenParams`](../../../react/solvers/instant-open#useprepareinstantopenparams) wraps this and returns the estimate it used for exactly that.
 
 ```ts
 import { prepareInstantOpenParamsQueryOptions, PositionType } from "@symmio/trading-core";
@@ -265,12 +278,36 @@ Required = inputs only the caller can know (wallet, session key, trade intent). 
 
 ### Returns
 
-`PrepareInstantOpenParamsReturnType` — the full `InstantOpenParameters` bag plus `fundingMode: "initial-margin" | "full-balance"`. Pass it directly to `instantOpen`. The mode reports the effective sizing, including automatic fallback; it is preview metadata, not a signed order field.
+`PrepareInstantOpenParamsReturnType` — the full `InstantOpenParameters` bag plus `fundingMode: "initial-margin" | "full-balance"` and `InstantOpenEstimateMetadata`. Pass it directly to `instantOpen`. These additional fields describe preparation; they are not signed order fields.
 
 `PrepareInstantOpenParamsData` uses this same return type for query consumers. Fee results (`BaseInstantOpenFees` and its solver variants) also expose `fundingMode`.
 
+#### `OpenEstimateStatus` and `InstantOpenEstimateMetadata`
+
+```ts
+type OpenEstimateStatus = "available" | "unavailable" | "unsupported";
+
+interface InstantOpenEstimateMetadata {
+  openEstimateStatus: OpenEstimateStatus;
+  estimatedOpenPrice: string | null;
+}
+
+type InstantOpenAutoReturnType = InstantOpenReturnType & InstantOpenEstimateMetadata;
+```
+
+| Field                | Meaning                                                                                                                                                         |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `openEstimateStatus` | `available`: usable solver estimate; `unavailable`: lowcap reference-price fallback; `unsupported`: solver has no open estimate (majors behavior is unchanged). |
+| `estimatedOpenPrice` | Exact solver fill estimate, or `null` when unavailable/unsupported. This field never substitutes the mark.                                                      |
+
+Preparation, all fee-result variants, and `instantOpenAuto` return this metadata. `instantOpenAuto` preserves the metadata from its single preparation alongside the accepted submission result. The lower-level `instantOpen` and prepared-request submit functions retain their existing return shape; keep the metadata from preparation when using those primitives. Prefer `InstantOpenAutoReturnType` for automatic submission results.
+
 ### Errors
 
+- `OPEN_PRICE_UNAVAILABLE` — reference price is malformed, non-finite, nonpositive or unusable in contract units.
+- `OPEN_ESTIMATE_REJECTED` — solver refused the estimate; fallback is prohibited.
+- `ESTIMATED_PRICE_CANCELLED` — open estimate was cancelled; fallback is prohibited.
+- `SLIPPAGE_EXCEEDED` — a valid estimate exceeds the selected tolerance.
 - `RESOLVE_MARKET_NOT_FOUND` — solver has no market for that id.
 - `RESOLVE_MARKET_METADATA_INCOMPLETE` — market response missing precision fields.
 - `RESOLVE_MARK_PRICE_NOT_FOUND` — price service returned no tick for the symbol.

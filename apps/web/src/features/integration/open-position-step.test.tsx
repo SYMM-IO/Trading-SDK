@@ -110,7 +110,13 @@ beforeEach(() => {
   mock.timelock = { ready: true, unsupported: true, policy: { data: undefined } };
   mock.prepared = { estimatedOpenPrice: undefined, estimatedOpenPriceWithoutShadow: undefined };
   mock.nextData = {
-    instantOpen: { kind: "enigma", success: true, tempQuoteId: "-123" },
+    instantOpen: {
+      kind: "enigma",
+      success: true,
+      tempQuoteId: "-123",
+      openEstimateStatus: "available",
+      estimatedOpenPrice: "100",
+    },
     tpslParameters: parameters,
     tpslError: {
       name: "SymmioRequestError",

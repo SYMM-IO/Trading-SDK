@@ -1,6 +1,6 @@
 "use client";
 
-import type { EstimatedPriceEntry, SolverId } from "@symmio/trading-core";
+import type { EstimatedPriceEntry, OpenEstimateStatus, SolverId } from "@symmio/trading-core";
 import {
   calculatePriceImpact,
   PositionType,
@@ -28,7 +28,7 @@ interface Props {
   /** The market's `price_precision` — decimals the estimate is shown at. */
   pricePrecision: number;
   /** Paired values from open preparation; disables this component's independent estimate read. */
-  preparedEstimate?: { price: string | null | undefined; priceWithoutShadow?: string };
+  preparedEstimate?: { price: string | null | undefined; priceWithoutShadow?: string; status?: OpenEstimateStatus };
   idPrefix: string;
 }
 
@@ -77,6 +77,7 @@ export function EstimatedPricePreview({
   const estimated =
     preparedEstimate !== undefined ? preparedEstimate.price : isUpdating ? undefined : query.data?.estimatedPrice;
   const withoutShadow = preparedEstimate?.priceWithoutShadow;
+  const usesFallback = entry === "open" && preparedEstimate?.status === "unavailable" && Number(markPrice) > 0;
   const showWithoutShadow =
     !isUpdating &&
     Number(estimated) > 0 &&
@@ -94,10 +95,14 @@ export function EstimatedPricePreview({
       className="border-border/60 bg-muted/20 rounded-lg border px-3 py-2 text-sm"
     >
       <div className="flex items-center justify-between">
-        <span className="text-muted-foreground text-xs">Estimated {entry} price</span>
+        <span className="text-muted-foreground text-xs">
+          {usesFallback ? "Reference price (estimate)" : `Estimated ${entry} price`}
+        </span>
         <span className="flex items-baseline gap-2 font-mono tabular-nums">
           {isUpdating ? (
             <Spinner className="size-4" />
+          ) : usesFallback ? (
+            <>${formatWithCommas(markPrice!, { fixedDecimals: pricePrecision })}</>
           ) : estimated && estimated !== "0" ? (
             <>
               ${formatWithCommas(estimated, { fixedDecimals: pricePrecision })}
@@ -121,6 +126,12 @@ export function EstimatedPricePreview({
           )}
         </span>
       </div>
+      {usesFallback ? (
+        <p role="status" className="text-muted-foreground mt-2 text-xs">
+          Execution estimate unavailable. Using the reference market price; the execution price is not guaranteed. Your
+          slippage limit still applies.
+        </p>
+      ) : null}
       {showWithoutShadow ? (
         <div
           data-testid={`${idPrefix}-estimated-price-without-shadow`}

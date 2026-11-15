@@ -14,15 +14,18 @@ import {
   resolveMarkPrice,
   resolveSolverInfo,
 } from "../prepare-instant-open-params/resolvers";
-import { assertValidSlippage, deriveAutoSlippage, fetchOpenEstimatePrice } from "../shared/open-estimate-guard";
+import { assertValidSlippage, deriveAutoSlippage } from "../shared/open-estimate-guard";
+import { assertUsableOpenReferencePrice } from "../shared/open-price";
 import { resolveInstantOpenSizing, validateInstantOpenBalanceFunding } from "../shared/resolve-instant-open-sizing";
+import { resolveOpenEstimate } from "../shared/resolve-open-estimate";
 import {
   calculateExpectedSettlementLoss,
   calculateSolverFees,
   calculateTradeParams,
   computePlatformFeeLegs,
+  toWeiBigInt,
 } from "../shared/trade-math";
-import type { InstantOpenMarketData, PositionType } from "../shared/types";
+import type { InstantOpenEstimateMetadata, InstantOpenMarketData, PositionType } from "../shared/types";
 
 /**
  * Fields shared by every {@link GetInstantOpenFeesParameters} funding mode.
@@ -114,7 +117,7 @@ export type GetInstantOpenFeesParameters = Compute<
  * close from the position — preview them in the close flow with
  * `getInstantCloseFees`, where the notional and holding time are real.
  */
-export interface BaseInstantOpenFees {
+export interface BaseInstantOpenFees extends InstantOpenEstimateMetadata {
   /** Effective sizing mode, including automatic fallback from a typed initial margin. */
   fundingMode: "initial-margin" | "full-balance";
   /** Platform open fee: `getFeeForUser.openFee × notional / 1e18` (decimal string). */
@@ -186,7 +189,8 @@ export type GetInstantOpenFeesReturnType = EnigmaInstantOpenFees | RasaInstantOp
  *   leveraged notional).
  * - **Lowcap (Enigma) only**: `openSolverFee` (`hedgerFeeOpen × notional`),
  *   `staticSolverFeeOpen` (flat USD from the solver's `/info` config,
- *   size-independent) and `expectedSettlementLoss` (dry-run estimate vs mark)
+ *   size-independent) and `expectedSettlementLoss` (dry-run estimate vs mark,
+ *   or the signed slippage bound vs mark when the estimate is unavailable)
  *   — the legs the solver charges from the VA balance.
  *
  * Close fees (platform close, solver close, static close) are **not** part of
@@ -329,6 +333,7 @@ export async function getInstantOpenFees(
         })
       : Promise.resolve({ staticSolverFeeOpen: "0", staticSolverFeeClose: "0" }),
   ]);
+  assertUsableOpenReferencePrice(markPrice);
 
   const calculationInput = {
     markPrice,
@@ -348,50 +353,31 @@ export async function getInstantOpenFees(
       : {}),
   };
 
-  let slippage = parameters.slippage;
-  let expectedFillPrice = isLowcap ? (parameters.estimatedOpenPrice ?? undefined) : undefined;
-  let needsEstimate = isLowcap && parameters.estimatedOpenPrice === undefined;
-  if (slippage === undefined) {
-    const sized = calculateTradeParams({ ...calculationInput, slippage: 0 });
-    if (!sized) {
-      throw new SymmError(
-        "validation",
-        "INVALID_TRADE_PARAMETERS",
-        "Invalid trade parameters: markPrice or initialMargin is zero/NaN.",
-      );
-    }
-    if (needsEstimate) {
-      needsEstimate = false;
-      expectedFillPrice = await fetchOpenEstimatePrice(config, {
-        chainId: parameters.chainId,
-        solverId: parameters.solverId,
-        symbolId: parameters.market.id,
-        positionType: parameters.positionType,
-        quantity: sized.quantity,
-        markPrice,
-      });
-    }
-    slippage = deriveAutoSlippage({ markPrice, expectedFillPrice, positionType: parameters.positionType });
+  const sized = calculateTradeParams({ ...calculationInput, slippage: 0 });
+  if (!sized || toWeiBigInt(sized.quantity) <= 0n) {
+    throw new SymmError("validation", "INVALID_TRADE_PARAMETERS", "Trade parameters must produce a positive quantity.");
   }
+  const estimate = await resolveOpenEstimate(config, {
+    chainId: parameters.chainId,
+    solverId: parameters.solverId,
+    symbolId: parameters.market.id,
+    positionType: parameters.positionType,
+    quantity: sized.quantity,
+    markPrice,
+    isLowcap,
+    estimatedOpenPrice: parameters.estimatedOpenPrice,
+  });
+  const expectedFillPrice = estimate.estimatedOpenPrice ?? undefined;
+  const slippage =
+    parameters.slippage ?? deriveAutoSlippage({ markPrice, expectedFillPrice, positionType: parameters.positionType });
 
   const tradeCalc = calculateTradeParams({ ...calculationInput, slippage });
-  if (!tradeCalc) {
+  if (!tradeCalc || toWeiBigInt(tradeCalc.requestedOpenPrice) <= 0n) {
     throw new SymmError(
       "validation",
       "INVALID_TRADE_PARAMETERS",
       "Invalid trade parameters: markPrice or initialMargin is zero/NaN.",
     );
-  }
-
-  if (needsEstimate) {
-    expectedFillPrice = await fetchOpenEstimatePrice(config, {
-      chainId: parameters.chainId,
-      solverId: parameters.solverId,
-      symbolId: parameters.market.id,
-      positionType: parameters.positionType,
-      quantity: tradeCalc.quantity,
-      markPrice,
-    });
   }
 
   // Full-balance preview: run the exact sizing the open runs — probe, linear
@@ -404,9 +390,7 @@ export async function getInstantOpenFees(
       fund: parameters.fund,
       availableBalance: parameters.availableBalance,
       calculationInput: { ...calculationInput, slippage },
-      // Preserve the legacy zero sentinel for callers; prefer null for unavailable estimates.
-      // Full-balance sizing provisions settlement at the price bound when no estimate exists.
-      expectedFillPrice: expectedFillPrice === "0" ? undefined : expectedFillPrice,
+      expectedFillPrice,
       feeRates,
       hedgerFeeOpen: market.hedgerFeeOpen,
       staticSolverFeeOpen: staticFees.staticSolverFeeOpen,
@@ -420,6 +404,7 @@ export async function getInstantOpenFees(
       },
     });
     return {
+      ...estimate,
       fundingMode,
       kind: "enigma",
       platformOpenFee: costs.platformOpenFee,
@@ -440,6 +425,7 @@ export async function getInstantOpenFees(
 
   if (!isLowcap) {
     return {
+      ...estimate,
       fundingMode: "initial-margin",
       kind: "rasa",
       platformOpenFee,
@@ -458,11 +444,12 @@ export async function getInstantOpenFees(
   const expectedSettlementLoss = calculateExpectedSettlementLoss({
     positionType: parameters.positionType,
     markPrice,
-    expectedFillPrice,
+    expectedFillPrice: expectedFillPrice ?? tradeCalc.requestedOpenPrice,
     quantity: tradeCalc.quantity,
   });
 
   return {
+    ...estimate,
     fundingMode: "initial-margin",
     kind: "enigma",
     platformOpenFee,

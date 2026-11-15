@@ -1,10 +1,11 @@
-import { isAxiosError } from "axios";
+import { isAxiosError, isCancel } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { PositionType } from "../../symmio-contracts/symmio/types";
 import { assertSolverKind } from "../assert-solver-kind";
 import { getEstimatedPrice as requestEstimatedPrice } from "../types/generated/enigma-solver";
+import { classifyOpenEstimateError, hasOpenEstimateError } from "./classify-open-estimate-error";
 import { toEstimatedPrice } from "./to-estimated-price";
 
 /** Whether a price estimate is for **opening** or **closing** a position. */
@@ -60,8 +61,13 @@ function positionTypeToWire(positionType: PositionType): string {
  * @param config - The SDK config.
  * @param parameters - Market, quantity, side, entry (open/close), and request price.
  * @returns The estimated execution price.
- * @throws {SymmApiError} when the solver request fails.
- * @throws {SymmError} when the chain is unsupported.
+ * Open requests distinguish technical unavailability (`OPEN_ESTIMATE_UNAVAILABLE`)
+ * from solver refusals (`OPEN_ESTIMATE_REJECTED`), including HTTP 200 error
+ * envelopes. No timeout is imposed; an aborted open rejects with
+ * `ESTIMATED_PRICE_CANCELLED` rather than permitting price fallback.
+ *
+ * @throws {SymmApiError} when the solver request fails or refuses an open estimate.
+ * @throws {SymmError} when the chain is unsupported or an open estimate is cancelled.
  *
  * @example
  * ```ts
@@ -80,7 +86,11 @@ export async function getEstimatedPrice(
 ): Promise<GetEstimatedPriceReturnType> {
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   assertSolverKind(solver, "enigma", "getEstimatedPrice");
+
   try {
+    if (parameters.entry === "open" && parameters.signal?.aborted)
+      throw new SymmError("api", "ESTIMATED_PRICE_CANCELLED", "Price estimate cancelled.");
+
     const response = await requestEstimatedPrice(
       {
         symbol_id: parameters.symbolId,
@@ -91,11 +101,46 @@ export async function getEstimatedPrice(
       },
       { baseURL: solver.url, signal: parameters.signal },
     );
-    return toEstimatedPrice(response.data);
+
+    if (parameters.entry === "open" && parameters.signal?.aborted)
+      throw new SymmError("api", "ESTIMATED_PRICE_CANCELLED", "Price estimate cancelled.");
+
+    if (parameters.entry === "open" && hasOpenEstimateError(response.data)) {
+      const code = classifyOpenEstimateError({ status: response.status ?? 200, responseData: response.data });
+      throw new SymmApiError({
+        code,
+        message:
+          code === "OPEN_ESTIMATE_UNAVAILABLE"
+            ? "The solver could not provide an open estimate."
+            : "The solver refused the open estimate.",
+        status: response.status ?? 200,
+        statusText: response.statusText ?? "OK",
+        responseData: response.data,
+        url: `${solver.url}/estimated-price`,
+        method: "GET",
+      });
+    }
+    return toEstimatedPrice(
+      parameters.entry === "open" && (!response.data || typeof response.data !== "object") ? {} : response.data,
+    );
   } catch (err) {
     if (err instanceof SymmError) throw err;
+    if (
+      parameters.entry === "open" &&
+      (isCancel(err) || (isAxiosError(err) && err.code === "ERR_CANCELED") || parameters.signal?.aborted)
+    ) {
+      throw new SymmError("api", "ESTIMATED_PRICE_CANCELLED", "Price estimate cancelled.", { cause: err });
+    }
     if (isAxiosError(err)) {
-      throw SymmApiError.fromAxios(err, { code: "FETCH_ESTIMATED_PRICE_FAILED", baseURL: solver.url });
+      const code =
+        parameters.entry === "open"
+          ? classifyOpenEstimateError({
+              status: err.response?.status ?? 0,
+              responseData: err.response?.data,
+              transportCode: err.code,
+            })
+          : "FETCH_ESTIMATED_PRICE_FAILED";
+      throw SymmApiError.fromAxios(err, { code, baseURL: solver.url });
     }
     throw new SymmError(
       "api",
