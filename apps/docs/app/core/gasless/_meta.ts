@@ -19,6 +19,8 @@ export default {
   "resubmit-gasless-request": "resubmitGaslessRequest",
   "-- fees": { type: "separator", title: "Fees & allowance" },
   "get-gasless-batch-fee-quote": "getGaslessBatchFeeQuote",
+  "get-gasless-batch-funding": "getGaslessBatchFunding",
+  "get-gasless-margin-funding": "getGaslessMarginFunding",
   "get-gasless-fee-quote": "getGaslessFeeQuote",
   "get-operational-fee-allowance": "getOperationalFeeAllowance",
   "approve-operational-fee": "approveOperationalFee",

@@ -1,0 +1,75 @@
+import { Callout } from "nextra/components";
+
+# getGaslessMarginFunding
+
+Preview whether an add/remove-margin operation leaves its quoted fee payer enough Core collateral, and obtain an applicable fee-safe add bound. The SDK owns the calculation; the consumer owns amount selection, messages, deposits, wallet payment and pending-operation recovery.
+
+```ts
+import { getGaslessMarginFunding } from "@symmio/trading-core";
+
+const funding = await getGaslessMarginFunding(config, {
+  chainId,
+  account: parentAccount,
+  parentAccount,
+  virtualAccount,
+  direction: "add",
+  amount18,
+  calls: [{ functionName: "addMargin", args: [virtualAccount, amount18] }],
+});
+
+funding.hasSufficientBalance;
+funding.payers;
+funding.maxAddAmount18; // bigint or null; never silently replace the user's amount
+```
+
+## Parameters
+
+`GetGaslessMarginFundingParameters` includes:
+
+| Field            | Type                          | Meaning                                                                                             |
+| ---------------- | ----------------------------- | --------------------------------------------------------------------------------------------------- |
+| `account`        | `Address`                     | Required actual relay account. For a protected operation this may be the VA rather than the parent. |
+| `calls`          | `readonly GaslessBatchCall[]` | Required exact batch, including the real timelock wrapper when applicable. Quoted unchanged.        |
+| `parentAccount`  | `Address`                     | Required actual parent subaccount of the VA.                                                        |
+| `virtualAccount` | `Address`                     | Required VA whose margin changes; must differ from the parent.                                      |
+| `direction`      | `"add" \| "remove"`           | Required direction of the margin movement.                                                          |
+| `amount18`       | `bigint`                      | Required positive amount, in internal 18-decimal Core units.                                        |
+| `chainId`        | supported chain ID            | Optional target chain; defaults to config.                                                          |
+
+The parent, VA, direction and amount must match the supplied calls. This helper does not derive or validate their relationship by decoding arbitrary calldata or querying VA ownership. It models one margin transfer only. For a batch with additional Core balance movements, use [`getGaslessBatchFunding`](/core/gasless/get-gasless-batch-funding) and supply all movements.
+
+## Calculation and result
+
+Adding margin subtracts `amount18` from the parent and adds it to the VA. Removing margin reverses those movements. Each quoted payer is then checked independently through `getGaslessBatchFunding`; the original quote is not modified.
+
+The result is `Promise<GaslessMarginFunding>` (`GetGaslessMarginFundingReturnType`): all [batch funding fields](/core/gasless/get-gasless-batch-funding#returns), plus `maxAddAmount18: bigint | null`.
+
+When adding margin and the **parent** has a fee shortfall:
+
+```text
+maxAddAmount18 = max(0, min(parentFreeBalance, parentFreePlusAllocatedBalance - parentQuotedDebit))
+```
+
+Otherwise the bound is `null`, including removals, VA-only shortfalls and already-covered operations. It is not a removal limit or a replacement for trading-risk/margin validation. Any other payer's shortfall still applies, and changing the amount requires a new quote.
+
+For a parent with 100 units free, no allocated funds and a quoted 0.05-unit fee, adding all 100 leaves no fee funding. The returned add bound is 99.95. If allocated funds already cover the fee, the SDK does not blindly subtract the fee from free funds.
+
+<Callout type="warning">
+  The quote can change fee or payer during execution. This is a conservative projection, not a guarantee. Pass the
+  actual protected calls for a protected operation; a plain-call preview is not its final execution quote. The relayer's
+  simulation remains authoritative.
+</Callout>
+
+## Errors and safe submission
+
+`GASLESS_MARGIN_FUNDING_INVALID` rejects a nonpositive amount, identical parent/VA, or a direction other than add/remove. Batch-funding errors, quota refusal and failed reads propagate unchanged. A quota error is not a balance shortfall.
+
+This is a read, not an automatic relay guard. Existing writes and relay defaults remain unchanged. After pending SDK/legacy operations are reconciled and the final calls are prepared, read funding fresh before a **new** relay signature/POST. Stop on a shortfall or unavailable check; ask the user about recovery rather than silently changing amount or payment mode. Never replay an uncertain prior operation because its new fee preview fails.
+
+## Query and React integration
+
+`getGaslessMarginFundingQueryOptions(config, options)` accepts all required action inputs plus `query` overrides. It is stale immediately by default. `getGaslessMarginFundingQueryKey(partialOptions)` includes config identity, chain, relay account, encoded calls, parent, VA, direction and amount; changing any of those isolates the preview.
+
+The exported query types are `GetGaslessMarginFundingOptions`, `GetGaslessMarginFundingData`, `GetGaslessMarginFundingQueryKey` and `GetGaslessMarginFundingQueryOptions`.
+
+Use [`useGaslessMarginFunding`](/react/gasless#usegaslessmarginfunding) for React display state. The hook does no financial arithmetic, signing, polling or automatic amount adjustment. Consumers should refresh displayed previews after confirmed balance changes and must check fresh at submission.

@@ -55,6 +55,39 @@ const supported = useSupportsGaslessService();
 if (!supported) return null;
 ```
 
+## Funding previews
+
+### `useGaslessBatchFunding`
+
+Read per-payer funding for an exact batch and explicit projected Core balance movements. Parameters are `GetGaslessBatchFundingOptions` plus optional `config`; the result is a TanStack query of `GaslessBatchFunding` with normalized `SymmioRequestError` failures. All financial calculations live in the [core action](/core/gasless/get-gasless-batch-funding).
+
+```tsx
+const funding = useGaslessBatchFunding({ account, calls, balanceChanges });
+```
+
+### `useGaslessMarginFunding`
+
+Read fee coverage and an applicable fee-safe add bound for one add/remove-margin action. Parameters are `GetGaslessMarginFundingOptions` plus optional `config`; the query returns `GaslessMarginFunding`. See the [core API](/core/gasless/get-gasless-margin-funding) for required inputs, units, limits and errors.
+
+```tsx
+const funding = useGaslessMarginFunding({
+  account: parentAccount,
+  parentAccount,
+  virtualAccount,
+  direction: "add",
+  amount18,
+  calls: [{ functionName: "addMargin", args: [virtualAccount, amount18] }],
+  query: { enabled: false },
+});
+// An explicit preview button can call funding.refetch(). No transaction is sent.
+```
+
+Both hooks use the explicit `chainId` when supplied, otherwise the connected chain, and the existing SDK provider/config. They expose loading, error, data and `refetch` state without signing, polling, debouncing or changing the amount. Use `query.enabled` to gate incomplete forms or request previews only on demand. All required action inputs remain required even for disabled queries.
+
+Keys include the batch and projection inputs; changed amounts/accounts select a different preview. Results are stale immediately by default, but that does not automatically refresh them after every transaction. Refresh displayed results after confirmed balance changes. Do not show old data as current coverage while a refresh is pending or failed. `GASLESS_FREE_QUOTA_EXHAUSTED` is an error, not zero funding.
+
+A cached result is never a submission guard. Reconcile pending operations and perform a fresh check for the final calls before a new relay. The hooks do not alter existing write behavior. Public hook types are `UseGaslessBatchFundingParameters`, `UseGaslessBatchFundingReturnType`, `UseGaslessMarginFundingParameters` and `UseGaslessMarginFundingReturnType`.
+
 ## Request lifecycle
 
 ### `useGaslessRequest`

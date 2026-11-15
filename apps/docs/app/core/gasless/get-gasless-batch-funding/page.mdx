@@ -1,0 +1,80 @@
+import { Callout } from "nextra/components";
+
+# getGaslessBatchFunding
+
+Check whether each quoted payer can cover a batch's fees **after known Core balance movements**. Unlike [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote), this read combines the fee quote with each payer's free and allocated balances. It never signs or submits.
+
+```ts
+import { getGaslessBatchFunding } from "@symmio/trading-core";
+
+const funding = await getGaslessBatchFunding(config, {
+  chainId,
+  account: parentAccount,
+  calls: [{ functionName: "addMargin", args: [virtualAccount, amount18] }],
+  balanceChanges: [
+    { account: parentAccount, delta18: -amount18 },
+    { account: virtualAccount, delta18: amount18 },
+  ],
+});
+
+const shortfalls = funding.payers.filter((payer) => payer.shortfall18 > 0n);
+```
+
+For one add/remove-margin action, prefer [`getGaslessMarginFunding`](/core/gasless/get-gasless-margin-funding), which builds those movements and calculates an applicable fee-safe add bound.
+
+## Parameters
+
+`GetGaslessBatchFundingParameters` includes:
+
+| Field            | Type                                     | Meaning                                                                                                                                                                                                           |
+| ---------------- | ---------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `account`        | `Address`                                | Required relay account, exactly as supplied to `relayGaslessBatch`.                                                                                                                                               |
+| `calls`          | `readonly GaslessBatchCall[]`            | Required exact batch, including any timelock wrappers.                                                                                                                                                            |
+| `chainId`        | supported chain ID                       | Optional; defaults to the SDK config's chain.                                                                                                                                                                     |
+| `balanceChanges` | `readonly GaslessFundingBalanceChange[]` | Optional known changes to Core balances before fee collection. Each row has `account: Address` and signed `delta18: bigint`. Repeated accounts are summed case-insensitively. Omission means no projected change. |
+
+The SDK does **not** infer arbitrary transfers from calldata. The caller owns the correctness and completeness of the supplied projections. Wallet token amounts must be converted to Core 18-decimal units before use; these are not raw collateral-token balances.
+
+## Returns
+
+`Promise<GaslessBatchFunding>` (`GetGaslessBatchFundingReturnType`):
+
+- `quote: GaslessFeeQuote`: the unmodified batch quote.
+- `hasSufficientBalance: boolean`: true only when every positively charged payer covers its own quoted debit.
+- `payers: readonly GaslessPayerFunding[]`: one row per positively charged payer. Free operations create no row and need no balance reads.
+
+Every payer row contains:
+
+| Field                | Meaning                                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `payer`              | Actual quoted payer, normalized to lowercase.                                                    |
+| `debit18`            | Sum of operational, deposit, wallet-creation and native-top-up fees, plus native gas collateral. |
+| `freeBalance18`      | Current free Core balance.                                                                       |
+| `balanceBefore18`    | Current free plus allocated Core balance.                                                        |
+| `projectedBalance18` | `max(0, balanceBefore18 + supplied movements)`.                                                  |
+| `shortfall18`        | `max(0, debit18 - projectedBalance18)`.                                                          |
+
+All amounts are `bigint` in internal 18-decimal units. Balances are never pooled across payers. The comparison follows the Core fee balance source, not a trading-risk calculation or withdrawal limit.
+
+<Callout type="warning">
+  This is a projection, not a transaction simulation. The quote's payer, allowance, fees and balances can change during
+  execution. A projected shortfall may be conservative when execution would select another payer; a sufficient result
+  does not guarantee success. The relayer's simulation remains authoritative.
+</Callout>
+
+## Errors and execution boundaries
+
+- `GASLESS_FUNDING_SOURCE_UNSUPPORTED`: a payment uses a source other than `SYMMIO_ACCOUNT`. Wallet-collateral funding is not covered by this helper.
+- `GASLESS_FUNDING_QUOTE_INCONSISTENT`: payment debits are negative or do not sum to `quote.totalDebit18`.
+- Existing quote errors, including `GASLESS_FREE_QUOTA_EXHAUSTED`, propagate. Exhausted free quota is not a zero-fee quote and a deposit may not fix it.
+- RPC/balance errors propagate unchanged. Unavailable funds are never reported as zero or sufficient.
+
+This action is opt-in. Existing relay behavior, signing, fallback and `execution.preflightFee` defaults are unchanged. Before starting a **new** request, reconcile earlier pending operations first, then perform a fresh funding read for the final calls. A failed preview must not trigger a second execution of an uncertain request or automatic wallet payment.
+
+## Query and React integration
+
+`getGaslessBatchFundingQueryOptions(config, options)` accepts the required action inputs plus `query` overrides. It returns TanStack options with `staleTime: 0` by default. `getGaslessBatchFundingQueryKey(partialOptions)` includes config identity, chain, account, encoded calls and movements; equivalent ABI/raw calls share a key. Query errors retain their original type.
+
+The exported query types are `GetGaslessBatchFundingOptions`, `GetGaslessBatchFundingData`, `GetGaslessBatchFundingQueryKey` and `GetGaslessBatchFundingQueryOptions`.
+
+React consumers use [`useGaslessBatchFunding`](/react/gasless#usegaslessbatchfunding). Queries are display previews, not reusable authorizations. Refresh after balance-changing transactions; perform the core read fresh at the final submission boundary rather than trusting cached data.
