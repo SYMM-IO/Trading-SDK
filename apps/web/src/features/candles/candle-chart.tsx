@@ -1,6 +1,6 @@
 "use client";
 
-import type { Candle } from "@symmio/trading-core";
+import type { Candle, CandleHistoryPage } from "@symmio/trading-core";
 import {
   CandlestickSeries,
   ColorType,
@@ -19,6 +19,8 @@ import { watchCandleChartNavigation } from "./candle-chart-navigation";
 interface Props {
   /** Historical bars, ascending by time. Replaces the series whenever it changes. */
   candles: readonly Candle[];
+  /** Retained HTTP windows. Fetched pages must retain their identities until revalidated. */
+  historyPages?: readonly CandleHistoryPage[];
   /** The in-progress bar from the live stream, merged onto the series. */
   liveCandle?: Candle | null;
   /** Decimal places to render prices at, from the source's symbol metadata. */
@@ -55,6 +57,12 @@ function toVolumeData(candle: Candle, upColor: string, downColor: string): Histo
   };
 }
 
+/** The chart accepts only a replacement of its latest bar or a newer interval. */
+function updateDrawnCandles(candles: Candle[], candle: Candle): void {
+  if (candles.at(-1)?.time === candle.time) candles[candles.length - 1] = candle;
+  else candles.push(candle);
+}
+
 /** Reads a resolved CSS custom property so the chart tracks the active theme. */
 function readToken(element: HTMLElement, token: string, fallback: string): string {
   const value = getComputedStyle(element).getPropertyValue(token).trim();
@@ -87,24 +95,21 @@ function readTheme(element: HTMLElement): ChartTheme {
  * re-read when the theme class changes, so the chart matches light and dark
  * without duplicating the palette.
  */
-export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabel, onLoadOlder }: Props) {
+export function CandleChart({ candles, historyPages, liveCandle, pricePrecision = 2, emptyLabel, onLoadOlder }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const colorsRef = useRef({ up: "#26a69a", down: "#ef5350" });
-  /**
-   * Latest history, kept for the theme observer: volume bars carry their color
-   * per data point, so recoloring them means re-setting the series.
-   */
-  const candlesRef = useRef<readonly Candle[]>(candles);
-  candlesRef.current = candles;
   const liveCandleRef = useRef(liveCandle);
   liveCandleRef.current = liveCandle;
   /** Set once per history load so the first paint fits, but panning is not fought afterwards. */
   const fittedKeyRef = useRef<string | null>(null);
-  const drawnCandlesRef = useRef<readonly Candle[]>([]);
+  const drawnCandlesRef = useRef<Candle[]>([]);
+  const previousHistoryRef = useRef<readonly Candle[]>([]);
+  const previousPagesRef = useRef<readonly CandleHistoryPage[] | undefined>(undefined);
+  const provisionalCandlesRef = useRef(new Map<number, Candle>());
   const lastDrawnTimeRef = useRef<number | undefined>(undefined);
   const lastDrawnLiveRef = useRef<Candle | null>(null);
   const onLoadOlderRef = useRef(onLoadOlder);
@@ -114,6 +119,7 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    const provisionalCandles = provisionalCandlesRef.current;
 
     const theme = readTheme(container);
     const { up: upColor, down: downColor, text: textColor, border: borderColor } = theme;
@@ -172,6 +178,9 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
       volumeSeriesRef.current = null;
       fittedKeyRef.current = null;
       drawnCandlesRef.current = [];
+      previousHistoryRef.current = [];
+      previousPagesRef.current = undefined;
+      provisionalCandles.clear();
       lastDrawnTimeRef.current = undefined;
       lastDrawnLiveRef.current = null;
     };
@@ -215,7 +224,9 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
         wickDownColor: theme.down,
       });
       /** Volume color lives on each point, so the series has to be re-set. */
-      volumeSeriesRef.current?.setData(candlesRef.current.map((candle) => toVolumeData(candle, theme.up, theme.down)));
+      volumeSeriesRef.current?.setData(
+        drawnCandlesRef.current.map((candle) => toVolumeData(candle, theme.up, theme.down)),
+      );
     });
 
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class", "data-theme"] });
@@ -244,25 +255,54 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
     const anchor = visible ? previous[Math.max(0, Math.min(previous.length - 1, Math.ceil(visible.from)))] : undefined;
     const anchorIndex = anchor ? timeScale?.timeToIndex(toChartTime(anchor.time)) : null;
 
-    const { up, down } = colorsRef.current;
-    candleSeries.setData(candles.map(toCandlestickData));
-    volumeSeries.setData(candles.map((candle) => toVolumeData(candle, up, down)));
-    lastDrawnTimeRef.current = candles.at(-1)?.time;
-    lastDrawnLiveRef.current = null;
-    /** A newer live interval survives a lagging snapshot; refreshed values for the same bar take precedence. */
+    const provisional = provisionalCandlesRef.current;
+    const previousPages = new Set(previousPagesRef.current);
+    const refreshedPages = historyPages?.filter((page) => !previousPages.has(page)) ?? [];
+    if (historyPages) {
+      /** Refetched windows own their gaps as well as their returned candles. */
+      for (const time of provisional.keys()) {
+        if (refreshedPages.some((page) => time >= page.from && time < page.to)) provisional.delete(time);
+      }
+    } else {
+      const previousHistory = previousHistoryRef.current;
+      const offset = candles.length - previousHistory.length;
+      const prepended =
+        onLoadOlderRef.current &&
+        offset >= 0 &&
+        previousHistory.every((candle, index) => candles[offset + index] === candle);
+      if (!prepended) provisional.clear();
+    }
+
     const live = liveCandleRef.current;
     const newestHistory = candles.at(-1);
     if (
       live &&
-      (live.time > (newestHistory?.time ?? -Infinity) ||
-        (previous.at(-1) === newestHistory && live.time === newestHistory?.time))
+      (!historyPages || live !== lastDrawnLiveRef.current) &&
+      live.time > (newestHistory?.time ?? -Infinity) &&
+      !refreshedPages.some((page) => live.time >= page.from && live.time < page.to)
     ) {
-      candleSeries.update(toCandlestickData(live));
-      volumeSeries.update(toVolumeData(live, up, down));
-      lastDrawnTimeRef.current = live.time;
-      lastDrawnLiveRef.current = live;
+      provisional.set(live.time, live);
     }
-    drawnCandlesRef.current = candles;
+
+    const { up, down } = colorsRef.current;
+    candleSeries.setData(candles.map(toCandlestickData));
+    volumeSeries.setData(candles.map((candle) => toVolumeData(candle, up, down)));
+    lastDrawnTimeRef.current = candles.at(-1)?.time;
+    drawnCandlesRef.current = [...candles];
+    for (const candle of [...provisional.values()].sort((a, b) => a.time - b.time)) {
+      if (candle.time < (lastDrawnTimeRef.current ?? -Infinity)) {
+        provisional.delete(candle.time);
+        continue;
+      }
+      candleSeries.update(toCandlestickData(candle));
+      volumeSeries.update(toVolumeData(candle, up, down));
+      updateDrawnCandles(drawnCandlesRef.current, candle);
+      lastDrawnTimeRef.current = candle.time;
+    }
+    /** Consume the snapshot's live prop even when HTTP removed that provisional interval. */
+    lastDrawnLiveRef.current = live ?? null;
+    previousHistoryRef.current = candles;
+    previousPagesRef.current = historyPages;
 
     const key = `${candles.length}:${candles[0]?.time ?? 0}:${candles.at(-1)?.time ?? 0}`;
     if (visible && anchor && anchorIndex !== null && anchorIndex !== undefined) {
@@ -275,7 +315,7 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
       timeScale?.fitContent();
       fittedKeyRef.current = key;
     }
-  }, [candles]);
+  }, [candles, historyPages]);
 
   useEffect(() => {
     const candleSeries = candleSeriesRef.current;
@@ -287,6 +327,8 @@ export function CandleChart({ candles, liveCandle, pricePrecision = 2, emptyLabe
     const { up, down } = colorsRef.current;
     candleSeries.update(toCandlestickData(liveCandle));
     volumeSeries.update(toVolumeData(liveCandle, up, down));
+    provisionalCandlesRef.current.set(liveCandle.time, liveCandle);
+    updateDrawnCandles(drawnCandlesRef.current, liveCandle);
     lastDrawnTimeRef.current = liveCandle.time;
     lastDrawnLiveRef.current = liveCandle;
   }, [liveCandle]);

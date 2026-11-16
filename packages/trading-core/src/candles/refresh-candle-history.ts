@@ -3,6 +3,9 @@ import { validateCandleHistoryRange, type CandleHistoryPage, type GetCandleHisto
 import { resolutionToMs } from "./resolution";
 import type { CandleHistoryRange } from "./types";
 
+/** Query objects scope coordination to both the client and the history identity. */
+const pendingFullRefreshes = new WeakMap<object, Promise<void>>();
+
 /** Options for {@link refreshCandleHistory}; reuse the history query's original options. */
 export interface RefreshCandleHistoryParameters {
   /** Options returned by getCandleHistoryQueryOptions, with any framework error wrapper. */
@@ -16,8 +19,10 @@ export interface RefreshCandleHistoryParameters {
 /**
  * Revalidate retained candle history through its existing TanStack query.
  * A bounded correction waits for active paging, then reuses windows outside the
- * correction and fetches only corrected intervals plus any missing live tail. A full refresh cancels an active request before revalidating all
- * windows. Query state exposes fetching and failures; no separate cache is used.
+ * correction and fetches only corrected intervals plus any missing live tail.
+ * A full refresh takes priority over corrections and cancels an active request
+ * before revalidating all windows. Query state exposes fetching and failures;
+ * no separate cache is used.
  *
  * @param queryClient - Client owning the original infinite history query.
  * @param parameters - Original query options, optional corrected range, and lifecycle signal.
@@ -33,22 +38,45 @@ export async function refreshCandleHistory(
   parameters: RefreshCandleHistoryParameters,
 ): Promise<void> {
   const { queryOptions, range, signal } = parameters;
-  const { queryKey } = queryOptions;
   signal?.throwIfAborted();
   if (range) validateCandleHistoryRange(range);
+  const query = queryClient.getQueryCache().build(queryClient, { queryKey: queryOptions.queryKey });
+  if (range) return refreshRetainedHistory(queryClient, parameters, query);
 
+  /** Reserve the full refresh before cancellation yields to another caller. */
+  const refresh = Promise.resolve().then(() => refreshRetainedHistory(queryClient, parameters, query));
+  pendingFullRefreshes.set(query, refresh);
+  try {
+    await refresh;
+  } finally {
+    if (pendingFullRefreshes.get(query) === refresh) pendingFullRefreshes.delete(query);
+  }
+}
+
+async function refreshRetainedHistory(
+  queryClient: QueryClient,
+  { queryOptions, range, signal }: RefreshCandleHistoryParameters,
+  query: object,
+): Promise<void> {
+  const { queryKey } = queryOptions;
+  signal?.throwIfAborted();
+
+  let cancellation: Promise<void> | undefined;
   if (!range) {
-    await queryClient.cancelQueries({ queryKey, exact: true });
+    /** Cancellation is synchronous; reserve its replacement fetch before yielding to paging. */
+    cancellation = queryClient.cancelQueries({ queryKey, exact: true });
   } else {
     /** Join active work instead of discarding an older page when a correction arrives. */
+    let fullRefresh = pendingFullRefreshes.get(query);
     let state = queryClient.getQueryState(queryKey);
-    while (state && state.fetchStatus !== "idle") {
+    while (fullRefresh || (state && state.fetchStatus !== "idle")) {
       try {
-        await queryClient.fetchInfiniteQuery({ ...queryOptions, staleTime: 0 });
+        await (fullRefresh ?? queryClient.fetchInfiniteQuery({ ...queryOptions, staleTime: 0 }));
       } catch {
         /** The correction can recover a failed request; cancellation is checked below. */
       }
       signal?.throwIfAborted();
+      fullRefresh = pendingFullRefreshes.get(query);
       state = queryClient.getQueryState(queryKey);
     }
   }
@@ -57,29 +85,34 @@ export async function refreshCandleHistory(
   let retained = queryClient.getQueryData<InfiniteData<CandleHistoryPage, CandleHistoryRange>>(queryKey);
   let correctedRange = range;
   const identity = queryKey[1];
-  function intersects(page: CandleHistoryPage): boolean {
-    const end = identity.followLatest && page.from === identity.from ? Math.max(page.to, Date.now()) : page.to;
-    return !correctedRange || (page.from < correctedRange.to && end > correctedRange.from);
+  function pageEnd(page: CandleHistoryPage): number {
+    return identity.followLatest && page.from === identity.from ? Math.max(page.to, Date.now()) : page.to;
   }
-  if (range && retained && !retained.pages.some(intersects)) return;
+  function needsRefresh(page: CandleHistoryPage): boolean {
+    const end = pageEnd(page);
+    return end > page.to || !correctedRange || (page.from < correctedRange.to && end > correctedRange.from);
+  }
+  if (range && retained && !retained.pages.some(needsRefresh)) return;
 
   try {
-    await queryClient.fetchInfiniteQuery({
-      ...queryOptions,
-      staleTime: 0,
-      queryFn: (context) => {
-        context.signal.throwIfAborted();
-        const cached = retained?.pages.find((page) => page.from === context.pageParam.from);
-        if (!correctedRange || !cached) return queryOptions.queryFn(context);
-        if (!intersects(cached)) return cached;
-        const end =
-          identity.followLatest && cached.from === identity.from ? Math.max(cached.to, Date.now()) : cached.to;
-        /** Overlap the unfinished bucket without assuming the source's alignment.
-         * A calendar month can span 31 days; its nominal 30-day length is insufficient. */
-        const overlap = identity.resolution === "1M" ? 31 * 86_400_000 : resolutionToMs(identity.resolution);
-        return refreshPage(cached, correctedRange, end, overlap, queryOptions.fetchRange, context.signal);
-      },
-    });
+    await Promise.all([
+      cancellation,
+      queryClient.fetchInfiniteQuery({
+        ...queryOptions,
+        staleTime: 0,
+        queryFn: (context) => {
+          context.signal.throwIfAborted();
+          const cached = retained?.pages.find((page) => page.from === context.pageParam.from);
+          if (!correctedRange || !cached) return queryOptions.queryFn(context);
+          if (!needsRefresh(cached)) return cached;
+          const end = pageEnd(cached);
+          /** Overlap the unfinished bucket without assuming the source's alignment.
+           * A calendar month can span 31 days; its nominal 30-day length is insufficient. */
+          const overlap = identity.resolution === "1M" ? 31 * 86_400_000 : resolutionToMs(identity.resolution);
+          return refreshPage(cached, correctedRange, end, overlap, queryOptions.fetchRange, context.signal);
+        },
+      }),
+    ]);
   } finally {
     /** Later invalidations must perform normal full refetches, including without an observer. */
     correctedRange = undefined;

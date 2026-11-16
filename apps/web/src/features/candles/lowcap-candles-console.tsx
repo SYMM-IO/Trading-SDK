@@ -66,6 +66,7 @@ export function LowcapCandlesConsole() {
         emptyLabel="No listed markets."
         emptyResultsLabel="No matching markets."
         clearLabel="Clear market"
+        clearable={false}
         className="w-56 max-w-full"
       />
       <div
@@ -150,7 +151,8 @@ function LowcapHistory({ source, marketName, resolution, controls }: Props) {
     resolution,
     ...range,
     followLatest: true,
-    query: { staleTime: 0, refetchOnWindowFocus: false, retry: 1 },
+    // Fresh page identities let the chart distinguish revalidation from an older-page addition.
+    query: { staleTime: 0, refetchOnWindowFocus: false, retry: 1, structuralSharing: false },
   });
   const data = history.data;
 
@@ -201,6 +203,7 @@ function LowcapHistory({ source, marketName, resolution, controls }: Props) {
       {stream.error ? <ResultError kind={stream.error.kind} message={stream.error.message} /> : null}
       <CandleChart
         candles={candles}
+        historyPages={data?.pages}
         liveCandle={streaming ? stream.candle : null}
         pricePrecision={8}
         onLoadOlder={() => {

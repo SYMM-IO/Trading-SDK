@@ -152,6 +152,8 @@ The return type extends `UseInfiniteQueryResult<CandleHistoryData, SymmioRequest
 
 Wire `loadOlder` to a deliberate chart interaction. No page is fetched automatically after an empty response; another interaction can traverse the next window. Use `refresh()` to recover from an error, then retry older navigation. Full refetches revalidate every retained window. Bounded refreshes replace only corrected intervals and fetch any missing live tail; a source may split each requested range internally to respect its request cap. Bars outside those ranges and their paging boundaries are preserved. Range selection and coordination live in core's [`refreshCandleHistory`](/core/candles/get-candles#refreshcandlehistory).
 
+Full refreshes take priority over concurrent bounded corrections for the same query, including across hook instances. With `followLatest: true`, a correction to an older page or outside retained history still fetches a missing newest tail.
+
 `refresh` resolves after the operation; request failures are exposed through `error`. A scheduled correction is discarded when the hook unmounts, its query identity changes, or a full refresh supersedes it. Other consumers of the same query keep their shared requests.
 
 TanStack's focus and reconnect policies remain consumer-configurable. The hook does not globally disable them. Set `query.refetchOnWindowFocus: false` when using explicit refresh and stream corrections to avoid reloading all retained history on tab focus; keep `staleTime: 0` for mutable candle data.

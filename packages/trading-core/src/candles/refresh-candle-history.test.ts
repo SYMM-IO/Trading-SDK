@@ -188,7 +188,115 @@ describe("refreshCandleHistory", () => {
     expect(getCandles).toHaveBeenCalledTimes(3);
     client.clear();
   });
+
+  it("revalidates every retained window when a correction arrives immediately after a full refresh starts", async () => {
+    const { client, observer, getCandles, queryOptions, data } = setup();
+    try {
+      await observer.fetchNextPage();
+      await observer.fetchNextPage();
+      await observer.fetchNextPage();
+      getCandles.mockClear();
+      getCandles.mockImplementation(async ({ from }) => ({
+        candles: [{ time: from, open: 1, high: 2, low: 1, close: 2, volume: 20 }],
+        noMoreData: false,
+      }));
+
+      const full = refreshCandleHistory(client, { queryOptions });
+      const correction = refreshCandleHistory(client, {
+        queryOptions,
+        range: { from: START, to: START + 60_000 },
+      });
+      await Promise.all([full, correction]);
+
+      expect(getCandles.mock.calls.map(([{ from, to }]) => ({ from, to }))).toEqual(
+        expect.arrayContaining([
+          { from: START, to: RANGE.to },
+          { from: START - WIDTH, to: START },
+          { from: START - WIDTH * 2, to: START - WIDTH },
+        ]),
+      );
+      expect(data().pages).toHaveLength(3);
+      expect(data().pages.map((page) => page.candles[0]?.volume)).toEqual([20, 20, 20]);
+    } finally {
+      client.clear();
+    }
+  });
+
+  it("allows a correction to recover after a pending full refresh is cancelled", async () => {
+    const { client, observer, getCandles, queryOptions } = setup();
+    try {
+      await observer.fetchNextPage();
+      getCandles.mockClear();
+      const controller = new AbortController();
+      const full = refreshCandleHistory(client, { queryOptions, signal: controller.signal });
+      controller.abort();
+      const correction = refreshCandleHistory(client, {
+        queryOptions,
+        range: { from: START, to: START + 60_000 },
+      });
+
+      await expect(full).rejects.toMatchObject({ name: "AbortError" });
+      await correction;
+      expect(getCandles).toHaveBeenCalledOnce();
+      expect(getCandles.mock.lastCall?.[0]).toMatchObject({ from: START, to: START + 60_000 });
+    } finally {
+      client.clear();
+    }
+  });
+
+  it("does not let paging started during cancellation reduce a full refresh's coverage", async () => {
+    const { client, observer, getCandles, queryOptions, data } = setup();
+    try {
+      await observer.fetchNextPage();
+      await observer.fetchNextPage();
+      getCandles.mockClear();
+
+      const full = refreshCandleHistory(client, { queryOptions });
+      await Promise.resolve();
+      const older = observer.fetchNextPage({ cancelRefetch: false });
+      await Promise.all([full, older]);
+
+      expect(getCandles.mock.calls.map(([{ from, to }]) => ({ from, to }))).toEqual(
+        expect.arrayContaining([
+          { from: START, to: RANGE.to },
+          { from: START - WIDTH, to: START },
+        ]),
+      );
+      expect(data().pages).toHaveLength(2);
+    } finally {
+      client.clear();
+    }
+  });
 });
+
+it.each(["older page", "outside retained history"])(
+  "fetches a missing live tail when a correction targets %s",
+  async (target) => {
+    vi.useFakeTimers();
+    vi.setSystemTime(RANGE.to);
+    const { client, observer, getCandles, queryOptions, data } = setup(true);
+    try {
+      await observer.fetchNextPage();
+      if (target === "older page") await observer.fetchNextPage();
+      const before = data();
+      vi.setSystemTime(RANGE.to + 60_000);
+      getCandles.mockClear();
+
+      await refreshCandleHistory(client, {
+        queryOptions,
+        range: { from: START - 60_000, to: START },
+      });
+
+      const requests = [{ from: RANGE.to - 60_000, to: RANGE.to + 60_000 }];
+      if (target === "older page") requests.push({ from: START - 60_000, to: START });
+      expect(getCandles.mock.calls.map(([{ from, to }]) => ({ from, to }))).toEqual(requests);
+      expect(data().pages[0]?.to).toBe(Date.now());
+      expect(data().pages.map((page) => page.from)).toEqual(before.pages.map((page) => page.from));
+    } finally {
+      client.clear();
+    }
+  },
+);
 
 it("keeps recent corrections bounded after hours of following live history", async () => {
   vi.useFakeTimers();

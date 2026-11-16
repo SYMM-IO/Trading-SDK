@@ -26,6 +26,60 @@ function setup() {
 }
 
 describe("useCandleHistory", () => {
+  it("revalidates every retained page when a stream correction follows a full refresh in the same turn", async () => {
+    const { source, getCandles } = setup();
+    const { result } = renderHookWithProviders(() => useCandleHistory({ source, ...RANGE }));
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    for (let index = 0; index < 2; index++) {
+      await act(async () => {
+        await result.current.loadOlder();
+      });
+      await waitFor(() => expect(result.current.data?.pages).toHaveLength(index + 2));
+    }
+    getCandles.mockClear();
+    getCandles.mockImplementation(async ({ from }) => ({
+      candles: [{ ...bar(from), volume: 25 }],
+      noMoreData: false,
+    }));
+
+    await act(async () => {
+      const full = result.current.refresh();
+      const correction = result.current.refresh({ from: START, to: START + 3_600_000 });
+      await Promise.all([full, correction]);
+    });
+
+    await waitFor(() =>
+      expect(result.current.data?.pages.map((page) => page.candles[0]?.volume)).toEqual([25, 25, 25]),
+    );
+    expect(getCandles.mock.calls.map(([{ from, to }]) => ({ from, to }))).toEqual(
+      expect.arrayContaining([
+        { from: START, to: RANGE.to },
+        { from: START - 300 * 3_600_000, to: START },
+        { from: START - 600 * 3_600_000, to: START - 300 * 3_600_000 },
+      ]),
+    );
+  });
+
+  it("preserves existing page identities during paging and exposes identical authoritative refetches without structural sharing", async () => {
+    const { source } = setup();
+    const { result } = renderHookWithProviders(() =>
+      useCandleHistory({ source, ...RANGE, query: { structuralSharing: false } }),
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const initial = result.current.data!.pages[0];
+    await act(async () => {
+      await result.current.loadOlder();
+    });
+    await waitFor(() => expect(result.current.data?.pages).toHaveLength(2));
+    expect(result.current.data?.pages[0]).toBe(initial);
+
+    await act(async () => {
+      await result.current.refresh();
+    });
+    await waitFor(() => expect(result.current.data?.pages[0]).not.toBe(initial));
+    expect(result.current.data?.pages[0]).toEqual(initial);
+  });
+
   it("full refresh cancels an older page and queued correction without letting late work replace fresh history", async () => {
     const { source, getCandles } = setup();
     const { result } = renderHookWithProviders(() => useCandleHistory({ source, ...RANGE }));

@@ -1,4 +1,4 @@
-import type { Candle } from "@symmio/trading-core";
+import type { Candle, CandleHistoryPage } from "@symmio/trading-core";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import type { LogicalRange, LogicalRangeChangeEventHandler } from "lightweight-charts";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -27,7 +27,8 @@ function bars(from: number, to: number): Candle[] {
 }
 
 describe("candle chart history navigation", () => {
-  let data: { time: number }[];
+  let data: { time: number; close: number }[];
+  let volumeData: { time: number; value: number }[];
   let visible: LogicalRange | null;
   let onRange: LogicalRangeChangeEventHandler | undefined;
   const fitContent = vi.fn();
@@ -42,6 +43,7 @@ describe("candle chart history navigation", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     data = [];
+    volumeData = [];
     visible = null;
     onRange = undefined;
     fitContent.mockReset().mockImplementation(() => {
@@ -55,13 +57,24 @@ describe("candle chart history navigation", () => {
     unsubscribe.mockReset();
     const candleSeries = {
       data: () => data,
-      setData: vi.fn((next: { time: number }[]) => {
-        data = next;
+      setData: vi.fn((next: typeof data) => {
+        data = [...next];
       }),
-      update: vi.fn(),
+      update: vi.fn((bar: (typeof data)[number]) => {
+        if (data.at(-1)?.time === bar.time) data[data.length - 1] = bar;
+        else data.push(bar);
+      }),
       applyOptions: vi.fn(),
     };
-    const volumeSeries = { setData: vi.fn(), update: vi.fn() };
+    const volumeSeries = {
+      setData: vi.fn((next: typeof volumeData) => {
+        volumeData = [...next];
+      }),
+      update: vi.fn((bar: (typeof volumeData)[number]) => {
+        if (volumeData.at(-1)?.time === bar.time) volumeData[volumeData.length - 1] = bar;
+        else volumeData.push(bar);
+      }),
+    };
     const timeScale = {
       fitContent,
       setVisibleLogicalRange,
@@ -167,6 +180,95 @@ describe("candle chart history navigation", () => {
     expect(series.update).toHaveBeenCalledTimes(2);
     view.rerender(<CandleChart candles={bars(50, 201)} liveCandle={live} onLoadOlder={vi.fn()} />);
     expect(series.update).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps every live interval, its volume, and the viewport when an older page arrives", () => {
+    const recent: CandleHistoryPage = {
+      from: START + 100 * 60_000,
+      to: START + 200 * 60_000,
+      candles: bars(100, 200),
+      noMoreData: false,
+    };
+    const pages = [recent];
+    const loadOlder = vi.fn();
+    const live = bars(200, 203).map((bar, index) => ({ ...bar, volume: (index + 1) * 20 }));
+    const view = render(<CandleChart candles={recent.candles} historyPages={pages} onLoadOlder={loadOlder} />);
+    for (const candle of live) {
+      view.rerender(
+        <CandleChart candles={recent.candles} historyPages={pages} liveCandle={candle} onLoadOlder={loadOlder} />,
+      );
+    }
+    expect(data.map((bar) => bar.time)).toEqual([...recent.candles, ...live].map((bar) => bar.time / 1000));
+    moveRange(100, 102);
+    const older: CandleHistoryPage = {
+      from: START + 50 * 60_000,
+      to: recent.from,
+      candles: bars(50, 100),
+      noMoreData: false,
+    };
+    view.rerender(
+      <CandleChart
+        candles={[...older.candles, ...recent.candles]}
+        historyPages={[recent, older]}
+        liveCandle={live.at(-1)}
+        onLoadOlder={loadOlder}
+      />,
+    );
+
+    expect(data.map((bar) => bar.time)).toEqual(
+      [...older.candles, ...recent.candles, ...live].map((bar) => bar.time / 1000),
+    );
+    expect(volumeData.slice(-3).map((bar) => bar.value)).toEqual([20, 40, 60]);
+    expect(setVisibleLogicalRange).toHaveBeenLastCalledWith({ from: 150, to: 152 });
+  });
+
+  it("retires corrected and deleted live intervals within a refreshed window without restoring them on later paging", () => {
+    const recent: CandleHistoryPage = {
+      from: START,
+      to: START + 60_000,
+      candles: bars(0, 1),
+      noMoreData: false,
+    };
+    const pages = [recent];
+    const live = bars(1, 4);
+    const view = render(<CandleChart candles={recent.candles} historyPages={pages} />);
+    for (const candle of live) {
+      view.rerender(<CandleChart candles={recent.candles} historyPages={pages} liveCandle={candle} />);
+    }
+    const corrected = { ...live[0]!, close: 1.5, volume: 75 };
+    const refreshed = { ...recent, to: START + 4 * 60_000, candles: [...recent.candles, corrected] };
+    view.rerender(<CandleChart candles={refreshed.candles} historyPages={[refreshed]} liveCandle={live.at(-1)} />);
+    expect(data.map((bar) => ({ time: bar.time, close: bar.close }))).toEqual(
+      refreshed.candles.map((bar) => ({ time: bar.time / 1000, close: bar.close })),
+    );
+    expect(volumeData.map((bar) => bar.value)).toEqual([10, 75]);
+
+    const older = { ...recent, from: START - 60_000, to: START, candles: bars(-1, 0) };
+    view.rerender(
+      <CandleChart
+        candles={[...older.candles, ...refreshed.candles]}
+        historyPages={[refreshed, older]}
+        liveCandle={live.at(-1)}
+      />,
+    );
+    expect(data.map((bar) => bar.time)).toEqual([-1, 0, 1].map((minute) => START / 1000 + minute * 60));
+  });
+
+  it("keeps a live update to an unchanged page while paging, then honors an identical authoritative snapshot", () => {
+    const recent: CandleHistoryPage = { from: START, to: START + 60_000, candles: bars(0, 1), noMoreData: false };
+    const pages = [recent];
+    const live = { ...recent.candles[0]!, close: 1.5, volume: 25 };
+    const view = render(<CandleChart candles={recent.candles} historyPages={pages} />);
+    view.rerender(<CandleChart candles={recent.candles} historyPages={pages} liveCandle={live} />);
+    const older = { ...recent, from: START - 60_000, to: START, candles: bars(-1, 0) };
+    const history = [...older.candles, ...recent.candles];
+    view.rerender(<CandleChart candles={history} historyPages={[recent, older]} liveCandle={live} />);
+    expect(data.at(-1)?.close).toBe(1.5);
+    expect(volumeData.at(-1)?.value).toBe(25);
+
+    view.rerender(<CandleChart candles={history} historyPages={[{ ...recent }, older]} liveCandle={live} />);
+    expect(data.at(-1)?.close).toBe(2);
+    expect(volumeData.at(-1)?.value).toBe(10);
   });
 
   it("removes gesture listeners and pending wheel work on unmount", () => {
