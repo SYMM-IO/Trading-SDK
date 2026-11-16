@@ -3,6 +3,7 @@ import type { SolverId } from "../../../core/chains/types";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
 import { getEstimatedPrice } from "../../estimated-price/get-estimated-price";
+import { toUsableOpenPrice } from "./open-price";
 import { PositionType } from "./types";
 
 /**
@@ -72,15 +73,16 @@ export interface FetchOpenEstimatePriceParameters {
  *
  * Requests with the wide fixed bound ({@link OPEN_ESTIMATE_REQUEST_TOLERANCE})
  * so the solver's price gate never rejects the question. Returns `undefined`
- * instead of throwing when the estimate is unusable — network error,
- * non-Enigma solver, zero/NaN price, zero mark.
+ * for technical unavailability, an unsupported solver, or an unusable price.
+ * Solver refusals, cancellation, configuration and unexpected errors propagate.
+ * Waits for the response without imposing a timeout.
  */
 export async function fetchOpenEstimatePrice(
   config: Config,
   parameters: FetchOpenEstimatePriceParameters,
 ): Promise<string | undefined> {
+  if (toUsableOpenPrice(parameters.markPrice) === undefined) return undefined;
   const mark = toDecimal(parameters.markPrice);
-  if (mark.isZero() || mark.isNaN()) return undefined;
 
   const requestPrice =
     parameters.positionType === PositionType.SHORT
@@ -98,13 +100,15 @@ export async function fetchOpenEstimatePrice(
       entry: "open",
       price: requestPrice.toString(),
     }));
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (
+      error instanceof SymmError &&
+      (error.code === "OPEN_ESTIMATE_UNAVAILABLE" || error.code === "UNSUPPORTED_BY_SOLVER")
+    )
+      return undefined;
+    throw error;
   }
-
-  const estimate = toDecimal(estimatedPrice);
-  if (estimate.isZero() || estimate.isNaN()) return undefined;
-  return estimatedPrice;
+  return toUsableOpenPrice(estimatedPrice);
 }
 
 /**
@@ -127,10 +131,10 @@ export function deriveAutoSlippage({
   expectedFillPrice: string | undefined;
   positionType: PositionType;
 }): number {
+  const usableEstimate = toUsableOpenPrice(expectedFillPrice);
+  if (toUsableOpenPrice(markPrice) === undefined || usableEstimate === undefined) return AUTO_SLIPPAGE_FALLBACK_PERCENT;
   const mark = toDecimal(markPrice);
-  if (mark.isZero() || mark.isNaN() || expectedFillPrice === undefined) return AUTO_SLIPPAGE_FALLBACK_PERCENT;
-  const estimate = toDecimal(expectedFillPrice);
-  if (estimate.isZero() || estimate.isNaN()) return AUTO_SLIPPAGE_FALLBACK_PERCENT;
+  const estimate = toDecimal(usableEstimate);
 
   const percent =
     positionType === PositionType.SHORT
@@ -185,14 +189,15 @@ export async function assertOpenEstimateWithinSlippage(
   config: Config,
   parameters: AssertOpenEstimateWithinSlippageParameters,
 ): Promise<void> {
+  if (toUsableOpenPrice(parameters.markPrice) === undefined) return;
   const mark = toDecimal(parameters.markPrice);
-  if (mark.isZero() || mark.isNaN()) return;
 
-  const estimatedPrice = parameters.expectedFillPrice ?? (await fetchOpenEstimatePrice(config, parameters));
+  const estimatedPrice = toUsableOpenPrice(
+    parameters.expectedFillPrice ?? (await fetchOpenEstimatePrice(config, parameters)),
+  );
   if (estimatedPrice === undefined) return;
 
   const expectedFillPrice = toDecimal(estimatedPrice);
-  if (expectedFillPrice.isZero() || expectedFillPrice.isNaN()) return;
 
   const deviation = expectedFillPrice.minus(mark).abs().div(mark);
   if (deviation.gt(toDecimal(parameters.slippage).div(100).plus(BAND_EPSILON))) {

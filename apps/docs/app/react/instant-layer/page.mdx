@@ -156,6 +156,8 @@ A typed `initialMargin` above `availableBalance` produces a synchronous `validat
 
 `isReady` is true when validation passes, required inputs and the debounced estimate have settled, and the current calculation succeeds. Previous data may remain visible during recalculation; use it for the current order only when `isReady` is true. Pass `estimatedOpenPrice: null` for an estimate already attempted but unavailable, or omit it to let the hook request one. Both preparation and fees use the same unavailable-estimate fallback.
 
+Fee data includes `openEstimateStatus` and the exact nullable `estimatedOpenPrice`. With status `"unavailable"`, settlement is provisioned against the signed slippage bound in both typed-margin and full-balance modes. A technical refetch failure discards the retained estimate; solver refusals and cancellation surface as errors. Requests wait for their response without an added timeout or automatic estimate retry. See [open preview error and fallback handling](/react/solvers/instant-open#useprepareinstantopenparams) for readiness and UI guidance.
+
 There is no fixed estimate polling interval. `refetchEstimatedPrice(options?)` forwards the estimate query's existing refetch function, so the frontend chooses when to refresh. Its promise returns the estimate query result; fee recalculation follows through normal query updates. Use `isReady` before relying on the recalculated fees. The existing `refetch()` recalculates fees from cached inputs. Caller-supplied estimates remain caller-owned and take precedence over fetched data.
 
 ```tsx

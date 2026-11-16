@@ -82,6 +82,16 @@ test("prepared no-shadow value disappears when the hook clears it", () => {
   expect(screen.getByTestId("trade-estimated-price").textContent).toContain("105.00");
 });
 
+test("a confirmed fallback displays the reference and caveat without inventing price impact", () => {
+  render(<EstimatedPricePreview {...props} entry="open" preparedEstimate={{ price: null, status: "unavailable" }} />);
+  const text = screen.getByTestId("trade-estimated-price").textContent;
+  expect(text).toContain("Reference price (estimate)");
+  expect(text).toContain("100.00");
+  expect(text).not.toContain("PI");
+  expect(screen.getByRole("status").textContent).toContain("Your slippage limit still applies");
+  expect(mock.estimate.mock.lastCall?.[0].query.enabled).toBe(false);
+});
+
 test("preview does not display a previous-input estimate while debouncing", () => {
   mock.isDebouncing = true;
   render(<EstimatedPricePreview {...props} entry="open" />);

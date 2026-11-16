@@ -1,7 +1,7 @@
 import {
   PositionType,
   getInstantOpensQueryKey,
-  type InstantOpenReturnType,
+  type InstantOpenAutoReturnType,
   type PrepareInstantOpenParameters,
   type SetQuoteTpSlParameters,
   type SetQuoteTpSlReturnType,
@@ -56,8 +56,19 @@ const TPSL_BLOCK: Omit<SetQuoteTpSlParameters, "quoteId" | "chainId"> = {
   sl: { triggerPrice: "80", priceType: "markPrice" },
 };
 
-const OPEN_OK: InstantOpenReturnType = { kind: "enigma", success: true, tempQuoteId: "-1001" };
-const OPEN_NO_ID: InstantOpenReturnType = { kind: "enigma", success: true };
+const OPEN_OK: InstantOpenAutoReturnType = {
+  kind: "enigma",
+  success: true,
+  tempQuoteId: "-1001",
+  openEstimateStatus: "available",
+  estimatedOpenPrice: "100",
+};
+const OPEN_NO_ID: InstantOpenAutoReturnType = {
+  kind: "enigma",
+  success: true,
+  openEstimateStatus: "available",
+  estimatedOpenPrice: "100",
+};
 const TPSL_OK: SetQuoteTpSlReturnType = { success: true, cohQuoteId: "coh42" };
 
 function mockOpen(fn: ReturnType<typeof vi.fn>) {
@@ -168,7 +179,11 @@ describe("useInstantOpenWithTpSl", () => {
     mockOpen(automatic);
     const attach = vi.fn().mockResolvedValue(TPSL_OK);
     mockTpSl(attach);
-    const prepared = { order: { quantity: 7250000000000000000n } };
+    const prepared = {
+      order: { quantity: 7250000000000000000n },
+      openEstimateStatus: "unavailable",
+      estimatedOpenPrice: null,
+    };
     prepareInstantOpenParams.mockResolvedValue(prepared);
     instantOpen.mockResolvedValue(OPEN_OK);
     const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config, tpslState: "external" }));
@@ -180,6 +195,10 @@ describe("useInstantOpenWithTpSl", () => {
     expect(automatic).not.toHaveBeenCalled();
     expect(attach).toHaveBeenCalledWith(expect.objectContaining({ quantity: "7.25", quoteId: -1001n }));
     expect(result.current.data?.tpslParameters?.quantity).toBe("7.25");
+    expect(result.current.data?.instantOpen).toMatchObject({
+      openEstimateStatus: "unavailable",
+      estimatedOpenPrice: null,
+    });
     expect(useTpSlStore.getState().get(-1001n)).toBeUndefined();
   });
 
@@ -286,7 +305,11 @@ describe("useInstantOpenWithTpSl", () => {
     mockOpen(vi.fn());
     const attach = vi.fn().mockRejectedValue(new Error("definite attachment rejection"));
     mockTpSl(attach);
-    const prepared = { order: { quantity: 1234567890123456789n } };
+    const prepared = {
+      order: { quantity: 1234567890123456789n },
+      openEstimateStatus: "unavailable",
+      estimatedOpenPrice: null,
+    };
     prepareInstantOpenParams.mockResolvedValue(prepared);
     instantOpen.mockResolvedValue(OPEN_OK);
     const { result } = renderHookWithProviders(() => useInstantOpenWithTpSl({ config, tpslState: "external" }));
@@ -304,7 +327,11 @@ describe("useInstantOpenWithTpSl", () => {
     expect(attach).toHaveBeenCalledOnce();
     expect(result.current.data?.tpslParameters?.quantity).toBe("1.234567890123456789");
     expect(result.current.data?.tpslError).toBeDefined();
-    expect(result.current.data?.instantOpen).toEqual(OPEN_OK);
+    expect(result.current.data?.instantOpen).toEqual({
+      ...OPEN_OK,
+      openEstimateStatus: "unavailable",
+      estimatedOpenPrice: null,
+    });
     expect(useTpSlStore.getState().get(-1001n)).toBeUndefined();
   });
 

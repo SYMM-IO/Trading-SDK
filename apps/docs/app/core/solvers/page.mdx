@@ -385,6 +385,8 @@ request and rejects with the existing SDK error normalization. The SDK imposes
 no timeout when the signal is omitted. Query factories use TanStack's own signal
 instead of accepting one in their options; signals never enter the cache key.
 
+For `entry: "open"`, technical failures use `OPEN_ESTIMATE_UNAVAILABLE`; solver refusals use `OPEN_ESTIMATE_REJECTED`, including error envelopes returned with HTTP 200. Cancellation uses `ESTIMATED_PRICE_CANCELLED`. API errors retain HTTP status, raw response and request context. Unrecognized coded refusals remain terminal unless the solver explicitly classifies the category as technical. Unexpected failures retain `FETCH_ESTIMATED_PRICE_FAILED`. Close-request normalization is unchanged. Automatic open preparation handles only technical unavailability as a [reference-price fallback](/core/solvers/instant-open#unavailable-estimate-fallback); direct `getEstimatedPrice` calls still reject on those failures.
+
 ### `calculatePriceImpact`
 
 Pure helper — signed **price-impact percent** of an estimated fill vs a reference price: `(estimated − reference) / reference × 100`. Returns `0` for a zero / non-finite reference. The UI colors it by side.

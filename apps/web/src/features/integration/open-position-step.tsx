@@ -714,11 +714,18 @@ function OpenPositionForm({ subAccount, sessionKey, solverId, timelockContext, i
             ? {
                 price: prepareQuery.estimatedOpenPrice,
                 priceWithoutShadow: prepareQuery.estimatedOpenPriceWithoutShadow,
+                status: prepareQuery.isReady ? prepareQuery.data?.openEstimateStatus : undefined,
               }
             : undefined
         }
         requestPrice={tradeParams?.requestedOpenPrice}
-        markPrice={cachedMarkPrice !== undefined ? String(cachedMarkPrice) : undefined}
+        markPrice={
+          !isLimit && prepareQuery.isReady && prepareQuery.data?.markPrice !== undefined
+            ? formatUnits(prepareQuery.data.markPrice, 18)
+            : cachedMarkPrice !== undefined
+              ? String(cachedMarkPrice)
+              : undefined
+        }
         pricePrecision={Number(selectedMarket?.pricePrecision ?? 2)}
         idPrefix={idPrefix}
       />

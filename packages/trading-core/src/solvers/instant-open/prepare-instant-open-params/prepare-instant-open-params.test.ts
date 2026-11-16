@@ -250,7 +250,7 @@ describe("prepareInstantOpenParams", () => {
   it("funds the flat static OPEN solver fee through the addMargin amount on lowcap", async () => {
     resolveSolverInfo.mockResolvedValue({ staticSolverFeeOpen: "0.5", staticSolverFeeClose: "0.25" });
 
-    const result = await prepareInstantOpenParams(config, PARAMS);
+    const result = await prepareInstantOpenParams(config, { ...PARAMS, estimatedOpenPrice: "64790.2" });
 
     // LONG locks at requested 65438.10 (percents sum 100%, price floored to
     // 2dp precision) = 65.4381, zero platform/solver rate fees → margin =
@@ -266,7 +266,11 @@ describe("prepareInstantOpenParams", () => {
   });
 
   it("funds a lowcap SHORT with the 1% funding buffer on the margin basis", async () => {
-    const result = await prepareInstantOpenParams(config, { ...PARAMS, positionType: PositionType.SHORT });
+    const result = await prepareInstantOpenParams(config, {
+      ...PARAMS,
+      positionType: PositionType.SHORT,
+      estimatedOpenPrice: "64790.2",
+    });
 
     // basis = 64790.2 × 1.01 = 65438.102; notionalBasicMargin = 0.001 × basis;
     // locks percents sum to 100% → margin = 65.438102

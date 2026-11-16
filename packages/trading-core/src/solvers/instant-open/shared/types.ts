@@ -10,6 +10,17 @@ import { PositionType, type SingleUpnlAndPriceSig } from "../../../symmio-contra
  */
 export { PositionType };
 
+/** Whether the optional solver fill estimate is usable, unavailable, or unsupported by the solver. */
+export type OpenEstimateStatus = "available" | "unavailable" | "unsupported";
+
+/** Estimate information shared by instant-open preparation, fees, and automatic submission. */
+export interface InstantOpenEstimateMetadata {
+  /** Unavailable estimates use the reference mark while retaining the signed slippage bound. */
+  openEstimateStatus: OpenEstimateStatus;
+  /** Actual solver fill estimate as a decimal string; null when unavailable or unsupported. Never substitutes the mark. */
+  estimatedOpenPrice: string | null;
+}
+
 /** Contract enum value for MARKET orders. */
 export const ORDER_TYPE_MARKET = 1 as const;
 /** Contract enum value for LIMIT orders (majors / rasa only). */

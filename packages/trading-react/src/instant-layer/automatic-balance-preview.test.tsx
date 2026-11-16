@@ -1,6 +1,7 @@
 import {
   createConfig,
   PositionType,
+  SymmError,
   SymmioSupportedChainId,
   type GetInstantOpenFeesReturnType,
   type PrepareInstantOpenParamsReturnType,
@@ -43,6 +44,7 @@ vi.mock("../markets/use-markets", () => ({ useMarkets: () => ({}) }));
 vi.mock("../fees/use-fee-for-user", () => ({ useFeeForUser: () => ({}) }));
 vi.mock("../price-service/use-price-by-name", () => ({ usePriceByName: () => ({}) }));
 
+import { normalizeSymmError } from "../errors/normalize-symm-error";
 import { useInstantOpenFees } from "./use-instant-open-fees";
 import { usePrepareInstantOpenParams } from "./use-prepare-instant-open-params";
 
@@ -77,6 +79,8 @@ const params = {
   solverInfo: { staticSolverFeeOpen: "0.5" },
 } as const;
 const PREPARED: PrepareInstantOpenParamsReturnType = {
+  openEstimateStatus: "available",
+  estimatedOpenPrice: "100.5",
   fundingMode: "full-balance",
   subAccountAddress: ACCOUNT,
   marketId: 1,
@@ -86,6 +90,8 @@ const PREPARED: PrepareInstantOpenParamsReturnType = {
   margin: { amount: 100n },
 };
 const FEES: GetInstantOpenFeesReturnType = {
+  openEstimateStatus: "available",
+  estimatedOpenPrice: "100.5",
   kind: "enigma",
   fundingMode: "full-balance",
   platformOpenFee: "0.1",
@@ -401,6 +407,90 @@ describe("automatic balance previews", () => {
     for (const action of [prepare, fees]) {
       expect(action).toHaveBeenLastCalledWith(expect.objectContaining({ estimatedOpenPrice: null }));
     }
+  });
+
+  it.each(["OPEN_ESTIMATE_REJECTED", "ESTIMATED_PRICE_CANCELLED"])(
+    "surfaces %s instead of preparing a fallback from retained data",
+    async (code) => {
+      const config = createPreviewConfig();
+      const error = normalizeSymmError(new SymmError("api", code, "estimate rejected"));
+      estimate.mockReturnValue({
+        data: { estimatedPrice: "100.5" },
+        error,
+        isError: true,
+        isFetched: true,
+        isFetching: false,
+        isDebouncing: false,
+      });
+      const { result } = renderHookWithProviders(() => ({
+        prepare: usePrepareInstantOpenParams({ ...params, config }),
+        fees: useInstantOpenFees({ ...params, config }),
+      }));
+      await waitFor(() => expect(result.current.prepare.isError && result.current.fees.isError).toBe(true));
+      expect(result.current.prepare.error?.code).toBe(code);
+      expect(result.current.prepare.isReady || result.current.fees.isReady).toBe(false);
+      expect(prepare).not.toHaveBeenCalled();
+      expect(fees).not.toHaveBeenCalled();
+    },
+  );
+
+  it("discards a retained estimate after a technical refetch failure", async () => {
+    const config = createPreviewConfig();
+    const error = normalizeSymmError(new SymmError("api", "OPEN_ESTIMATE_UNAVAILABLE", "network unavailable"));
+    estimate.mockReturnValue({
+      data: { estimatedPrice: "100.5" },
+      error,
+      isError: true,
+      isFetched: true,
+      isFetching: false,
+      isDebouncing: false,
+    });
+    const { result } = renderHookWithProviders(() => usePrepareInstantOpenParams({ ...params, config }));
+    await waitFor(() => expect(result.current.isReady).toBe(true));
+    expect(result.current.estimatedOpenPrice).toBeNull();
+    expect(prepare).toHaveBeenCalledWith(expect.objectContaining({ estimatedOpenPrice: null }));
+  });
+
+  it("surfaces the latest refusal when a refresh keeps the same error code and message", async () => {
+    const config = createPreviewConfig();
+    const first = normalizeSymmError(
+      new SymmError("api", "OPEN_ESTIMATE_REJECTED", "Solver refused", { cause: new Error("first refusal") }),
+    );
+    const second = normalizeSymmError(
+      new SymmError("api", "OPEN_ESTIMATE_REJECTED", "Solver refused", { cause: new Error("latest refusal") }),
+    );
+    estimate.mockReturnValue({
+      error: first,
+      errorUpdatedAt: 1,
+      isError: true,
+      isFetched: true,
+      isFetching: false,
+      isDebouncing: false,
+    });
+    const { result, rerender } = renderHookWithProviders(() => ({
+      prepare: usePrepareInstantOpenParams({ ...params, config }),
+      fees: useInstantOpenFees({ ...params, config }),
+    }));
+    await waitFor(() => {
+      expect(result.current.prepare.error).toBe(first);
+      expect(result.current.fees.error).toBe(first);
+    });
+    estimate.mockReturnValue({
+      error: second,
+      errorUpdatedAt: 2,
+      isError: true,
+      isFetched: true,
+      isFetching: false,
+      isDebouncing: false,
+    });
+    rerender();
+    await waitFor(() => {
+      expect(result.current.prepare.error).toBe(second);
+      expect(result.current.fees.error).toBe(second);
+    });
+    expect(result.current.prepare.isReady || result.current.fees.isReady).toBe(false);
+    expect(prepare).not.toHaveBeenCalled();
+    expect(fees).not.toHaveBeenCalled();
   });
 
   it("does not fetch locked parameters for a typed fee preview without a balance budget", async () => {

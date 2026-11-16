@@ -5,6 +5,10 @@ import {
   prepareInstantOpenParams,
   type PrepareInstantOpenParameters,
 } from "../prepare-instant-open-params/prepare-instant-open-params";
+import type { InstantOpenEstimateMetadata } from "../shared/types";
+
+/** Accepted instant-open result and the estimate information actually used to prepare it. */
+export type InstantOpenAutoReturnType = InstantOpenReturnType & InstantOpenEstimateMetadata;
 
 /**
  * Resolve missing inputs via {@link prepareInstantOpenParams} and immediately
@@ -27,7 +31,12 @@ import {
 export async function instantOpenAuto(
   config: Config,
   parameters: PrepareInstantOpenParameters,
-): Promise<InstantOpenReturnType> {
+): Promise<InstantOpenAutoReturnType> {
   const resolved = await prepareInstantOpenParams(config, parameters);
-  return instantOpen(config, resolved);
+  const result = await instantOpen(config, resolved);
+  return {
+    ...result,
+    openEstimateStatus: resolved.openEstimateStatus,
+    estimatedOpenPrice: resolved.estimatedOpenPrice,
+  };
 }

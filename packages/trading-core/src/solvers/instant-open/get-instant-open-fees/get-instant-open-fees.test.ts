@@ -80,6 +80,8 @@ describe("getInstantOpenFees", () => {
 
     // quantity = 100×2/100 = 2; requestedOpenPrice = 101.00; notional = 2 × 101 = 202
     expect(fees).toEqual({
+      openEstimateStatus: "available",
+      estimatedOpenPrice: "101.5",
       fundingMode: "initial-margin",
       kind: "enigma",
       notional: "202",
@@ -119,6 +121,8 @@ describe("getInstantOpenFees", () => {
     const fees = await getInstantOpenFees(config, { ...PARAMS, solverId: "rasa" });
 
     expect(fees).toEqual({
+      openEstimateStatus: "unsupported",
+      estimatedOpenPrice: null,
       fundingMode: "initial-margin",
       kind: "rasa",
       notional: "202",
@@ -139,13 +143,14 @@ describe("getInstantOpenFees", () => {
     expect(fees.kind === "enigma" && fees.expectedSettlementLoss).toBe("4"); // (102 − 100) × 2
   });
 
-  it("provisions zero settlement loss when no estimate is available", async () => {
+  it("provisions settlement at the signed bound when no estimate is available", async () => {
     fetchOpenEstimatePrice.mockResolvedValue(undefined);
 
     const fees = await getInstantOpenFees(config, PARAMS);
 
-    expect(fees.kind === "enigma" && fees.expectedSettlementLoss).toBe("0");
-    expect(fees.totalFee).toBe("0.404"); // platform open 0.202 + solver open 0.202
+    expect(fees).toMatchObject({ openEstimateStatus: "unavailable", estimatedOpenPrice: null });
+    expect(fees.kind === "enigma" && fees.expectedSettlementLoss).toBe("2");
+    expect(fees.totalFee).toBe("2.404"); // fees plus (101 - 100) * 2 settlement provision
   });
 
   it("auto-derives slippage on lowcap when omitted, reusing one estimate fetch", async () => {
@@ -185,6 +190,8 @@ describe("getInstantOpenFees", () => {
       // settlement 3 = 104.404 → factor 100/104.404 × 0.999 → quantity 1.912,
       // notional 193.112; every leg is then re-priced on the rescaled size.
       expect(fees).toEqual({
+        openEstimateStatus: "available",
+        estimatedOpenPrice: "101.5",
         fundingMode: "full-balance",
         kind: "enigma",
         notional: "193.112",

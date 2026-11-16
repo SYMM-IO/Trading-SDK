@@ -77,6 +77,7 @@ export function resolveInstantOpenSizing(
   const { trade, calculationInput, availableBalance, fund } = parameters;
   const costs = computeInstantOpenCosts({
     ...parameters,
+    expectedFillPrice: parameters.expectedFillPrice ?? (parameters.isLowcap ? trade.requestedOpenPrice : undefined),
     positionType: calculationInput.positionType,
     markPrice: calculationInput.markPrice,
     cvaPercent: calculationInput.cvaPercent,
