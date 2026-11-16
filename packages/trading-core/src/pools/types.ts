@@ -894,6 +894,13 @@ export interface ListingDepositChain {
   chainId: ListingDepositChainId;
   /** Human-readable chain name, e.g. "HyperEVM". */
   chainName: string;
+  /** USD quote token for this chain; absent when an older backend omits it. */
+  usdToken?: {
+    /** EVM contract or case-sensitive Solana mint address, preserved verbatim. */
+    address: string;
+    /** Native token precision, not the listing amounts' LISTING_VALUE_DECIMALS (18) scale. */
+    decimals: number;
+  };
 }
 
 /**

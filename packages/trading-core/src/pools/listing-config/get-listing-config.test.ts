@@ -57,6 +57,29 @@ describe("getListingConfig", () => {
     });
   });
 
+  it("exposes USD-token metadata through the public action without changing request options", async () => {
+    const { config } = mockConfig();
+    getClientConfigV2ConfigsGet.mockResolvedValue({
+      data: {
+        supported_deposit_chains: [
+          {
+            chain_id: 0,
+            chain_name: "solana",
+            usd_token: { address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
+          },
+        ],
+      },
+    });
+
+    const cfg = await getListingConfig(config);
+
+    expect(getClientConfigV2ConfigsGet).toHaveBeenCalledWith({ baseURL: LISTING_URL });
+    expect(cfg.supportedDepositChains[0]?.usdToken).toEqual({
+      address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      decimals: 6,
+    });
+  });
+
   it("throws LISTING_NOT_CONFIGURED before any request when the chain has no listing backend", async () => {
     const { config } = mockConfig();
 

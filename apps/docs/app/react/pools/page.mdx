@@ -120,6 +120,7 @@ const { data, isPending, error } = useListingConfig();
 
 const recommended = data?.recommendedInitialDepositUsdc; // 18-decimal bigint (USD)
 const chains = data?.supportedDepositChains ?? []; // the source of truth for a chain picker
+const quoteToken = chains[0]?.usdToken; // optional address and native decimals
 ```
 
 It drives the create-pool form two ways: the recommended initial deposit is the figure the user seeds the pool with, and `supportedDepositChains` is the list a deposit-chain picker should render — **derive the `<select>` options from it rather than hardcoding a list**. `apps/web`'s create-pool card does exactly this: it maps `supportedDepositChains` into its chain picker and resets the selected chain to the first supported one whenever the default is not among them.
@@ -138,19 +139,21 @@ Every field is optional. The hook takes the core query options plus `config`.
 
 `UseQueryResult<ListingConfig, SymmioRequestError>`. `data` is the [`ListingConfig`](../../core/pools/listing-config#returns):
 
-| Field                           | Type                    | Notes                                                                                                                    |
-| ------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `recommendedInitialDepositUsdc` | `bigint`                | Recommended deposit to seed a pool, USD at `LISTING_VALUE_DECIMALS` (18). The headline figure of a create-pool form.     |
-| `minimumInitialDepositUsdc`     | `bigint`                | Minimum accepted deposit (after slippage), USD at `LISTING_VALUE_DECIMALS` (18).                                         |
-| `listingFeeUsdc`                | `bigint`                | The listing fee, USD at `LISTING_VALUE_DECIMALS` (18).                                                                   |
-| `supportedDepositChains`        | `ListingDepositChain[]` | Deposit chains new listings may use — each `{ chainId, chainName }`. **The source of truth for a deposit-chain picker.** |
-| `rateLimits`                    | `ListingRateLimits`     | `{ marketConfigUpdatesPerDay, profitClaimsPerDay }` — rolling-24h client mutation limits.                                |
-| `protocolRewardSharePercent`    | `number`                | Whole-percent of market revenue to the protocol before buyback/LP (`10` = `10%`). A plain number — do not descale.       |
+| Field                           | Type                    | Notes                                                                                                                               |
+| ------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `recommendedInitialDepositUsdc` | `bigint`                | Recommended deposit to seed a pool, USD at `LISTING_VALUE_DECIMALS` (18). The headline figure of a create-pool form.                |
+| `minimumInitialDepositUsdc`     | `bigint`                | Minimum accepted deposit (after slippage), USD at `LISTING_VALUE_DECIMALS` (18).                                                    |
+| `listingFeeUsdc`                | `bigint`                | The listing fee, USD at `LISTING_VALUE_DECIMALS` (18).                                                                              |
+| `supportedDepositChains`        | `ListingDepositChain[]` | Deposit chains new listings may use — each `{ chainId, chainName, usdToken? }`. **The source of truth for a deposit-chain picker.** |
+| `rateLimits`                    | `ListingRateLimits`     | `{ marketConfigUpdatesPerDay, profitClaimsPerDay }` — rolling-24h client mutation limits.                                           |
+| `protocolRewardSharePercent`    | `number`                | Whole-percent of market revenue to the protocol before buyback/LP (`10` = `10%`). A plain number — do not descale.                  |
 
 <Callout type="warning">
   The three `*Usdc` figures are 18-decimal `bigint`s (USD) — descale with `formatUnits(value, LISTING_VALUE_DECIMALS)`
   before formatting. `protocolRewardSharePercent` and the `rateLimits` counters are plain `number`s: render them
-  directly.
+  directly. Each chain's optional `usdToken` is `{ address: string; decimals: number }` with **native token decimals**,
+  not this 18-decimal listing scale. The hook preserves the core metadata unchanged; missing or null wire metadata
+  becomes `undefined`. See [per-chain USD quote tokens](/core/pools/listing-config#per-chain-usd-quote-tokens).
 </Callout>
 
 <Callout type="info">
