@@ -1,6 +1,7 @@
 export default {
   index: "Overview",
   "-- live-stream": { type: "separator", title: "Live stream" },
+  "watch-notification-envelopes": "watchNotificationEnvelopes",
   "watch-notifications": "watchNotifications",
   "-- rest-search": { type: "separator", title: "REST search" },
   "search-notifications": "searchNotifications",

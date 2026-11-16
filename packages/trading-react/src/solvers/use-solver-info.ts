@@ -53,9 +53,9 @@ export function useSolverInfo(parameters: UseSolverInfoParameters = {}): UseSolv
 
   const result = useQuery({
     ...options,
-    queryFn: async () => {
+    queryFn: async (context) => {
       try {
-        const data = await options.queryFn();
+        const data = await options.queryFn(context);
         if (key) rememberTimelockCapability(queryClient, key, data.timelockApproval);
         return data;
       } catch (err) {

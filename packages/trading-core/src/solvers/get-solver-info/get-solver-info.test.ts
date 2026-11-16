@@ -26,6 +26,19 @@ const config = createConfig({
 });
 
 describe("getSolverInfo", () => {
+  it("preserves the exact optional instant-open minimum and forwards cancellation", async () => {
+    const signal = new AbortController().signal;
+    genFn.mockResolvedValue({ data: { min_instant_open_collateral_usd: "0.000000000000000123" } });
+    const result = await getSolverInfo(config, { chainId: ARBITRUM, signal });
+    expect(result.minInstantOpenCollateralUsd).toBe("0.000000000000000123");
+    expect(genFn).toHaveBeenLastCalledWith({ baseURL: getDefaultSolver(ARBITRUM).url, signal });
+  });
+
+  it.each([undefined, null, 0, {}, false])("does not invent a minimum for invalid wire value %j", async (value) => {
+    genFn.mockResolvedValue({ data: { min_instant_open_collateral_usd: value } });
+    expect((await getSolverInfo(config, { chainId: ARBITRUM })).minInstantOpenCollateralUsd).toBeUndefined();
+  });
+
   it("exposes deployment-specific timelock metadata without changing fee fields", async () => {
     genFn.mockResolvedValue({
       data: {

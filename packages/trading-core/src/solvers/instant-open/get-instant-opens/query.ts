@@ -75,6 +75,7 @@ export function getInstantOpensQueryOptions<K extends SymmioSolverKind = SymmioS
         chainId: options.chainId,
         solverId: options.solverId,
         partyA: options.partyA,
+        appName: options.appName,
         baseUrl: options.baseUrl,
       }),
   };

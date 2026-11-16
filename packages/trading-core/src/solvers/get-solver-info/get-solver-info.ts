@@ -14,6 +14,8 @@ import { parseTimelockInfo } from "./parse-timelock-info";
  * exactly as the solver reports them.
  */
 export interface EnigmaSolverInfo {
+  /** Minimum instant-open collateral in USD, exactly as reported; absent when not supplied as a string. */
+  minInstantOpenCollateralUsd?: string;
   /** Deployment-specific timelock configuration; omitted by deployments without this capability. */
   timelockApproval?: TimelockApprovalCapability;
   /**
@@ -30,7 +32,12 @@ export interface EnigmaSolverInfo {
 }
 
 /** Parameters for {@link getSolverInfo}. */
-export type GetSolverInfoParameters = Compute<ReadSolverParameter>;
+export type GetSolverInfoParameters = Compute<
+  ReadSolverParameter & {
+    /** Cancel this request without changing the shared SDK transport. */
+    signal?: AbortSignal;
+  }
+>;
 
 /** Return type of {@link getSolverInfo}. */
 export type GetSolverInfoReturnType = EnigmaSolverInfo;
@@ -51,9 +58,15 @@ export async function getSolverInfo(
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   assertSolverKind(solver, "enigma", "getSolverInfo");
   try {
-    const response = await getInfo({ baseURL: solver.url });
+    const response = await getInfo({
+      baseURL: solver.url,
+      ...(parameters.signal ? { signal: parameters.signal } : {}),
+    });
+    const minimum =
+      "min_instant_open_collateral_usd" in response.data ? response.data.min_instant_open_collateral_usd : undefined;
     const timelockApproval = parseTimelockInfo(response.data, config.getChainConfig(parameters.chainId));
     return {
+      ...(typeof minimum === "string" ? { minInstantOpenCollateralUsd: minimum } : {}),
       ...(timelockApproval ? { timelockApproval } : {}),
       staticSolverFeeOpen: response.data.static_solver_fee_open,
       staticSolverFeeClose: response.data.static_solver_fee_close,

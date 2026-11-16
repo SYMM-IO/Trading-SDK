@@ -27,7 +27,7 @@ export async function searchRasaNotifications(
         create_time_gte: parameters.timestampGte ?? null,
         modify_time_gte: null,
       },
-      { baseURL: solver.url },
+      { baseURL: solver.url, ...(parameters.signal ? { signal: parameters.signal } : {}) },
     );
     return { kind: "rasa", count: response.data.count, rows: response.data.position_state };
   } catch (err) {

@@ -40,8 +40,9 @@ The returned disposer is idempotent — calling it twice is a no-op. Framework l
 
 `watchNotifications`, `watchTpSlNotifications`, `watchEnigmaPrices` and `watchBinancePrices` (and `watchPrices`, which dispatches to the last two) share connections through a pool scoped to the `Config`. The pool key identifies the endpoint and, for the account streams, the account. When two subscribers ask for the same key, the pool hands them the **same** underlying connection with a fan-out dispatcher — one socket, N subscribers, every frame delivered to each.
 
-Two streams connect differently:
+Some streams multiplex or connect differently:
 
+- On an Enigma solver, `watchNotifications` and `watchNotificationEnvelopes` share one socket per Config/deployment/endpoint. The active account/channel union is sent on connection and changes; delivery is filtered per subscriber.
 - On a Rasa solver, `watchNotifications` keeps one socket per endpoint for every watched account, and re-sends the full account list whenever it changes.
 - The Binance kline and depth watchers behind candles and the orderbook open one connection per call.
 
@@ -49,12 +50,14 @@ Shared connections are ref-counted. Disposing the last subscriber closes the soc
 
 ## Reconnect behavior
 
-Every stream is built on one internal reconnecting-socket primitive:
+Every stream uses one internal reconnecting-socket primitive. The following describes its default policy:
 
 - **Any close you did not ask for is redialed.** The close code is not inspected, so a clean server-side close (Binance rotates connections every 24 hours) reconnects like a dropped connection.
 - **Backoff is exponential with jitter.** The wait before a retry starts at 500 ms and doubles with each consecutive retry, capped at 10 s. Each wait is then scaled by a random factor between 0.5 and 1, so clients that dropped together do not redial together. Retries never stop on their own, and the backoff resets after every successful open.
 - **Subscriptions survive reconnects.** The subscribe frames are re-sent on every open, so a reconnect re-subscribes without any action from you. Frames missed while the connection was down are not replayed; refetch on reopen if a gap matters.
 - **Disposing the last subscriber is final.** It cancels any pending retry and nothing redials, even when you dispose from inside your own `onStatusChange` handler. No frame reaches a disposed watcher's frame handler, even while its connection is still closing.
+
+Enigma envelope subscriptions can override retry limits, delays and jitter through [reconnect options](/core/notifications/watch-notification-envelopes). The first subscriber chooses the shared connection policy, including for normalized position watchers. A finite retry limit can stop automatically; custom delays can exceed the default 10-second cap.
 
 ## `SocketStatus`
 
@@ -67,7 +70,7 @@ type SocketStatus = "connecting" | "open" | "reconnecting" | "closing" | "closed
 - `"reconnecting"` — the connection dropped, or a dial failed, and a retry is waiting out its backoff.
 - `"closing"` → `"closed"` — the connection is shutting down for good.
 
-Pooled watchers report the current status as soon as you subscribe; every watcher reports each transition after that. A `"reconnecting"` → `"connecting"` → `"open"` cycle is normal on a network flap. Retries never stop on their own, so `"closed"` only follows a dispose, and no single status marks an outage:
+Pooled watchers report the current status as soon as you subscribe; every watcher reports each transition after that. A `"reconnecting"` → `"connecting"` → `"open"` cycle is normal on a network flap. With the default policy, retries never stop on their own and `"closed"` follows disposal. A finite Enigma policy can also close after exhausting retries; no single intermediate status marks an outage:
 
 - A dial that fails switches between `"reconnecting"` and `"connecting"` on every retry, and no backoff wait lasts longer than 10 s.
 - A dial that hangs stays in `"connecting"`. The SDK sets no dial timeout, so it lasts until the WebSocket implementation gives up.

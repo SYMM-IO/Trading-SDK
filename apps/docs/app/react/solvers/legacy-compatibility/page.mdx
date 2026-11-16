@@ -1,0 +1,51 @@
+# Legacy solver compatibility hooks
+
+These thin hooks expose the [legacy solver actions](/core/solvers/legacy-compatibility) through React request state. They support existing bearer sessions; new signed TP/SL integrations should use the [TP/SL hooks](/react/tpsl).
+
+## Request a challenge and exchange a signature
+
+Call useGetSolverSignInMessage and useAuthenticateSolver at component scope. Their mutateAsync functions take GetSolverSignInMessageParameters and AuthenticateSolverParameters respectively. Preparing a challenge is deliberately on demand: rendering must not consume a nonce or prompt a wallet.
+
+```tsx
+const challengeRequest = useGetSolverSignInMessage();
+const login = useAuthenticateSolver();
+
+async function signIn() {
+  const challenge = await challengeRequest.mutateAsync({
+    chainId: 42161,
+    solverId: "enigma",
+    owner,
+    account,
+    domain: window.location.hostname,
+    issuedAt: new Date().toISOString(),
+    expirationTime: new Date(Date.now() + 3_600_000).toISOString(),
+  });
+  const signature = await walletClient.signMessage({ account: owner, message: challenge.message });
+  const session = await login.mutateAsync({ chainId: 42161, solverId: "enigma", challenge, signature });
+  // The host decides where to keep session.accessToken and when to expire it.
+}
+```
+
+Import hooks from @symmio/trading-react. Wallet consent, secure storage, expiry, account-change guards and refresh remain host-owned. Call reset after consuming a credential result; never persist mutation caches or log variables. Inactive mutation entries are collected immediately.
+
+## Read and submit legacy orders
+
+| Hook                            | Input                                                                     | Result                                      |
+| ------------------------------- | ------------------------------------------------------------------------- | ------------------------------------------- |
+| useLegacyOrderHistory           | GetLegacyOrderHistoryOptions plus optional config                         | UseQueryResult of LegacyOrderHistoryEntry[] |
+| useLegacyCollateralLocked       | GetLegacyCollateralLockedOptions plus optional config                     | UseQueryResult of exact decimal string      |
+| useCreateLegacyConditionalOrder | Optional config; mutateAsync takes CreateLegacyConditionalOrderParameters | LegacyConditionalOrder                      |
+| useCancelLegacyConditionalOrder | Optional config; mutateAsync takes CancelLegacyConditionalOrderParameters | boolean                                     |
+
+Each hook exports matching Use...Parameters and Use...ReturnType types. Mutation hooks return UseMutationResult, including pending/error state and mutateAsync; query hooks return UseQueryResult. Errors are normalized to SymmioRequestError. Mutations do not retry automatically.
+
+```tsx
+const history = useLegacyOrderHistory({ chainId: 42161, account, accessToken });
+const collateral = useLegacyCollateralLocked({ chainId: 42161, account, accessToken });
+const create = useCreateLegacyConditionalOrder();
+const cancel = useCancelLegacyConditionalOrder();
+```
+
+Both reads require account and accessToken; empty values disable automatic requests. Pass query controls for enabled, staleTime or polling. Cache keys omit credentials and include account/deployment scope. Query cancellation reaches HTTP; an explicit signal overrides TanStack's signal.
+
+Mutations forward every core input, including optional signal and solverId, and use the connected chain only when chainId is omitted. HTTP acceptance does not mean the order executed. These compatibility hooks do not invalidate caches or introduce a second confirmation owner; the host observes completion and chooses refresh policy. Clear private read caches on logout and account ownership changes.

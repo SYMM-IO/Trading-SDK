@@ -34,9 +34,11 @@ describe("getSolverInfoQueryOptions", () => {
     const spy = vi.spyOn(config, "getSolver");
 
     const options = getSolverInfoQueryOptions(config, { chainId: ARBITRUM, solverId: "enigma" });
-    await (options.queryFn as () => Promise<unknown>)();
+    const signal = new AbortController().signal;
+    await (options.queryFn as (context: { signal: AbortSignal }) => Promise<unknown>)({ signal });
 
     expect(spy).toHaveBeenCalledWith({ chainId: ARBITRUM, solverId: "enigma" });
-    expect(genFn).toHaveBeenCalledWith({ baseURL: getDefaultSolver(ARBITRUM).url });
+    expect(genFn).toHaveBeenCalledWith({ baseURL: getDefaultSolver(ARBITRUM).url, signal });
+    expect(getSolverInfoQueryKey({ chainId: ARBITRUM, signal })).toEqual(getSolverInfoQueryKey({ chainId: ARBITRUM }));
   });
 });

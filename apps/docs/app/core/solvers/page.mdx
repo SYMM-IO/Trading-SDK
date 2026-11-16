@@ -471,3 +471,11 @@ console.log(rasa[0]?.symbol);
 `getSymbols(config, {})` and `useSymbols()` retrieve all matching symbols in server order using 500-row pages when neither `limit` nor `offset` is supplied. All filters apply on every page. Supplying either pagination field requests one page (the server defaults an omitted limit to 100 and offset to zero). A failed later page rejects the read, rather than publishing a partial catalog.
 
 For the complete catalog, remove explicit `limit` and `offset` from existing calls. Existing query factories and hooks inherit this behavior without a new API.
+
+## Optional minimum and cancellation
+
+`EnigmaSolverInfo.minInstantOpenCollateralUsd?: string` preserves the exact solver decimal string. Missing or non-string values are omitted; the consumer decides whether the value is positive and acceptable. Existing static fee fields are unchanged.
+
+`GetSolverInfoParameters.signal?: AbortSignal` cancels the HTTP request. Query options forward TanStack's query cancellation signal unless an explicit signal is supplied. Cancellation is not part of query identity.
+
+Legacy bearer sessions and conditional orders are documented under [Legacy compatibility](/core/solvers/legacy-compatibility).
