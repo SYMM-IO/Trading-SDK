@@ -189,11 +189,20 @@ export interface ClaimProfitResponseSchema {
   transaction_hash?: string | null;
 }
 
+export interface UsdTokenConfig {
+  /** USD token address sent to the Price service as mint_quote, returned verbatim (a case-sensitive SPL mint on Solana). */
+  address: string;
+  /** Native decimals of the USD token, not a 1e18 scale. */
+  decimals: number;
+}
+
 export interface SupportedDepositChainConfig {
   /** Numeric chain identifier clients must send with market requests. */
   chain_id: number;
   /** Human-readable name of the supported deposit chain. */
   chain_name: string;
+  /** USD token Listing uses for Price calls on this chain: USDC on most chains, USDT on BSC, and USDG on Robinhood Chain. */
+  usd_token: UsdTokenConfig;
 }
 
 export interface ClientRateLimits {
@@ -398,6 +407,7 @@ export interface GetMarketResponseSchema {
   short_position_upnl: string | null;
   is_locked?: boolean | null;
   lock_reasons?: string[] | null;
+  delist_reason?: string | null;
 }
 
 export type ValidationErrorCtx = { [key: string]: unknown };
@@ -412,6 +422,19 @@ export interface ValidationError {
 
 export interface HTTPValidationError {
   detail?: ValidationError[];
+}
+
+export interface ProfitMarketIdentity {
+  token_address: string;
+  chain_id: SupportedDepositChains;
+}
+
+export interface LPProfitBatchRequest {
+  /**
+   * @minItems 1
+   * @maxItems 50
+   */
+  markets: ProfitMarketIdentity[];
 }
 
 export interface LPTokenProfitSchema {
@@ -429,6 +452,32 @@ export interface LPTokenProfitSchema {
   user_lp_amount: string;
   /** @pattern ^(?!^[-+.]*$)[+-]?0*\d*\.?\d*$ */
   pending_withdraw_lp_amount: string;
+}
+
+export interface ProfitSuccess {
+  token_address: string;
+  chain_id: SupportedDepositChains;
+  status?: "success";
+  data: LPTokenProfitSchema;
+}
+
+export interface ProfitEmpty {
+  token_address: string;
+  chain_id: SupportedDepositChains;
+  status?: "empty";
+  error_code: number;
+}
+
+export interface ProfitFailed {
+  token_address: string;
+  chain_id: SupportedDepositChains;
+  status?: "failed";
+  error_code: number;
+  error_message: string;
+}
+
+export interface LPProfitBatchResponse {
+  results: (ProfitSuccess | ProfitEmpty | ProfitFailed)[];
 }
 
 export interface LoginRequest {
@@ -451,6 +500,45 @@ export interface MaintenanceFeeRecord {
 export interface MaintenanceFeeRecordsResponse {
   total: number;
   items: MaintenanceFeeRecord[];
+}
+
+export interface MarketListingProgressResponse {
+  market_id: string;
+  market_status: string;
+  token_decimal: number;
+  symmio_symbol_id: number | null;
+  /** First listing time in epoch seconds. */
+  listing_time: number | null;
+  /** Latest relisting time in epoch seconds. */
+  relist_time: number | null;
+  first_swap_deposit_detected: boolean;
+  /** Listing deposit amount scaled by 1e18, as a decimal string. */
+  first_swap_deposit_amount: string | null;
+  swap_paid_wallet_id: string | null;
+  /** Last completed listing step; null before the first step completes. */
+  listing_step_completed: string | null;
+  listing_error_code: number | null;
+  listing_error_detail: string | null;
+  /** Listing fee transfer hash; a Solana signature on Solana markets. */
+  listing_swap_fee_tx_hash: string | null;
+  /** Token amount the Swap holder received from the listing deposit transfer, scaled by 1e18, as a decimal string. Lower than first_swap_deposit_amount for a tax token; null until notify_swap_deposit reads it. */
+  listing_swap_received_amount: string | null;
+  listing_swap_request_id: string | null;
+  /** USDC produced by the listing swap, scaled by 1e18, as a decimal string. */
+  listing_swap_actual_out: string | null;
+  listing_platform_fee_withdraw_id: string | null;
+  listing_platform_fee_tx_hash: string | null;
+  /** Stored count; never clamped. */
+  user_listing_retry_count: number;
+  /** Epoch seconds. */
+  last_listing_retry_at: number | null;
+  /** Stored count; never clamped. */
+  worker_listing_retry_count: number;
+  /** Epoch seconds. */
+  last_listing_worker_retry_at: number | null;
+  user_retry_limit: number;
+  user_retry_cooldown_seconds: number;
+  worker_retry_limit: number;
 }
 
 export interface MarketListingStatusResponse {
@@ -514,6 +602,8 @@ export interface MarketSearchItem {
   price_driven_apy_30d?: string | null;
   price_driven_apy_lifetime?: string | null;
   liquidity?: string | null;
+  available_to_long?: string | null;
+  available_to_short?: string | null;
   tvl?: string | null;
   open_interest?: string | null;
   listing_time?: number | null;
@@ -589,6 +679,8 @@ export interface UserMarketSearchItem {
   price_driven_apy_lifetime?: string | null;
   liquidity?: string | null;
   open_interest?: string | null;
+  available_to_long?: string | null;
+  available_to_short?: string | null;
   vol24h?: string | null;
   tvl?: string | null;
   listing_time?: number | null;
@@ -751,6 +843,38 @@ export interface TotalRewardSchema {
   total_reward: string;
 }
 
+export enum TransferStep {
+  swap_transfer = "swap_transfer",
+  swap_balance = "swap_balance",
+  inventory = "inventory",
+  finalize = "finalize",
+  sync_max_leverage = "sync_max_leverage",
+  completed = "completed",
+}
+export interface TransferTaskSchema {
+  task_id: string;
+  step: TransferStep;
+  deposit_ids: string[];
+  /** Locked deposit total scaled by 1e18, as a decimal string. */
+  locked_total: string;
+  /** Token amount the Swap holder received from swap_tx_hash, scaled by 1e18, as a decimal string. Inventory and LP credit use it; lower than locked_total for a tax token. Null until it is read. */
+  swap_received_amount: string | null;
+  /** USD price per whole token scaled by 1e18, as a decimal string. */
+  usdc_price: string | null;
+  swap_tx_hash: string | null;
+  /** Epoch seconds. */
+  swap_balance_at: number | null;
+  /** Epoch seconds. */
+  inventory_at: number | null;
+  retry_count: number;
+  /** Last task error; URL paths and queries are redacted. */
+  error_message: string | null;
+  /** Epoch seconds. */
+  create_time: number | null;
+  /** Epoch seconds. */
+  modify_time: number | null;
+}
+
 export interface UpdateMarketConfigRequestSchema {
   /** EVM or Solana blockchain address */
   token_contract_address: string;
@@ -807,6 +931,100 @@ export interface UserShareResponse {
   user_balance_in_usdc: string;
 }
 
+export enum WithdrawOperationState {
+  calculating_amounts = "calculating_amounts",
+  stored_in_listing = "stored_in_listing",
+  request_to_collect = "request_to_collect",
+  collected_in_inventory = "collected_in_inventory",
+  withdraw_from_swap = "withdraw_from_swap",
+  burned_in_inventory = "burned_in_inventory",
+  completed = "completed",
+}
+export enum WithdrawOperationStatus {
+  in_progres = "in_progres",
+  done = "done",
+  canceled = "canceled",
+}
+export interface WithdrawOperationSchema {
+  /** Operation ID, also the Inventory request ID and Swap withdraw ID. */
+  withdraw_operation_id: string;
+  state: WithdrawOperationState;
+  status: WithdrawOperationStatus;
+  /** Token amount scaled by 1e18, as a decimal string: 0 at calculating_amounts, requested from stored_in_listing, collected from collected_in_inventory, and paid by Swap from withdraw_from_swap. */
+  token_amount: string;
+  /** USDC amount scaled by 1e18, as a decimal string: 0 at calculating_amounts, requested from stored_in_listing, collected from collected_in_inventory, and paid by Swap from withdraw_from_swap. */
+  usdc_amount: string;
+  /** Legacy ratio, as a decimal string. */
+  token_ratio: string;
+  start_retry_count: number;
+  automatic_execution: boolean;
+  automatic_execution_blocked: boolean;
+  /** Epoch seconds. */
+  create_time: number;
+  /** Epoch seconds. */
+  modify_time: number;
+}
+
+export interface UserTransactionSchema {
+  transaction_id: string;
+  wallet_id: string;
+  /** System deposit wallet public key, returned verbatim. */
+  wallet_public_key: string;
+  market_id: string | null;
+  token_contract_address: string | null;
+  chain_id: number | null;
+  token_decimal: number | null;
+  transaction_type: TransactionType;
+  /** Stored status, including transferred, which public history reports as success. */
+  transaction_status: TransactionStatus;
+  /** Deposit token amount or withdrawn LP shares, scaled by 1e18, as a decimal string. Null for a deposit whose wallet has no market. */
+  amount: string | null;
+  /** Withdraw token amount scaled by 1e18, as a decimal string: the request-time LP-value estimate, replaced by the actual Swap payout on completion. Null for deposits. */
+  token_amount: string | null;
+  /** Withdraw USDC amount scaled by 1e18, as a decimal string: the request-time LP-value estimate, replaced by the actual Swap payout on completion. Null for deposits. */
+  usdc_amount: string | null;
+  /** Outgoing Swap transfer: the deposit wallet transfer to the Swap holder for a deposit, or the Swap payout for a withdraw. */
+  swap_transaction_hash: string | null;
+  refund_transaction_hash: string | null;
+  refund_address: string | null;
+  /** Epoch seconds. */
+  refund_time: number | null;
+  withdraw_address: string | null;
+  /** False after an operator canceled a withdraw operation: the pending withdraw then waits for an explicit operator start. */
+  withdraw_automatic_start_allowed: boolean;
+  /** Epoch seconds. */
+  transaction_time: number | null;
+  /** Epoch seconds. */
+  create_time: number | null;
+  /** Epoch seconds. */
+  modify_time: number | null;
+  /** Deposit transfer tasks containing this transaction, oldest first. */
+  transfer_tasks?: TransferTaskSchema[];
+  /** Every operation of this withdraw, including canceled, oldest first. */
+  withdraw_operations?: WithdrawOperationSchema[];
+}
+
+export interface UserWalletSchema {
+  wallet_id: string;
+  /** System deposit wallet public key, returned verbatim: an EVM address or a case-sensitive Solana base58 public key. */
+  wallet_public_key: string;
+  market_id: string | null;
+  token_contract_address: string | null;
+  chain_id: number | null;
+  token_ticker: string | null;
+  market_status: MarketStatus | null;
+  /** Wallet creation time in epoch seconds. */
+  create_time: number | null;
+  /** Deposit and withdraw transactions of this wallet; 0 when none exist. */
+  transaction_count: number;
+}
+
+export interface UserWalletsSchema {
+  items: UserWalletSchema[];
+  /** Total filtered wallet count before pagination. */
+  total: number;
+}
+
 export interface WeeklyListingLimitResponse {
   limit: number;
   remaining: number;
@@ -824,6 +1042,7 @@ export interface WithdrawRequest {
 }
 
 export enum UtilsPaginationDependenciesSortField1 {
+  sum_of_oi = "sum_of_oi",
   is_locked = "is_locked",
   liquidity = "liquidity",
   tvl = "tvl",
@@ -851,6 +1070,7 @@ export enum UtilsPaginationDependenciesSortField1 {
   user_revenue = "user_revenue",
 }
 export enum UtilsPaginationDependenciesSortField2 {
+  sum_of_oi = "sum_of_oi",
   is_locked = "is_locked",
   liquidity = "liquidity",
   tvl = "tvl",
@@ -1248,6 +1468,14 @@ export type GetMarketListingStatusV2MarketListingStatusGetParams = {
   deposit_chain: SupportedDepositChains;
 };
 
+export type GetMarketListingProgressV2MarketListingProgressGetParams = {
+  /**
+   * EVM or Solana blockchain address
+   */
+  token_contract_address: string;
+  deposit_chain: SupportedDepositChains;
+};
+
 export type GetPoolsV2PoolsGetParams = {
   /**
    * EVM or Solana blockchain address
@@ -1324,6 +1552,26 @@ export type GetUserFinancialHistoryV2UserReportsUserAddressDailyGetParams = {
    * Inclusive UTC end date (YYYY-MM-DD)
    */
   date_to: string;
+  /**
+   * Filter by market token address
+   */
+  token_contract_address?: string | null;
+  /**
+   * Filter by market deposit chain
+   */
+  chain_id?: SupportedDepositChains | null;
+  /**
+   * @minimum 0
+   */
+  offset?: number;
+  /**
+   * @minimum 1
+   * @maximum 100
+   */
+  limit?: number;
+};
+
+export type ListUserWalletsV2UserReportsUserAddressWalletsGetParams = {
   /**
    * Filter by market token address
    */
@@ -1447,13 +1695,26 @@ export const getDepositAddressV2MarketDepositAddressPost = (
 };
 
 /**
- * @summary Add a new market for listing
+ * Deprecated: use POST /v2/market/list-market instead.
+ * @deprecated
+ * @summary List or relist a market (deprecated)
  */
 export const addMarketV2MarketAddMarketPost = (
   addMarketDepositRequestSchemaV2: AddMarketDepositRequestSchemaV2,
   options?: AxiosRequestConfig,
 ): Promise<AxiosResponse<AddMarketDepositResponseSchemaV2>> => {
   return axios.post(`/v2/market/add-market`, addMarketDepositRequestSchemaV2, options);
+};
+
+/**
+ * Accepts tax tokens; liquidity is credited using actual transferred amounts.
+ * @summary List or relist a market
+ */
+export const listMarketV2MarketListMarketPost = (
+  addMarketDepositRequestSchemaV2: AddMarketDepositRequestSchemaV2,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<AddMarketDepositResponseSchemaV2>> => {
+  return axios.post(`/v2/market/list-market`, addMarketDepositRequestSchemaV2, options);
 };
 
 /**
@@ -1680,6 +1941,20 @@ export const getMarketListingStatusV2MarketListingStatusGet = (
 };
 
 /**
+ * Returns the market's stored listing progress, retry counts, and configured retry limits. A market without a progress row returns null or zero progress fields. This internal endpoint is protected by X-API-Key and the service connection limit.
+ * @summary Get market listing progress
+ */
+export const getMarketListingProgressV2MarketListingProgressGet = (
+  params: GetMarketListingProgressV2MarketListingProgressGetParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<MarketListingProgressResponse>> => {
+  return axios.get(`/v2/market/listing-progress`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
+/**
  * @summary Get weekly market listing limit status
  */
 export const getWeeklyListingLimitV2MarketWeeklyListingLimitGet = (
@@ -1773,6 +2048,17 @@ export const getUserTotalRewardV2ProfitTotalRewardGet = (
 };
 
 /**
+ * Returns the authenticated user’s LP profit for up to 50 markets.
+ * @summary Get LP profit for multiple markets
+ */
+export const searchProfitsV2ProfitSearchPost = (
+  lPProfitBatchRequest: LPProfitBatchRequest,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<LPProfitBatchResponse>> => {
+  return axios.post(`/v2/profit/search`, lPProfitBatchRequest, options);
+};
+
+/**
  * Returns the authenticated user's LP shares (user_lp_amount), LP token/USDC balances, claimable reward, and deposited token amount for the given market token.
  * @summary Get profit data per token for authenticated user
  */
@@ -1813,6 +2099,33 @@ export const getUserFinancialHistoryV2UserReportsUserAddressDailyGet = (
   });
 };
 
+/**
+ * Returns every deposit wallet of the user, including wallets without transactions, sorted by creation time descending. The user address is matched case-insensitively. This internal endpoint is protected by X-API-Key and the service connection limit.
+ * @summary List a user's deposit wallets
+ */
+export const listUserWalletsV2UserReportsUserAddressWalletsGet = (
+  userAddress: string,
+  params?: ListUserWalletsV2UserReportsUserAddressWalletsGetParams,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<UserWalletsSchema>> => {
+  return axios.get(`/v2/user-reports/${userAddress}/wallets`, {
+    ...options,
+    params: { ...params, ...options?.params },
+  });
+};
+
+/**
+ * Returns the user's stored transaction with its wallet and market, plus the transfer tasks of a deposit or every withdraw operation of a withdraw. A transaction of another user returns 404. This internal endpoint is protected by X-API-Key and the service connection limit.
+ * @summary Get a user's transaction with its workflow records
+ */
+export const getUserTransactionV2UserReportsUserAddressTransactionsTransactionIdGet = (
+  userAddress: string,
+  transactionId: string,
+  options?: AxiosRequestConfig,
+): Promise<AxiosResponse<UserTransactionSchema>> => {
+  return axios.get(`/v2/user-reports/${userAddress}/transactions/${transactionId}`, options);
+};
+
 export type RequestNonceV2AuthNoncePostResult = AxiosResponse<NonceResponseSchema>;
 export type GetSignInMessageV2AuthSignInMessageGetResult = AxiosResponse<SignInMessageResponseSchema>;
 export type LoginV2AuthLoginPostResult = AxiosResponse<Token>;
@@ -1824,6 +2137,7 @@ export type GetMarketUserMetricsV2MarketUserMetricsGetResult =
   AxiosResponse<GetMarketUserMetricsV2MarketUserMetricsGet200>;
 export type GetDepositAddressV2MarketDepositAddressPostResult = AxiosResponse<DepositResponseSchemaV2>;
 export type AddMarketV2MarketAddMarketPostResult = AxiosResponse<AddMarketDepositResponseSchemaV2>;
+export type ListMarketV2MarketListMarketPostResult = AxiosResponse<AddMarketDepositResponseSchemaV2>;
 export type GetMarketConfigV2MarketConfigGetResult = AxiosResponse<UpdateMarketConfigResponseSchema>;
 export type UpdateMarketConfigV2MarketConfigPostResult = AxiosResponse<UpdateMarketConfigResponseSchema>;
 export type RetryListingV2MarketRetryListingPostResult = AxiosResponse<RetryListingResponseSchema>;
@@ -1844,6 +2158,7 @@ export type SearchUserTransactionsV2MarketUserTransactionsStartSizeGetResult =
 export type GetMarketV2MarketGetResult = AxiosResponse<GetMarketResponseSchema>;
 export type GetMaintenanceFeeRecordsV2MarketMaintenanceFeesGetResult = AxiosResponse<MaintenanceFeeRecordsResponse>;
 export type GetMarketListingStatusV2MarketListingStatusGetResult = AxiosResponse<MarketListingStatusResponse>;
+export type GetMarketListingProgressV2MarketListingProgressGetResult = AxiosResponse<MarketListingProgressResponse>;
 export type GetWeeklyListingLimitV2MarketWeeklyListingLimitGetResult = AxiosResponse<WeeklyListingLimitResponse>;
 export type GetPoolsV2PoolsGetResult = AxiosResponse<GetPoolsV2PoolsGet200>;
 export type ClaimProfitV2ClaimPostResult = AxiosResponse<ClaimProfitResponseSchema>;
@@ -1852,6 +2167,10 @@ export type PostSearchClaimsV2ClaimSearchStartSizeGetResult = AxiosResponse<Sear
 export type GetClientConfigV2ConfigsGetResult = AxiosResponse<ClientConfigResponse>;
 export type GetUserRewardChartV2ProfitChartRewardsGetResult = AxiosResponse<UserMarketRewardChartSchema[]>;
 export type GetUserTotalRewardV2ProfitTotalRewardGetResult = AxiosResponse<TotalRewardSchema>;
+export type SearchProfitsV2ProfitSearchPostResult = AxiosResponse<LPProfitBatchResponse>;
 export type GetProfitByTokenV2ProfitTokenContractAddressGetResult = AxiosResponse<LPTokenProfitSchema>;
 export type GetUserFinancialSummaryV2UserReportsUserAddressSummaryGetResult = AxiosResponse<UserFinancialSummarySchema>;
 export type GetUserFinancialHistoryV2UserReportsUserAddressDailyGetResult = AxiosResponse<UserFinancialHistorySchema>;
+export type ListUserWalletsV2UserReportsUserAddressWalletsGetResult = AxiosResponse<UserWalletsSchema>;
+export type GetUserTransactionV2UserReportsUserAddressTransactionsTransactionIdGetResult =
+  AxiosResponse<UserTransactionSchema>;

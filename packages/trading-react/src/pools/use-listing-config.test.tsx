@@ -48,6 +48,25 @@ describe("useListingConfig", () => {
     );
   });
 
+  it("passes through each chain's USD-token metadata and legacy absence", async () => {
+    const { config } = createMockSymmioConfig();
+    const supportedDepositChains = [
+      {
+        chainId: ListingDepositChainId.SOLANA,
+        chainName: "solana",
+        usdToken: { address: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v", decimals: 6 },
+      },
+      { chainId: ListingDepositChainId.BSC, chainName: "bsc" },
+    ];
+    mockOptions(vi.fn().mockResolvedValue({ ...CONFIG, supportedDepositChains }));
+
+    const { result } = renderHookWithProviders(() => useListingConfig({ config }));
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data?.supportedDepositChains).toEqual(supportedDepositChains);
+    expect(result.current.data?.supportedDepositChains[1]?.usdToken).toBeUndefined();
+  });
+
   it("takes no required parameters", async () => {
     const { config } = createMockSymmioConfig();
     mockOptions(vi.fn().mockResolvedValue(CONFIG));

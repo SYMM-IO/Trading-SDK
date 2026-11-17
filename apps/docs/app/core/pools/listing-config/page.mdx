@@ -20,6 +20,7 @@ const cfg = await getListingConfig(config);
 
 const recommended = formatUnits(cfg.recommendedInitialDepositUsdc, LISTING_VALUE_DECIMALS); // USD
 const chains = cfg.supportedDepositChains; // the source of truth for a deposit-chain picker
+const quoteToken = chains[0]?.usdToken; // { address, decimals } | undefined; native precision
 ```
 
 <Callout type="info">
@@ -54,8 +55,11 @@ Both fields are optional — with neither, the config's default chain and that c
   </Property>
   <Property name="supportedDepositChains" type="ListingDepositChain[]">
     The deposit chains new listings may use — **the source of truth for a create-pool chain picker**. Each entry is a
-    `{ chainId: ListingDepositChainId; chainName: string }`. Render `chainName (chainId)` and use `chainId` as the
-    `depositChain` you pass to `addMarket`.
+    `{ chainId: ListingDepositChainId; chainName: string; usdToken?: { address: string; decimals: number } }`.
+    Render `chainName (chainId)` and use `chainId` as the `depositChain` you pass to `addMarket`.
+    `usdToken` is the USD quote token used for price calls on that deposit chain. Its address is preserved
+    verbatim, including case-sensitive Solana mints; its decimals are native token precision.
+    Older backends may omit it (or return null), which the SDK exposes as `undefined`.
   </Property>
   <Property name="rateLimits" type="ListingRateLimits">
     The rolling-24h client mutation limits: `{ marketConfigUpdatesPerDay: number | null; profitClaimsPerDay: number | null }` — max
@@ -70,6 +74,21 @@ Both fields are optional — with neither, the config's default chain and that c
   The three `*Usdc` figures are 18-decimal `bigint`s (USD), independent of the collateral token's own decimals — descale
   with `formatUnits(value, LISTING_VALUE_DECIMALS)` before formatting as USD. `protocolRewardSharePercent` and the two
   `rateLimits` counters are plain `number`s: render them directly, no descaling.
+</Callout>
+
+## Per-chain USD quote tokens
+
+The listing service selects USDT on BSC, USDG on Robinhood Chain, and USDC on most other deposit chains.
+Read the address and decimals from each chain's `usdToken` rather than hardcoding that selection.
+The service does not supply a symbol here, so the SDK does not infer one from the chain or address.
+The inspector shows each address and native decimal count, or **Unknown** when the metadata is absent.
+Solana's deposit-chain ID is `0`; do not use a truthiness check to select it.
+
+<Callout type="warning">
+  **Native decimals are not the listing amount scale.** For example, BSC's USDT uses 18 native decimals, while Solana's
+  USDC and Robinhood Chain's USDG use 6. Preserve the reported number, including 0. Missing metadata is unknown, not a
+  default token or an implicit 18-decimal precision. The existing listing monetary fields keep their separate
+  `LISTING_VALUE_DECIMALS` (18) scale.
 </Callout>
 
 ## Query options
