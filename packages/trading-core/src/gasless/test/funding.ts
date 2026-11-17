@@ -1,5 +1,6 @@
 import type { Address } from "viem";
-import { gaslessWriteTestConfig } from "./config";
+import { vi, type Mock } from "vitest";
+import { GASLESS_TEST_CHAIN, gaslessWriteTestConfig } from "./config";
 import { rawFeeQuote, type RawGaslessFeeQuote } from "./fee-quote";
 
 export const FUNDING_ACCOUNT: Address = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
@@ -26,8 +27,10 @@ export function fundingTestConfig(
     [FUNDING_ACCOUNT]: { free: 100n, allocated: 0n },
     [FUNDING_VA]: { free: 0n, allocated: 100n },
   },
-) {
+): ReturnType<typeof gaslessWriteTestConfig> & { getBlockNumber: Mock } {
   const mocks = gaslessWriteTestConfig();
+  const getBlockNumber = vi.fn().mockResolvedValue(100n);
+  Object.assign(mocks.config.getClient({ chainId: GASLESS_TEST_CHAIN }), { getBlockNumber });
   mocks.readContract.mockImplementation(async ({ functionName, args }: { functionName: string; args: Address[] }) => {
     if (functionName === "previewFeeQuote") return quote;
     const balance = balances[args[0]!.toLowerCase()];
@@ -36,5 +39,5 @@ export function fundingTestConfig(
     if (functionName === "balanceInfoOfPartyA") return [balance.allocated, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
     throw new Error(`Unexpected read: ${functionName}`);
   });
-  return mocks;
+  return { ...mocks, getBlockNumber };
 }

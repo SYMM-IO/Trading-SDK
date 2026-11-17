@@ -1,6 +1,6 @@
 import { GaslessFeeSource, SymmError, SymmioSupportedChainId } from "@symmio/trading-core";
 import { act, waitFor } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 import { createMockSymmioConfig, renderHookWithProviders } from "../test/test-utils";
 import { useGaslessBatchFunding } from "./use-gasless-batch-funding";
 import { useGaslessMarginFunding } from "./use-gasless-margin-funding";
@@ -30,15 +30,17 @@ const quote = {
     },
   ],
 };
-function setup() {
+function setup(): ReturnType<typeof createMockSymmioConfig> & { getBlockNumber: Mock } {
   const mocks = createMockSymmioConfig({ withWallet: false });
+  const getBlockNumber = vi.fn().mockResolvedValue(100n);
+  Object.assign(mocks.config.getClient({ chainId: SymmioSupportedChainId.ARBITRUM }), { getBlockNumber });
   mocks.readContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
     if (functionName === "previewFeeQuote") return quote;
     if (functionName === "balanceOf") return 100n;
     if (functionName === "balanceInfoOfPartyA") return [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
     throw new Error(`Unexpected read: ${functionName}`);
   });
-  return mocks;
+  return { ...mocks, getBlockNumber };
 }
 function input(amount18 = 100n) {
   return {
@@ -53,10 +55,13 @@ function input(amount18 = 100n) {
 
 describe("funding hooks", () => {
   it("exposes the core margin result without a wallet client", async () => {
-    const { config, writeContract } = setup();
+    const { config, writeContract, getBlockNumber, readContract } = setup();
     const { result } = renderHookWithProviders(() => useGaslessMarginFunding({ config, ...input() }));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(result.current.data).toMatchObject({ hasSufficientBalance: false, maxAddAmount18: 95n });
+    expect(getBlockNumber).toHaveBeenCalledExactlyOnceWith({ cacheTime: 0 });
+    const balances = readContract.mock.calls.filter(([read]) => read.functionName !== "previewFeeQuote");
+    expect(balances.map(([read]) => read.blockNumber)).toEqual([100n, 100n]);
     expect(writeContract).not.toHaveBeenCalled();
   });
 
@@ -96,6 +101,18 @@ describe("funding hooks", () => {
       await result.current.refetch();
     });
     await waitFor(() => expect(result.current.data?.hasSufficientBalance).toBe(true));
+  });
+
+  it("normalizes a failed block lookup without reporting funding success", async () => {
+    const { config, getBlockNumber, readContract } = setup();
+    getBlockNumber.mockRejectedValue(new Error("Block height unavailable"));
+    const { result } = renderHookWithProviders(() => useGaslessMarginFunding({ config, ...input() }));
+
+    await waitFor(() => expect(result.current.isError).toBe(true));
+
+    expect(result.current.error?.message).toBe("Block height unavailable");
+    expect(result.current.data).toBeUndefined();
+    expect(readContract).toHaveBeenCalledTimes(1);
   });
 
   it("normalizes quota errors instead of returning zero funding", async () => {

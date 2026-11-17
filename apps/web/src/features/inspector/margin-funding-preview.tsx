@@ -4,6 +4,7 @@ import { ResultError, ResultNote } from "@/components/result";
 import { FEE_PREVIEW_UPNL_SIG } from "@/features/gasless/fee-preview-placeholders";
 import { useGaslessMarginFunding, useSupportsGaslessService } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
+import { useState } from "react";
 import { formatUnits, type Address } from "viem";
 
 interface Props {
@@ -11,10 +12,19 @@ interface Props {
   virtualAccount: Address;
   direction: "add" | "remove";
   amount18: bigint;
+  writePending?: boolean;
 }
 
 /** Explicit read-only demonstration; it never changes the amount or authorizes a write. */
-export function MarginFundingPreview({ parentAccount, virtualAccount, direction, amount18 }: Props) {
+export function MarginFundingPreview({
+  parentAccount,
+  virtualAccount,
+  direction,
+  amount18,
+  writePending = false,
+}: Props) {
+  // A write remounts this view; cached or late query data must wait for a new explicit preview.
+  const [requested, setRequested] = useState(false);
   const supported = useSupportsGaslessService();
   const funding = useGaslessMarginFunding({
     account: parentAccount,
@@ -36,8 +46,11 @@ export function MarginFundingPreview({ parentAccount, virtualAccount, direction,
         type="button"
         size="sm"
         variant="outline"
-        disabled={funding.isFetching}
-        onClick={() => void funding.refetch()}
+        disabled={writePending || funding.isFetching}
+        onClick={() => {
+          setRequested(true);
+          void funding.refetch();
+        }}
       >
         Preview gasless funding
       </Button>
@@ -45,10 +58,10 @@ export function MarginFundingPreview({ parentAccount, virtualAccount, direction,
         Plain-call preview only; protected execution may differ. This does not send a transaction or change the amount.
       </ResultNote>
       {funding.isFetching ? <ResultNote loading>Reading fee funding…</ResultNote> : null}
-      {funding.isError ? (
+      {requested && funding.isError ? (
         <ResultError kind={funding.error.kind} code={funding.error.code} message={funding.error.message} />
       ) : null}
-      {!funding.isFetching && !funding.isError && funding.data ? (
+      {requested && !writePending && !funding.isFetching && !funding.isError && funding.data ? (
         <div className="space-y-1" role="status">
           <ResultNote>
             {funding.data.hasSufficientBalance

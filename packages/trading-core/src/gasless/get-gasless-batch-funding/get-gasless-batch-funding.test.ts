@@ -33,6 +33,71 @@ describe("getGaslessBatchFunding", () => {
     expect(writeContract).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { movement: "allocation", freeBefore: 10n, allocatedBefore: 0n, allocatedAfter: 10n, debit: 15n },
+    { movement: "deallocation", freeBefore: 0n, allocatedBefore: 10n, allocatedAfter: 0n, debit: 5n },
+  ])(
+    "does not double-count or omit funds during $movement",
+    async ({ freeBefore, allocatedBefore, allocatedAfter, debit }) => {
+      const row = fundingQuote().payments[0]!;
+      const quote = { ...fundingQuote([{ ...row, operationalFee18: debit }]), blockNumber: 1n };
+      const { config, readContract, getBlockNumber } = fundingTestConfig(quote);
+      readContract.mockImplementation(
+        async ({ functionName, blockNumber }: { functionName: string; blockNumber?: bigint }) => {
+          if (functionName === "previewFeeQuote") return quote;
+          if (functionName === "balanceOf") return freeBefore;
+          if (functionName === "balanceInfoOfPartyA") {
+            // The allocation changes between latest-state reads, but not within block 100.
+            const allocated = blockNumber === 100n ? allocatedBefore : allocatedAfter;
+            return [allocated, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
+          }
+          throw new Error(`Unexpected read: ${functionName}`);
+        },
+      );
+
+      const result = await getGaslessBatchFunding(config, input);
+
+      expect(result.payers[0]).toMatchObject({
+        freeBalance18: freeBefore,
+        balanceBefore18: 10n,
+        projectedBalance18: 10n,
+        shortfall18: debit > 10n ? debit - 10n : 0n,
+      });
+      expect(result.hasSufficientBalance).toBe(debit <= 10n);
+      expect(getBlockNumber).toHaveBeenCalledExactlyOnceWith({ cacheTime: 0 });
+      expect(
+        readContract.mock.calls
+          .filter(([read]) => read.functionName !== "previewFeeQuote")
+          .map(([read]) => read.blockNumber),
+      ).toEqual([100n, 100n]);
+      // The quote's block can be an L1 estimate; use the RPC height for balance reads.
+      expect(result.quote.blockNumber).toBe(1n);
+    },
+  );
+
+  it("pins every payer's balance reads to one block, even if the RPC advances", async () => {
+    const row = fundingQuote().payments[0]!;
+    const { config, getBlockNumber, readContract } = fundingTestConfig(fundingQuote([row, { ...row, payer: VA }]));
+    getBlockNumber.mockResolvedValueOnce(100n).mockResolvedValue(101n);
+
+    await getGaslessBatchFunding(config, input);
+
+    expect(getBlockNumber).toHaveBeenCalledExactlyOnceWith({ cacheTime: 0 });
+    const reads = readContract.mock.calls.filter(([read]) => read.functionName !== "previewFeeQuote");
+    expect(reads).toHaveLength(4);
+    expect(reads.map(([read]) => read.blockNumber)).toEqual([100n, 100n, 100n, 100n]);
+  });
+
+  it("propagates a failed snapshot read without falling back to latest balances", async () => {
+    const error = new Error("Block height unavailable");
+    const { config, getBlockNumber, readContract } = fundingTestConfig();
+    getBlockNumber.mockRejectedValue(error);
+
+    await expect(getGaslessBatchFunding(config, input)).rejects.toBe(error);
+
+    expect(readContract).toHaveBeenCalledTimes(1);
+  });
+
   it("groups case-insensitive payers, includes every debit component and sums movements", async () => {
     const row = fundingQuote().payments[0]!;
     const upper = ACCOUNT.toUpperCase().replace("0X", "0x") as Address;
@@ -76,11 +141,33 @@ describe("getGaslessBatchFunding", () => {
 
   it("does not need balance reads for a zero-debit quote", async () => {
     const row = fundingQuote().payments[0]!;
-    const { config, readContract } = fundingTestConfig(fundingQuote([{ ...row, operationalFee18: 0n }]), {});
+    const { config, readContract, getBlockNumber } = fundingTestConfig(
+      fundingQuote([{ ...row, operationalFee18: 0n }]),
+      {},
+    );
     const result = await getGaslessBatchFunding(config, input);
     expect(result.hasSufficientBalance).toBe(true);
     expect(result.payers).toEqual([]);
     expect(readContract).toHaveBeenCalledTimes(1);
+    expect(getBlockNumber).not.toHaveBeenCalled();
+  });
+
+  it("does not retry unavailable pinned balances at latest", async () => {
+    const error = new Error("Snapshot state unavailable");
+    const quote = fundingQuote();
+    const { config, readContract } = fundingTestConfig(quote);
+    readContract.mockImplementation(
+      async ({ functionName, blockNumber }: { functionName: string; blockNumber?: bigint }) => {
+        if (functionName === "previewFeeQuote") return quote;
+        if (blockNumber !== undefined) throw error;
+        return functionName === "balanceOf" ? 100n : [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
+      },
+    );
+
+    await expect(getGaslessBatchFunding(config, input)).rejects.toBe(error);
+
+    const reads = readContract.mock.calls.filter(([read]) => read.functionName !== "previewFeeQuote");
+    expect(reads.map(([read]) => read.blockNumber)).toEqual([100n, 100n]);
   });
 
   it("fails closed for unavailable balances", async () => {

@@ -39,6 +39,8 @@ it("only reads on explicit preview and warns that protected execution may differ
 it("shows the SDK shortfall and exact fee-safe Max without calculating them", () => {
   mocks.funding.mockReturnValue({ data: shortfall, isFetching: false, isError: false, refetch: mocks.refetch });
   render(<MarginFundingPreview {...props} />);
+  expect(screen.queryByText(/insufficient projected fee funding/i)).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Preview gasless funding" }));
   expect(screen.getByText(/insufficient projected fee funding/i)).toBeTruthy();
   expect(screen.getByText(/Fee-safe add bound: 0.000000000000000095/)).toBeTruthy();
 });
@@ -52,6 +54,7 @@ it("hides cached funding when a refresh fails", () => {
     refetch: mocks.refetch,
   });
   render(<MarginFundingPreview {...props} />);
+  fireEvent.click(screen.getByRole("button", { name: "Preview gasless funding" }));
   expect(screen.getByText("Quota exhausted")).toBeTruthy();
   expect(screen.queryByText(/Fee-safe add bound/)).toBeNull();
 });

@@ -158,6 +158,8 @@ export function WriteRemoveMargin() {
 
       {parentAccount && validVa && validAmount !== undefined ? (
         <MarginFundingPreview
+          key={`${mutation.submittedAt}:${mutation.status}`}
+          writePending={mutation.isPending}
           parentAccount={parentAccount}
           virtualAccount={validVa}
           direction="remove"

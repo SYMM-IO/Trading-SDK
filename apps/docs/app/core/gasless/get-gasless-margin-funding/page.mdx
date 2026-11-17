@@ -40,7 +40,7 @@ The parent, VA, direction and amount must match the supplied calls. This helper 
 
 ## Calculation and result
 
-Adding margin subtracts `amount18` from the parent and adds it to the VA. Removing margin reverses those movements. Each quoted payer is then checked independently through `getGaslessBatchFunding`; the original quote is not modified.
+Adding margin subtracts `amount18` from the parent and adds it to the VA. Removing margin reverses those movements. Each quoted payer is then checked independently through `getGaslessBatchFunding`; the original quote is not modified. All payer balances use one fresh RPC block, so an allocation between reads cannot inflate or omit collateral. The quote is read separately and is not pinned to that balance snapshot.
 
 The result is `Promise<GaslessMarginFunding>` (`GetGaslessMarginFundingReturnType`): all [batch funding fields](/core/gasless/get-gasless-batch-funding#returns), plus `maxAddAmount18: bigint | null`.
 

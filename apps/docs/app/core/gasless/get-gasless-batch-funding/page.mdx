@@ -56,6 +56,8 @@ Every payer row contains:
 
 All amounts are `bigint` in internal 18-decimal units. Balances are never pooled across payers. The comparison follows the Core fee balance source, not a trading-risk calculation or withdrawal limit.
 
+For a nonzero debit, the SDK fetches one fresh RPC block number and reads every payer's free and allocated balances at that block. This prevents an allocation between reads from counting the same collateral twice or omitting it. The fee quote is read separately; this is not a single snapshot of both pricing and balances. The quote's `blockNumber` is not used as the RPC block selector because it can be an L1 estimate on Arbitrum. If the block or a balance read fails, the check fails rather than falling back to unpinned reads. Zero-debit quotes need neither a block lookup nor balance reads.
+
 <Callout type="warning">
   This is a projection, not a transaction simulation. The quote's payer, allowance, fees and balances can change during
   execution. A projected shortfall may be conservative when execution would select another payer; a sufficient result
