@@ -115,7 +115,7 @@ Nest **`WagmiProvider` → `QueryClientProvider` → `SymmioProvider`**. The SDK
 
 - **`WagmiProvider`** — your `createConfig({ chains, transports, connectors })` from `wagmi`. The host owns connectors and RPCs; the SDK never picks them.
 - **`QueryClientProvider`** — one `new QueryClient()`, held in `useState` so it survives remounts.
-- **`SymmioProvider`** — props are **`symmioConfig`** (required), **`defaultChainId`**, **`getWalletClient`** (plus `children`). `symmioConfig` is the per-chain SYMMIO config, keyed by chain id; each supported chain must have `addresses.affiliatesAddress` **present** (the provider throws only when it is missing — `zeroAddress` works out of the box; a **registered** affiliate earns fees):
+- **`SymmioProvider`** — props are **`symmioConfig`** (required), **`defaultChainId`**, **`chainId`** (pin a single-chain app; see [provider](/react/provider#chainid)), **`getWalletClient`** (plus `children`). `symmioConfig` is the per-chain SYMMIO config, keyed by chain id; each supported chain must have `addresses.affiliatesAddress` **present** (the provider throws only when it is missing — `zeroAddress` works out of the box; a **registered** affiliate earns fees):
 
   ```tsx
   import { SymmioSupportedChainId } from "@symmio/trading-core";
