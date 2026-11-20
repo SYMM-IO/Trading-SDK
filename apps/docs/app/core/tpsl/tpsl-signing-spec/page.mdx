@@ -2,8 +2,6 @@
 
 The handler `/signing-spec` payload — the EIP-712 typed-data domain + schema a TP/SL message is signed against. Returned by [`getTpSlSigningSpec`](/core/tpsl/get-tpsl-signing-spec) (POST) and [`getTpSlDeleteSigningSpec`](/core/tpsl/get-tpsl-delete-signing-spec) (DELETE), and consumed by [`signTpSlRequest`](/core/tpsl/sign-tpsl-request). Server-published and stable per deployment, so the SDK never hardcodes the schema.
 
-The readers share complete successful schemas for five minutes within one config, chain/deployment, handler URL, `App-Name`, and operation. POST and DELETE entries are separate. Failed or incomplete responses are not retained. This cache holds schema data only; every write still signs a fresh order message.
-
 ## Fields
 
 <Properties>

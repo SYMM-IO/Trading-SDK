@@ -2,7 +2,6 @@ import type { Config } from "../../core/config";
 import type { ChainIdParameter, Compute } from "../../shared/types/properties";
 import { rethrowTpSlError } from "../internal/axios";
 import { resolveTpSlConfig } from "../internal/resolve-tpsl-config";
-import { readCachedTpSlSigningSpec } from "../signing-spec-cache";
 import type { TpSlSigningSpec } from "../types";
 import { v5SigningSpecDelApiV5SigningSpecDelGet } from "../types/generated/tpsl-handler";
 
@@ -14,15 +13,10 @@ export type GetTpSlDeleteSigningSpecReturnType = TpSlSigningSpec;
 
 /**
  * Fetch the handler's EIP-712 signing spec for the DELETE endpoint
- * (`/api/v5/signing-spec-del`). Successful complete schemas are shared for five
- * minutes within this config and deployment, including concurrent reads.
- * Failed or incomplete responses are not retained.
+ * (`/api/v5/signing-spec-del`). Stable per deployment — cache indefinitely.
  * Distinct from the POST signing spec because the delete typed data uses a
  * different `primaryType` and message struct.
  *
- * @param config - SDK config that owns this schema cache.
- * @param parameters - Optional target chain; defaults to the config's chain.
- * @returns The handler's EIP-712 domain, types and primary type for deletion.
  * @throws {SymmError} when the chain has no `tpsl` config.
  * @throws {SymmApiError} when the HTTP request fails.
  */
@@ -32,17 +26,11 @@ export async function getTpSlDeleteSigningSpec(
 ): Promise<TpSlSigningSpec> {
   const tpsl = resolveTpSlConfig(config, parameters.chainId);
   try {
-    return await readCachedTpSlSigningSpec(
-      config,
-      { chainId: parameters.chainId, handler: tpsl, method: "DELETE" },
-      async () => {
-        const response = await v5SigningSpecDelApiV5SigningSpecDelGet({
-          baseURL: tpsl.url,
-          headers: { "App-Name": tpsl.appName, Accept: "application/json" },
-        });
-        return response.data as TpSlSigningSpec;
-      },
-    );
+    const response = await v5SigningSpecDelApiV5SigningSpecDelGet({
+      baseURL: tpsl.url,
+      headers: { "App-Name": tpsl.appName, Accept: "application/json" },
+    });
+    return response.data as TpSlSigningSpec;
   } catch (err) {
     return rethrowTpSlError(err, { code: "FETCH_TPSL_DELETE_SIGNING_SPEC_FAILED", baseURL: tpsl.url });
   }

@@ -2,9 +2,7 @@
 
 Fetch the handler's EIP-712 signing spec for the **DELETE** endpoint (`/api/v5/signing-spec-del`). Distinct from the [POST spec](/core/tpsl/get-tpsl-signing-spec) because the delete typed data uses a different `primaryType` and message struct. Drives the signature that [`deleteQuoteTpSl`](/core/tpsl/delete-quote-tpsl) produces.
 
-The reader shares concurrent requests and retains complete successful schemas for five minutes after the response arrives. Cache hits do not extend that lifetime. Sharing is scoped to the same SDK `Config` instance, resolved chain/config fingerprint, handler URL, `App-Name`, and POST or DELETE operation. A new config or destination uses a separate cache. Failed or incomplete responses are not retained; an expired schema is never used as a fallback after a failed refresh.
-
-Called internally by `deleteQuoteTpSl`; exposed for advanced consumers that sign their own messages. Only the schema is cached. Order messages, salts, signatures, and mutation results remain fresh for every action. Returned schemas can be modified without changing the retained cache entry.
+Stable per deployment — cache indefinitely. Called internally by `deleteQuoteTpSl`; exposed for advanced consumers that sign their own delete messages.
 
 ```ts
 import { getTpSlDeleteSigningSpec } from "@symmio/trading-core";
@@ -41,7 +39,7 @@ import { useQuery } from "@tanstack/react-query";
 useQuery(getTpSlDeleteSigningSpecQueryOptions(config));
 ```
 
-`getTpSlDeleteSigningSpecQueryOptions` takes no required inputs. Its query function uses the shared five-minute reader cache; TanStack Query freshness is controlled separately by `query.staleTime`. `getTpSlDeleteSigningSpecQueryKey` builds the matching cache key.
+`getTpSlDeleteSigningSpecQueryOptions` takes no required inputs — cache forever. `getTpSlDeleteSigningSpecQueryKey` builds the matching cache key.
 
 ## Related
 

@@ -1,10 +1,8 @@
 # getTpSlSigningSpec
 
-Fetch the handler's EIP-712 signing spec for the **POST** endpoint (create / edit). The spec drives the `domain`, `types`, and `primaryType` that [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) signs against, so the SDK never hardcodes the schema.
+Fetch the handler's EIP-712 signing spec for the **POST** endpoint (create / edit). The spec drives the `domain`, `types`, and `primaryType` that [`setQuoteTpSl`](/core/tpsl/set-quote-tpsl) signs against, so the SDK never hardcodes the schema — it always matches the deployed handler.
 
-The reader shares concurrent requests and retains complete successful schemas for five minutes after the response arrives. Cache hits do not extend that lifetime. Sharing is scoped to the same SDK `Config` instance, resolved chain/config fingerprint, handler URL, `App-Name`, and POST or DELETE operation. A new config or destination uses a separate cache. Failed or incomplete responses are not retained; an expired schema is never used as a fallback after a failed refresh.
-
-Called internally by `setQuoteTpSl`; exposed for advanced consumers that sign their own messages. Only the schema is cached. Order messages, salts, signatures, and mutation results remain fresh for every action. Returned schemas can be modified without changing the retained cache entry.
+The spec is server-published and stable per deployment; cache it indefinitely (the React layer uses `staleTime: Infinity`). Called internally by `setQuoteTpSl`; exposed for advanced consumers that sign their own messages.
 
 ```ts
 import { getTpSlSigningSpec } from "@symmio/trading-core";
@@ -41,7 +39,7 @@ import { useQuery } from "@tanstack/react-query";
 useQuery(getTpSlSigningSpecQueryOptions(config));
 ```
 
-`getTpSlSigningSpecQueryOptions` takes no required inputs. Its query function uses the shared five-minute reader cache; TanStack Query freshness is controlled separately by `query.staleTime`. The existing React hook defaults to `Infinity`, which does not change the cache used directly by write actions. `getTpSlSigningSpecQueryKey` builds the matching cache key.
+`getTpSlSigningSpecQueryOptions` takes no required inputs — cache forever. `getTpSlSigningSpecQueryKey` builds the matching cache key.
 
 ## Related
 
