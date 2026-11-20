@@ -30,7 +30,7 @@ export type GetTpSlDeleteSigningSpecQueryOptions = SymmioQueryOptions<
   GetTpSlDeleteSigningSpecQueryKey
 >;
 
-/** Build TanStack Query options for {@link getTpSlDeleteSigningSpec}. Cache forever. */
+/** Build TanStack Query options for {@link getTpSlDeleteSigningSpec}. Reader requests share a five-minute schema cache. */
 export function getTpSlDeleteSigningSpecQueryOptions(
   config: Config,
   options: GetTpSlDeleteSigningSpecOptions = {},

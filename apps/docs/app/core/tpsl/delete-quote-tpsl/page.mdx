@@ -2,6 +2,8 @@
 
 Cancel a live TP or SL order by its handler-issued `cohQuoteId`. Internally: resolves the handler URL + [DELETE signing spec](/core/tpsl/get-tpsl-delete-signing-spec), builds a [`TpSlDeleteMessage`](/core/tpsl/tpsl-delete-message) bound to the target `cohQuoteId` + side, signs it with the session-key wallet, and calls `DELETE /api/v5/` with `{ typedData, signature, signer }`.
 
+The schema reader coalesces concurrent requests and reuses successful complete schemas for up to five minutes within the same config and handler deployment. POST and DELETE schemas remain separate. Every action still builds a new message and salt, signs it, and submits its own request; signatures and mutation results are never cached.
+
 A resolved call establishes submission acceptance, not confirmed deletion. Check a complete live-order search through [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders) before treating absence as removal. Notifications from [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) can prompt reconciliation, but cannot identify which mutation completed or order successive changes.
 
 ```ts

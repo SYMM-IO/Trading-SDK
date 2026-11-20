@@ -2,6 +2,8 @@
 
 Submit a TP and/or SL order to the handler. Accepts one or both sides in a single call. Internally: resolves the handler URL + [signing spec](/core/tpsl/get-tpsl-signing-spec), rounds trigger prices and derives slippage-shifted fill prices via [`priceSlippageCalculation`](/core/tpsl/price-slippage-calculation), builds a [`TpSlConditionalOrderMessage`](/core/tpsl/tpsl-conditional-order-message) with non-null legs only, signs it with the session-key wallet client, and POSTs `{ typedData, signature, signer }`.
 
+The schema reader coalesces concurrent requests and reuses successful complete schemas for up to five minutes within the same config and handler deployment. POST and DELETE schemas remain separate. Every action still builds a new message and salt, signs it, and submits its own request; signatures and mutation results are never cached.
+
 A resolved call establishes submission acceptance, not confirmed creation or editing. Observe current order state through [`searchTpSlOrders`](/core/tpsl/search-tpsl-orders). Notifications from [`watchTpSlNotifications`](/core/tpsl/watch-tpsl-notifications) can prompt reconciliation, but cannot identify which mutation completed or order successive changes.
 
 ```ts

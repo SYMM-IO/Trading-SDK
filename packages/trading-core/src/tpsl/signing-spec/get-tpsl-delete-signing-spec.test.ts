@@ -95,10 +95,7 @@ describe("getTpSlDeleteSigningSpec", () => {
     await getTpSlDeleteSigningSpec(config);
     await getTpSlDeleteSigningSpec(config, { chainId: config.defaultChainId });
 
-    expect(get.mock.calls).toEqual([
-      [DELETE_SPEC_PATH, EXPECTED_REQUEST],
-      [DELETE_SPEC_PATH, EXPECTED_REQUEST],
-    ]);
+    expect(get.mock.calls).toEqual([[DELETE_SPEC_PATH, EXPECTED_REQUEST]]);
   });
 
   it("does not share an endpoint with getTpSlSigningSpec", async () => {

@@ -28,7 +28,7 @@ export type GetTpSlSigningSpecQueryOptions = SymmioQueryOptions<
   GetTpSlSigningSpecQueryKey
 >;
 
-/** Build TanStack Query options for {@link getTpSlSigningSpec}. Cache forever. */
+/** Build TanStack Query options for {@link getTpSlSigningSpec}. Reader requests share a five-minute schema cache. */
 export function getTpSlSigningSpecQueryOptions(
   config: Config,
   options: GetTpSlSigningSpecOptions = {},
