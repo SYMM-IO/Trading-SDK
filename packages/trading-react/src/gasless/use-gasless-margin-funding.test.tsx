@@ -123,6 +123,17 @@ describe("funding hooks", () => {
     expect(readContract).toHaveBeenCalledTimes(1);
   });
 
+  it("normalizes a failed batch funding read instead of returning zero funding", async () => {
+    const { config, readContract } = setup();
+    readContract.mockRejectedValue(new SymmError("api", "GASLESS_FREE_QUOTA_EXHAUSTED", "Quota exhausted"));
+    const { result } = renderHookWithProviders(() =>
+      useGaslessBatchFunding({ config, account: ACCOUNT, calls: input().calls }),
+    );
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error?.code).toBe("GASLESS_FREE_QUOTA_EXHAUSTED");
+    expect(result.current.data).toBeUndefined();
+  });
+
   it("normalizes quota errors instead of returning zero funding", async () => {
     const { config, readContract } = setup();
     readContract.mockRejectedValue(new SymmError("api", "GASLESS_FREE_QUOTA_EXHAUSTED", "Quota exhausted"));

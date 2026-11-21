@@ -62,8 +62,8 @@ export async function getGaslessBatchFunding(
 ): Promise<GetGaslessBatchFundingReturnType> {
   const { chainId, account, calls, balanceChanges = [] } = parameters;
   const quote = await getGaslessBatchFeeQuote(config, { chainId, account, calls });
-  const due = new Map<Address, bigint>();
-  const allowanceDue = new Map<Address, bigint>();
+  /** Per payer: everything it is charged, and the part charged against its allowance. */
+  const due = new Map<Address, { debit18: bigint; allowanceDebit18: bigint }>();
   for (const payment of quote.payments) {
     if (payment.source !== GaslessFeeSource.SYMMIO_ACCOUNT) {
       throw new SymmError(
@@ -83,11 +83,14 @@ export async function getGaslessBatchFunding(
       throw new SymmError("validation", "GASLESS_FUNDING_QUOTE_INCONSISTENT", "Quoted fee debits must be nonnegative.");
     }
     const payer = payment.payer.toLowerCase() as Address;
-    due.set(payer, (due.get(payer) ?? 0n) + components.reduce((sum, amount) => sum + amount, 0n));
-    // GaslessFeeQuoteLib charges these two through chargeOperationalFee, which spends the allowance.
-    allowanceDue.set(payer, (allowanceDue.get(payer) ?? 0n) + payment.operationalFee18 + payment.walletCreationFee18);
+    const totals = due.get(payer) ?? { debit18: 0n, allowanceDebit18: 0n };
+    due.set(payer, {
+      debit18: totals.debit18 + components.reduce((sum, amount) => sum + amount, 0n),
+      // GaslessFeeQuoteLib charges these two through chargeOperationalFee, which spends the allowance.
+      allowanceDebit18: totals.allowanceDebit18 + payment.operationalFee18 + payment.walletCreationFee18,
+    });
   }
-  if ([...due.values()].reduce((sum, amount) => sum + amount, 0n) !== quote.totalDebit18) {
+  if ([...due.values()].reduce((sum, { debit18 }) => sum + debit18, 0n) !== quote.totalDebit18) {
     throw new SymmError(
       "validation",
       "GASLESS_FUNDING_QUOTE_INCONSISTENT",
@@ -99,7 +102,7 @@ export async function getGaslessBatchFunding(
     const payer = change.account.toLowerCase() as Address;
     movements.set(payer, (movements.get(payer) ?? 0n) + change.delta18);
   }
-  const chargedPayers = [...due].filter(([, debit]) => debit > 0n);
+  const chargedPayers = [...due].filter(([, { debit18 }]) => debit18 > 0n);
   if (chargedPayers.length === 0) {
     return { quote, hasSufficientBalance: true, hasSufficientAllowance: true, isCovered: true, payers: [] };
   }
@@ -112,7 +115,7 @@ export async function getGaslessBatchFunding(
   const blockNumber = await client.getBlockNumber({ cacheTime: 0 });
   const readParameters = { address: addresses.symmioAddress, abi: symmioAbi, blockNumber };
   const payers = await Promise.all(
-    chargedPayers.map(async ([payer, debit18]): Promise<GaslessPayerFunding> => {
+    chargedPayers.map(async ([payer, { debit18, allowanceDebit18 }]): Promise<GaslessPayerFunding> => {
       const [freeBalance18, info, [allowanceBefore18]] = await Promise.all([
         client.readContract({ ...readParameters, functionName: "balanceOf", args: [payer] }),
         client.readContract({ ...readParameters, functionName: "balanceInfoOfPartyA", args: [payer] }),
@@ -126,7 +129,6 @@ export async function getGaslessBatchFunding(
       const projected = balanceBefore18 + (movements.get(payer) ?? 0n);
       const projectedBalance18 = projected > 0n ? projected : 0n;
       const shortfall18 = shortfall(debit18, projectedBalance18);
-      const allowanceDebit18 = allowanceDue.get(payer) ?? 0n;
       const allowance18 = approvals.get(payer) ?? allowanceBefore18;
       const allowanceShortfall18 = shortfall(allowanceDebit18, allowance18);
       const missing: GaslessFundingShortage[] = [];

@@ -74,4 +74,21 @@ describe("funding query options", () => {
     expect(options.enabled).toBe(true);
     await expect(options.queryFn()).resolves.toMatchObject({ hasSufficientBalance: false });
   });
+
+  it("is enabled by default and honors an explicit enabled flag", () => {
+    const { config } = fundingTestConfig();
+    const parameters = {
+      chainId: GASLESS_TEST_CHAIN,
+      account: ACCOUNT,
+      parentAccount: ACCOUNT,
+      virtualAccount: VA,
+      direction: "add" as const,
+      amount18: 10n,
+      calls: [{ functionName: "addMargin", args: [VA, 10n] }],
+    };
+    expect(getGaslessMarginFundingQueryOptions(config, parameters).enabled).toBe(true);
+    expect(getGaslessMarginFundingQueryOptions(config, { ...parameters, query: { enabled: false } }).enabled).toBe(
+      false,
+    );
+  });
 });

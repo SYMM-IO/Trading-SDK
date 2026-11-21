@@ -24,11 +24,8 @@ function parseRow(row: BalanceChangeRow): GaslessFundingBalanceChange | null | "
   const amount = row.amount.trim();
   if (amount.length === 0) return null;
   if (!isAddress(account) || !/^[+-]?\d+(\.\d+)?$/.test(amount)) return "invalid";
-  try {
-    return { account, delta18: parseUnits(amount.replace(/^\+/, ""), WEI_DECIMALS) };
-  } catch {
-    return "invalid";
-  }
+  // The pattern above admits only plain signed decimals, which parseUnits always accepts.
+  return { account, delta18: parseUnits(amount.replace(/^\+/, ""), WEI_DECIMALS) };
 }
 
 /** Every non-zero charge one payer pays, named after the operation it belongs to. */
@@ -153,7 +150,8 @@ function BatchFundingCheck({
       state={state}
       testId={testId}
       onCheck={() => {
-        if (invalid || writePending) return;
+        // A relay disables the button; an invalid row can still leave Recheck showing an older answer.
+        if (invalid) return;
         setRequestedFor(resetKey);
         void funding.refetch();
       }}

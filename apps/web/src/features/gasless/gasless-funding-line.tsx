@@ -14,7 +14,7 @@ export interface FundingChargeRow {
   /** What the charge is for, e.g. the call's name or "Wallet creation". */
   label: string;
   /** The kind of charge, shown muted after the label. */
-  kind?: string;
+  kind: string;
   amount18: bigint;
 }
 
@@ -205,7 +205,7 @@ function PayerCard({ payer }: { payer: FundingPayerRow }) {
         <div key={index} className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground truncate">
             {charge.label}
-            {charge.kind ? <span className="text-muted-foreground/70"> · {charge.kind}</span> : null}
+            <span className="text-muted-foreground/70"> · {charge.kind}</span>
           </span>
           <span className="font-mono">{usdc(charge.amount18)}</span>
         </div>

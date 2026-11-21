@@ -207,6 +207,19 @@ describe("getGaslessBatchFunding", () => {
     });
   });
 
+  it("rejects a negative quoted fee component before reading balances", async () => {
+    const row = fundingQuote().payments[0]!;
+    const { config, readContract } = fundingTestConfig({
+      ...fundingQuote([row]),
+      payments: [{ ...row, depositFee18: -1n }],
+      totalDebit18: 4n,
+    });
+    await expect(getGaslessBatchFunding(config, input)).rejects.toMatchObject({
+      code: "GASLESS_FUNDING_QUOTE_INCONSISTENT",
+    });
+    expect(readContract).toHaveBeenCalledTimes(1);
+  });
+
   it("rejects an inconsistent quote total before reading balances", async () => {
     const { config, readContract } = fundingTestConfig({ ...fundingQuote(), totalDebit18: 6n });
     await expect(getGaslessBatchFunding(config, input)).rejects.toMatchObject({

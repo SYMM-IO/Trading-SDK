@@ -246,3 +246,42 @@ it("shows an unlimited allowance as unlimited, not as digits", () => {
   fireEvent.click(screen.getByRole("button", { name: /Details/ }));
   expect(screen.getByTestId("gasless-batch-funding-payers").textContent).toContain("Fee allowanceunlimited");
 });
+
+it("says there is nothing to fund when no payer is charged", () => {
+  mocks.funding.mockReturnValue({
+    data: { ...covered, payers: [], quote: { payments: [] } },
+    isFetching: false,
+    isError: false,
+    refetch: mocks.refetch,
+  });
+  render(<GaslessBatchFunding account={account} calls={calls} />);
+  fireEvent.click(screen.getByRole("button", { name: "Check funding" }));
+  expect(screen.getByTestId("gasless-batch-funding-verdict").textContent).toBe("no fee to fund");
+  expect(screen.queryByRole("button", { name: /Details/ })).toBeNull();
+});
+
+it("counts every charged payer in the total line", () => {
+  const second = { ...covered.payers[0]!, payer: va };
+  mocks.funding.mockReturnValue({
+    data: { ...covered, payers: [covered.payers[0]!, second] },
+    isFetching: false,
+    isError: false,
+    refetch: mocks.refetch,
+  });
+  render(<GaslessBatchFunding account={account} calls={calls} />);
+  fireEvent.click(screen.getByRole("button", { name: "Check funding" }));
+  expect(screen.getByRole("button", { name: /Total charged 0.1 USDC · 2 payers/ })).toBeTruthy();
+});
+
+it("does not recheck while a balance change cannot be read, even with an earlier answer showing", () => {
+  mocks.funding.mockReturnValue({ data: covered, isFetching: false, isError: false, refetch: mocks.refetch });
+  render(<GaslessBatchFunding account={account} calls={calls} />);
+  fireEvent.click(screen.getByRole("button", { name: "Check funding" }));
+  expect(mocks.refetch).toHaveBeenCalledOnce();
+  fireEvent.click(screen.getByRole("button", { name: /Balance changes/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Add row" }));
+  fireEvent.change(screen.getByLabelText("Balance change 1 amount"), { target: { value: "fifty" } });
+  // The unreadable row is ignored by the query, so the earlier answer and Recheck stay visible.
+  fireEvent.click(screen.getByRole("button", { name: "Recheck" }));
+  expect(mocks.refetch).toHaveBeenCalledOnce();
+});

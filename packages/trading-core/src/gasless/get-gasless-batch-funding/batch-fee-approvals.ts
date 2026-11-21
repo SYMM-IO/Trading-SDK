@@ -1,4 +1,4 @@
-import { decodeFunctionData, getAbiItem, isAddressEqual, toFunctionSelector, type Address, type Hex } from "viem";
+import { decodeFunctionData, getAbiItem, toFunctionSelector, type Address, type Hex } from "viem";
 import { symmioAbi } from "../../symmio-contracts/abi/v0.8.6/symmio";
 import {
   gaslessBatchCallData,
@@ -35,6 +35,8 @@ export function batchFeeApprovals(
   charger: Address,
 ): ReadonlyMap<Address, bigint> {
   const approvals = new Map<Address, bigint>();
+  // Compare lowercase, as payers are keyed: a checksum mismatch must not throw mid-check.
+  const chargerKey = charger.toLowerCase();
   for (const call of calls) {
     if (isGaslessBatchWalletExecute(call)) continue;
     const data = gaslessBatchCallData(call);
@@ -43,7 +45,7 @@ export function batchFeeApprovals(
     const [chargers, amounts] = args as unknown as readonly [readonly Address[], readonly bigint[]];
     chargers.forEach((approved, index) => {
       const amount = amounts[index];
-      if (amount !== undefined && isAddressEqual(approved, charger)) {
+      if (amount !== undefined && approved.toLowerCase() === chargerKey) {
         approvals.set(account.toLowerCase() as Address, amount);
       }
     });
