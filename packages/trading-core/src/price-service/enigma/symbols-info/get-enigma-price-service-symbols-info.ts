@@ -1,4 +1,4 @@
-import { isAxiosError } from "axios";
+import { isAxiosError, isCancel } from "axios";
 import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
 import type { ChainIdParameter, Compute } from "../../../shared/types/properties";
@@ -37,12 +37,20 @@ export async function getEnigmaPriceServiceSymbolsInfo(
   return fetchEnigmaPriceServiceSymbolsInfo(priceService.url);
 }
 
-async function fetchEnigmaPriceServiceSymbolsInfo(baseURL: string): Promise<EnigmaSymbolInfo[]> {
+/** Read listings from an already resolved provider URL. @internal */
+export async function fetchEnigmaPriceServiceSymbolsInfo(
+  baseURL: string,
+  signal?: AbortSignal,
+): Promise<EnigmaSymbolInfo[]> {
   try {
-    const response = await getSymbolsInfoApiV1SymbolsInfoGet({ baseURL });
+    const response = await getSymbolsInfoApiV1SymbolsInfoGet({
+      baseURL,
+      timeout: 30_000,
+      ...(signal ? { signal } : {}),
+    });
     return response.data;
   } catch (err) {
-    if (err instanceof SymmError) throw err;
+    if (err instanceof SymmError || isCancel(err)) throw err;
 
     if (isAxiosError(err)) {
       throw SymmApiError.fromAxios(err, { code: "FETCH_ENIGMA_PRICE_SERVICE_SYMBOLS_INFO_FAILED", baseURL });

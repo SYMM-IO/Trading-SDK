@@ -60,7 +60,7 @@ describe("getEnigmaPriceServiceSymbolsInfoQueryOptions", () => {
 
     await expect(options.queryFn()).resolves.toBe(SYMBOLS);
     expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledTimes(1);
-    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: PRICE_SERVICE_URL });
+    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: PRICE_SERVICE_URL, timeout: 30_000 });
   });
 
   it("queryFn forwards the factory's chainId to the action, surfacing UNSUPPORTED_CHAIN", async () => {
@@ -155,7 +155,7 @@ describe("getEnigmaPriceServiceSymbolsInfoQueryOptions", () => {
     getSymbolsInfoApiV1SymbolsInfoGet.mockResolvedValue({ data: SYMBOLS });
     await overriddenOptions.queryFn();
     expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledTimes(1);
-    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: overriddenUrl });
+    expect(getSymbolsInfoApiV1SymbolsInfoGet).toHaveBeenCalledWith({ baseURL: overriddenUrl, timeout: 30_000 });
   });
 
   it("keys an unsupported chain apart from the supported one instead of reusing its fingerprint", () => {

@@ -7,6 +7,7 @@ describe("resolutionToMs", () => {
   it("returns the nominal span of a resolution", () => {
     expect(resolutionToMs("1s")).toBe(1_000);
     expect(resolutionToMs("1m")).toBe(60_000);
+    expect(resolutionToMs("10m")).toBe(600_000);
     expect(resolutionToMs("1h")).toBe(3_600_000);
     expect(resolutionToMs("1d")).toBe(86_400_000);
   });

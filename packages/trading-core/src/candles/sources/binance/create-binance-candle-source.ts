@@ -171,6 +171,8 @@ export function createBinanceCandleSource(parameters: BinanceCandleSourceParamet
         pricePrecision: info.pricePrecision,
         /** Binance reports base-asset volume; two decimals reads well for every listed contract. */
         volumePrecision: 2,
+        volumeUnit: "base",
+        volumeCurrency: info.baseAsset,
       };
     },
 

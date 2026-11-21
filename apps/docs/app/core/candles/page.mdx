@@ -4,14 +4,14 @@ import { Callout } from "nextra/components";
 
 OHLCV bars, decoupled from any venue. A **`CandleSource`** supplies the three things every chart needs — symbol metadata, historical bars for a range, and a live subscription — so charts, adapters, and hooks are written against that interface rather than against an exchange.
 
-`createBinanceCandleSource` is the reference source for major markets. Any venue that can answer those three questions plugs in the same way, and `toTradingViewDatafeed` turns any source into a TradingView Charting Library datafeed.
+`createBinanceCandleSource` serves major markets; [`createLowcapCandleSource`](/core/candles/lowcap-source) serves lowcap price-service history and live updates. Any venue that can answer those three questions plugs in the same way, and `toTradingViewDatafeed` turns any source into a TradingView Charting Library datafeed.
 
 <Callout type="warning">
   Every source declares a `priceBasis`. Binance's is `reference-exchange`: it is a third-party venue's perp price,
   **not** the SYMMIO solver's mark price a trade settles against. Surface that to anyone placing orders off the chart.
 </Callout>
 
-Unlike most of the SDK, a source is **not** derived from `Config`: a reference exchange is not a SYMMIO chain deployment, and which venue to chart is the consumer's choice. Construct one and pass it in explicitly.
+Construct a source explicitly. Binance has its own endpoints; the lowcap source resolves its price-service endpoints from `Config`. Both return the same `CandleSource` interface.
 
 Each method and type has its own page with the full signature, parameters, return shape, examples, and query options.
 
@@ -21,11 +21,17 @@ Each method and type has its own page with the full signature, parameters, retur
   <MethodEntry name="getCandlesQueryOptions" href="/core/candles/get-candles">
     TanStack Query options for a source's historical bars, keyed by the source's `id`.
   </MethodEntry>
+  <MethodEntry name="refreshCandleHistory" href="/core/candles/get-candles#refreshcandlehistory">
+    Revalidate incremental history, optionally limited to corrected intervals and any missing live tail.
+  </MethodEntry>
 </MethodIndex>
 
 ## Live bars
 
 <MethodIndex kind="read">
+  <MethodEntry name="createLowcapCandleSource" href="/core/candles/lowcap-source">
+    Lowcap OHLCV with USD volume, explicit flat-candle options, and provisional live prices.
+  </MethodEntry>
   <MethodEntry name="createBinanceCandleSource" href="/core/candles/create-source">
     Build the reference source backed by Binance klines — REST history plus a live kline stream.
   </MethodEntry>

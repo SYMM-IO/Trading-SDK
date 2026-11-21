@@ -21,7 +21,7 @@ interface Candle {
   edge.
 </Callout>
 
-`volume` is base-asset volume over the bar, and `0` when the source cannot report volume — the case for any source that folds a price-tick stream into bars.
+`volume` uses the unit reported by the source's `CandleSymbol.volumeUnit` and `volumeCurrency`. It can measure the base asset or quote currency. For example, BTC volume and USD volume are different quantities; do not compare or relabel them without conversion. A zero can mean no traded volume or no available volume data.
 
 ## `CandleSymbol`
 
@@ -43,17 +43,34 @@ Symbol metadata a chart needs before it can render a series: how to label the in
   <Property name="volumePrecision" type="number">
     Decimal places volume should be rendered at.
   </Property>
+  <Property name="volumeUnit" type='"base" | "quote"' optional>
+    Whether volume measures the base asset or quote currency. An omitted value means unspecified; do not assume
+    base-asset volume.
+  </Property>
+  <Property name="volumeCurrency" type="string" optional>
+    Currency of the volume values, when known: for example `"BTC"` for BTC volume or `"USD"` for dollar volume.
+  </Property>
 </Properties>
+
+Binance sources report `volumeUnit: "base"` and the exchange's base asset as `volumeCurrency`, when supplied by the exchange. The lowcap price-service source reports `volumeUnit: "quote"` and `volumeCurrency: "USD"`. Its live price ticks carry no volume, so volume changes arrive through HTTP reconciliation.
+
+```ts
+const symbol = await source.getSymbol(marketName);
+const volumeLabel = symbol?.volumeCurrency ? `Volume (${symbol.volumeCurrency})` : "Volume";
+```
 
 ## `CandlePriceBasis`
 
 What the prices in a candle series actually represent. Surfaced deliberately rather than hidden: a chart drawn from a reference exchange is not the price a SYMMIO trade settles at, and a UI that lets a user place orders off that chart should be able to tell them so.
 
-| Value                  | The bars are                                                              | Matches execution? |
-| ---------------------- | ------------------------------------------------------------------------- | ------------------ |
-| `"reference-exchange"` | Mark price of a third-party perp venue (e.g. Binance USD-M).              | No                 |
-| `"dex-pool"`           | Spot price of an on-chain liquidity pool, USD-denominated.                | No                 |
-| `"solver-mark"`        | The SYMMIO solver's own mark price — the basis execution settles against. | Yes                |
+| Value                  | The bars are                                                                  | Matches execution? |
+| ---------------------- | ----------------------------------------------------------------------------- | ------------------ |
+| `"reference-exchange"` | Mark price of a third-party perp venue (e.g. Binance USD-M).                  | No                 |
+| `"dex-pool"`           | Spot price of an on-chain liquidity pool, USD-denominated.                    | No                 |
+| `"solver-mark"`        | The SYMMIO solver's own mark price — the basis execution settles against.     | Yes                |
+| `"price-service"`      | OHLCV from the configured price service, with provisional live-price updates. | Not guaranteed     |
+
+Price basis and volume denomination are independent. USD volume alone does not establish that a source's prices match the solver's mark price.
 
 ## Related
 

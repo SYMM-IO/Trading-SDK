@@ -63,6 +63,56 @@ describe("toTradingViewDatafeed", () => {
     expect(reason).toMatch(/Unknown symbol/);
   });
 
+  it.each([
+    ["TOKEN::Ab..Cd_SFLOW", "Price Service"],
+    ["Price Service:TOKEN::Ab..Cd_SFLOW", "Price Service"],
+    ["TOKEN::Ab..Cd_SFLOW", "TOKEN"],
+    ["lowcap:staging:TOKEN::Ab..Cd_SFLOW", "lowcap:staging"],
+  ])("preserves the full market name when resolving %s", async (symbolName, exchange) => {
+    const marketName = "TOKEN::Ab..Cd_SFLOW";
+    const source = createStubSource({
+      getSymbol: vi.fn(async (name) => ({
+        marketName: name,
+        sourceSymbol: "AbCd",
+        description: name,
+        pricePrecision: 6,
+        volumePrecision: 2,
+      })),
+    });
+    const datafeed = toTradingViewDatafeed(source, { exchange });
+    const info = await new Promise<TradingViewSymbolInfo>((resolve, reject) =>
+      datafeed.resolveSymbol(symbolName, resolve, reject),
+    );
+
+    expect(source.getSymbol).toHaveBeenCalledWith(marketName);
+    expect(info.name).toBe(marketName);
+    expect(info.ticker).toBe(marketName);
+  });
+
+  it("advertises and translates a source's 10m resolution", async () => {
+    const source = createStubSource({ supportedResolutions: ["10m"] });
+    const datafeed = toTradingViewDatafeed(source);
+    const configuration = await new Promise<TradingViewDatafeedConfiguration>((resolve) => datafeed.onReady(resolve));
+
+    expect(configuration.supported_resolutions).toEqual(["10"]);
+    await new Promise<void>((resolve, reject) =>
+      datafeed.getBars(
+        SYMBOL_INFO,
+        "10",
+        { from: 0, to: 600, firstDataRequest: true, countBack: 1 },
+        () => resolve(),
+        reject,
+      ),
+    );
+    expect(source.getCandles).toHaveBeenCalledWith({
+      marketName: "BTCUSDT",
+      resolution: "10m",
+      from: 0,
+      to: 600_000,
+      limit: 1,
+    });
+  });
+
   it("converts second-based period params to milliseconds", async () => {
     const source = createStubSource();
     const datafeed = toTradingViewDatafeed(source);
