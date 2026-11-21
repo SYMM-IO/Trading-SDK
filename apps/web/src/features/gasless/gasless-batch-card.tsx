@@ -24,6 +24,7 @@ import {
   type BatchEntryInput,
   type BatchSigners,
 } from "./gasless-batch-entry";
+import { GaslessBatchFunding } from "./gasless-batch-funding";
 import { GaslessCard } from "./gasless-card";
 import { GaslessFailureNote } from "./gasless-failure-note";
 import { GaslessFeePreview } from "./gasless-fee-preview";
@@ -376,6 +377,15 @@ export function GaslessBatchCard() {
             labels={labels}
             idleHint={entries.length === 0 ? "add a call to estimate" : "complete every entry to estimate"}
             testId="gasless-batch-fee"
+          />
+
+          {/* A relay moves money: every relay state change hides the earlier answer; typed balance changes stay. */}
+          <GaslessBatchFunding
+            resetKey={`${relay.submittedAt}:${relay.status}`}
+            writePending={relay.isPending}
+            account={account}
+            calls={calls}
+            labels={labels}
           />
         </>
       )}

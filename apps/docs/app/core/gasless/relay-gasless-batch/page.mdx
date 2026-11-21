@@ -48,6 +48,12 @@ The target contract of a write is never passed: it is resolved from the encoded 
 
 What a batch buys is **shared fate** — one revert rolls back every call and every fee — and one request to track. It also changes when the fee is due: the GaslessLayer collects fees after the whole batch executes, so an operational-fee approval early in the batch already covers the calls after it.
 
+## Optional funding guard
+
+Fee preflight quotes the batch; it does not check affordability. Consumers can call [`getGaslessBatchFunding`](/core/gasless/get-gasless-batch-funding), or [`getGaslessMarginFunding`](/core/gasless/get-gasless-margin-funding) for one margin transfer, to check projected payer balances. Reconcile pending work first, then check the final calls fresh before starting a new relay. Stop on a shortfall or unavailable check and keep recovery choices explicit. A cached preview is not authorization to submit, and an uncertain earlier request must not be replayed because a new funding check fails.
+
+These helpers are opt-in and leave this action's defaults unchanged. They project known balance movements, not arbitrary batch execution; fees and payers can still change before the relayer simulates the transaction.
+
 ## The account
 
 `account` is the sub-account every operation runs under. It is each write's `signerAccount` — whose InstantLayer nonces the batch consumes and whose delegations authorize a session key — and the billing account: a virtual account bills its parent. For a wallet entry it also selects the wallet: the GaslessLayer derives it from `ownerOf(account)`, so a sub-account resolves to its owner's wallets.

@@ -20,6 +20,7 @@ import { Spinner } from "@symmio/ui/components/spinner";
 import { useState } from "react";
 import { isAddress, isAddressEqual, parseUnits, zeroAddress, type Address } from "viem";
 
+import { MarginFundingPreview } from "./margin-funding-preview";
 import { MethodCard } from "./method-card";
 import { SimulateResult } from "./simulate-result";
 import { VirtualAccountField } from "./virtual-account-field";
@@ -155,6 +156,16 @@ export function WriteRemoveMargin() {
         testId="result-simulate-removeMargin"
       />
 
+      {parentAccount && validVa && validAmount !== undefined ? (
+        <MarginFundingPreview
+          key={`${mutation.submittedAt}:${mutation.status}`}
+          writePending={mutation.isPending}
+          parentAccount={parentAccount}
+          virtualAccount={validVa}
+          direction="remove"
+          amount18={validAmount}
+        />
+      ) : null}
       <ProtectedWriteNotice protection={protection} />
       <WritePanel mutation={mutation} account={validVa} />
     </MethodCard>
