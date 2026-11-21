@@ -29,7 +29,7 @@ import type { GetGaslessMarginFundingParameters, GetGaslessMarginFundingReturnTy
  *   account: parentAccount, parentAccount, virtualAccount, direction: "add", amount18,
  *   calls: [{ functionName: "addMargin", args: [virtualAccount, amount18] }],
  * });
- * if (!funding.hasSufficientBalance) showFundingChoices(funding);
+ * if (!funding.isCovered) showFundingChoices(funding.payers); // each payer's `missing` says why
  * ```
  */
 export async function getGaslessMarginFunding(

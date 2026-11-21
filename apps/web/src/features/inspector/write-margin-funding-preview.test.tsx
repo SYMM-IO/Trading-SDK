@@ -10,10 +10,12 @@ const parentAccount = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 const virtualAccount = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
 const covered = {
   hasSufficientBalance: true,
+  hasSufficientAllowance: true,
+  isCovered: true,
   maxAddAmount18: null,
   payers: [],
 };
-const insufficient = { ...covered, hasSufficientBalance: false };
+const insufficient = { ...covered, hasSufficientBalance: false, isCovered: false };
 const receipt = { hash: `0x${"1".repeat(64)}`, receipt: { status: "success", blockNumber: 100n } };
 
 vi.mock("@symmio/trading-react", () => ({
@@ -97,7 +99,7 @@ for (const [direction, Component] of [
 
       mocks.read.mockResolvedValue(insufficient);
       fireEvent.click(screen.getByRole("button", { name: "Preview gasless funding" }));
-      await screen.findByText("Insufficient projected fee funding.");
+      await screen.findByText(/^Not covered/);
       expect(mocks.read).toHaveBeenCalledTimes(2);
       expect(mocks.write).toHaveBeenCalledTimes(1);
     });
@@ -118,7 +120,7 @@ for (const [direction, Component] of [
 
       mocks.read.mockResolvedValue(insufficient);
       fireEvent.click(screen.getByRole("button", { name: "Preview gasless funding" }));
-      await screen.findByText("Insufficient projected fee funding.");
+      await screen.findByText(/^Not covered/);
     });
 
     it("does not allow previewing while the margin write is pending", async () => {

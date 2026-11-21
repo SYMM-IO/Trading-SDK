@@ -1,8 +1,14 @@
 import type { Address } from "viem";
 import { describe, expect, it } from "vitest";
 import { SymmError } from "../../shared/errors/symm-error";
-import { GASLESS_TEST_CHAIN } from "../test/config";
-import { FUNDING_ACCOUNT as ACCOUNT, FUNDING_VA as VA, fundingQuote, fundingTestConfig } from "../test/funding";
+import { GASLESS_TEST_CHAIN, TEST_GASLESS } from "../test/config";
+import {
+  FUNDING_ACCOUNT as ACCOUNT,
+  FUNDING_UNLIMITED_ALLOWANCE,
+  FUNDING_VA as VA,
+  fundingQuote,
+  fundingTestConfig,
+} from "../test/funding";
 import { GaslessFeeSource } from "../types";
 import { getGaslessBatchFunding } from "./get-gasless-batch-funding";
 
@@ -18,6 +24,8 @@ describe("getGaslessBatchFunding", () => {
       balanceChanges: [{ account: ACCOUNT, delta18: -106n }],
     });
     expect(result.hasSufficientBalance).toBe(false);
+    expect(result.hasSufficientAllowance).toBe(true);
+    expect(result.isCovered).toBe(false);
     expect(result.payers).toEqual([
       {
         payer: ACCOUNT,
@@ -26,6 +34,10 @@ describe("getGaslessBatchFunding", () => {
         balanceBefore18: 110n,
         projectedBalance18: 4n,
         shortfall18: 1n,
+        allowanceDebit18: 5n,
+        allowance18: FUNDING_UNLIMITED_ALLOWANCE,
+        allowanceShortfall18: 0n,
+        missing: ["balance"],
       },
     ]);
     expect(result.quote.totalDebit18).toBe(5n);
@@ -51,6 +63,7 @@ describe("getGaslessBatchFunding", () => {
             const allocated = blockNumber === 100n ? allocatedBefore : allocatedAfter;
             return [allocated, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
           }
+          if (functionName === "getOperationalFeeAllowance") return [FUNDING_UNLIMITED_ALLOWANCE, 0n, 0n, 10_000n];
           throw new Error(`Unexpected read: ${functionName}`);
         },
       );
@@ -69,13 +82,13 @@ describe("getGaslessBatchFunding", () => {
         readContract.mock.calls
           .filter(([read]) => read.functionName !== "previewFeeQuote")
           .map(([read]) => read.blockNumber),
-      ).toEqual([100n, 100n]);
+      ).toEqual([100n, 100n, 100n]);
       // The quote's block can be an L1 estimate; use the RPC height for balance reads.
       expect(result.quote.blockNumber).toBe(1n);
     },
   );
 
-  it("pins every payer's balance reads to one block, even if the RPC advances", async () => {
+  it("pins every payer's balance and allowance reads to one block, even if the RPC advances", async () => {
     const row = fundingQuote().payments[0]!;
     const { config, getBlockNumber, readContract } = fundingTestConfig(fundingQuote([row, { ...row, payer: VA }]));
     getBlockNumber.mockResolvedValueOnce(100n).mockResolvedValue(101n);
@@ -84,8 +97,8 @@ describe("getGaslessBatchFunding", () => {
 
     expect(getBlockNumber).toHaveBeenCalledExactlyOnceWith({ cacheTime: 0 });
     const reads = readContract.mock.calls.filter(([read]) => read.functionName !== "previewFeeQuote");
-    expect(reads).toHaveLength(4);
-    expect(reads.map(([read]) => read.blockNumber)).toEqual([100n, 100n, 100n, 100n]);
+    expect(reads).toHaveLength(6);
+    expect(reads.map(([read]) => read.blockNumber)).toEqual([100n, 100n, 100n, 100n, 100n, 100n]);
   });
 
   it("propagates a failed snapshot read without falling back to latest balances", async () => {
@@ -147,6 +160,8 @@ describe("getGaslessBatchFunding", () => {
     );
     const result = await getGaslessBatchFunding(config, input);
     expect(result.hasSufficientBalance).toBe(true);
+    expect(result.hasSufficientAllowance).toBe(true);
+    expect(result.isCovered).toBe(true);
     expect(result.payers).toEqual([]);
     expect(readContract).toHaveBeenCalledTimes(1);
     expect(getBlockNumber).not.toHaveBeenCalled();
@@ -167,7 +182,7 @@ describe("getGaslessBatchFunding", () => {
     await expect(getGaslessBatchFunding(config, input)).rejects.toBe(error);
 
     const reads = readContract.mock.calls.filter(([read]) => read.functionName !== "previewFeeQuote");
-    expect(reads.map(([read]) => read.blockNumber)).toEqual([100n, 100n]);
+    expect(reads.map(([read]) => read.blockNumber)).toEqual([100n, 100n, 100n]);
   });
 
   it("fails closed for unavailable balances", async () => {
@@ -198,5 +213,123 @@ describe("getGaslessBatchFunding", () => {
       code: "GASLESS_FUNDING_QUOTE_INCONSISTENT",
     });
     expect(readContract).toHaveBeenCalledTimes(1);
+  });
+  describe("fee allowance", () => {
+    const charger = TEST_GASLESS.gaslessLayerAddress;
+    const approve = (amount: bigint, approved: Address = charger) => ({
+      functionName: "approveOperationalFee",
+      args: [[approved], [amount]],
+    });
+
+    it("reports a payer whose balance is enough but whose allowance is not", async () => {
+      const { config } = fundingTestConfig(fundingQuote(), undefined, { [ACCOUNT]: 3n });
+      const result = await getGaslessBatchFunding(config, input);
+      expect(result.hasSufficientBalance).toBe(true);
+      expect(result.hasSufficientAllowance).toBe(false);
+      expect(result.isCovered).toBe(false);
+      expect(result.payers[0]).toMatchObject({
+        shortfall18: 0n,
+        allowanceDebit18: 5n,
+        allowance18: 3n,
+        allowanceShortfall18: 2n,
+        missing: ["allowance"],
+      });
+    });
+
+    it("names both reasons, balance first, when both fall short", async () => {
+      const { config } = fundingTestConfig(
+        fundingQuote(),
+        { [ACCOUNT]: { free: 1n, allocated: 0n } },
+        { [ACCOUNT]: 0n },
+      );
+      const result = await getGaslessBatchFunding(config, input);
+      expect(result.payers[0]).toMatchObject({
+        shortfall18: 4n,
+        allowanceShortfall18: 5n,
+        missing: ["balance", "allowance"],
+      });
+    });
+
+    it("covers an allowance exactly equal to the allowance-bound fees", async () => {
+      const { config } = fundingTestConfig(fundingQuote(), undefined, { [ACCOUNT]: 5n });
+      const result = await getGaslessBatchFunding(config, input);
+      expect(result.isCovered).toBe(true);
+      expect(result.payers[0]).toMatchObject({ allowanceShortfall18: 0n, missing: [] });
+    });
+
+    it("compares only operational and wallet-creation fees with the allowance", async () => {
+      const row = fundingQuote().payments[0]!;
+      const quote = fundingQuote([
+        { ...row, depositFee18: 2n, walletCreationFee18: 3n, nativeTopUpFee18: 4n, nativeGasCollateral18: 6n },
+      ]);
+      const { config } = fundingTestConfig(quote, undefined, { [ACCOUNT]: 8n });
+      const result = await getGaslessBatchFunding(config, input);
+      expect(result.payers[0]).toMatchObject({ debit18: 20n, allowanceDebit18: 8n, allowanceShortfall18: 0n });
+      expect(result.isCovered).toBe(true);
+    });
+
+    it("reads each payer's allowance for the GaslessLayer at the pinned block", async () => {
+      const row = fundingQuote().payments[0]!;
+      const { config, readContract } = fundingTestConfig(fundingQuote([row, { ...row, payer: VA }]), undefined, {
+        [VA]: 1n,
+      });
+      const result = await getGaslessBatchFunding(config, input);
+      const allowanceReads = readContract.mock.calls
+        .map(([read]) => read)
+        .filter((read) => read.functionName === "getOperationalFeeAllowance");
+      expect(allowanceReads.map((read) => [read.args, read.blockNumber])).toEqual([
+        [[ACCOUNT, charger], 100n],
+        [[VA, charger], 100n],
+      ]);
+      // One payer's allowance never covers another payer.
+      expect(result.payers.map((payer) => payer.missing)).toEqual([[], ["allowance"]]);
+    });
+
+    it.each(["approveOperationalFee", "approveOperationalFeeWithMultiplier"])(
+      "counts an allowance %s grants inside the batch",
+      async (functionName) => {
+        const { config } = fundingTestConfig(fundingQuote(), undefined, { [ACCOUNT]: 0n });
+        const args = functionName === "approveOperationalFee" ? [[charger], [100n]] : [[charger], [100n], [10_000n]];
+        const result = await getGaslessBatchFunding(config, {
+          ...input,
+          calls: [{ functionName, args }, ...input.calls],
+        });
+        expect(result.payers[0]).toMatchObject({ allowance18: 100n, allowanceShortfall18: 0n, missing: [] });
+        expect(result.isCovered).toBe(true);
+      },
+    );
+
+    it("lets the batch's last approval win, including a reduction", async () => {
+      const { config } = fundingTestConfig(fundingQuote(), undefined, { [ACCOUNT]: 1_000n });
+      const result = await getGaslessBatchFunding(config, {
+        ...input,
+        calls: [approve(100n), approve(1n), ...input.calls],
+      });
+      expect(result.payers[0]).toMatchObject({ allowance18: 1n, allowanceShortfall18: 4n, missing: ["allowance"] });
+    });
+
+    it("ignores an approval for another charger or for an account that does not pay", async () => {
+      const row = fundingQuote().payments[0]!;
+      const other = "0x9999999999999999999999999999999999999999" as Address;
+      const { config } = fundingTestConfig(fundingQuote([{ ...row, payer: VA }]), undefined, { [VA]: 0n });
+      // The batch account approves itself, but the quote charges the virtual account.
+      const result = await getGaslessBatchFunding(config, {
+        ...input,
+        calls: [approve(100n), approve(100n, other), ...input.calls],
+      });
+      expect(result.payers[0]).toMatchObject({ payer: VA, allowance18: 0n, missing: ["allowance"] });
+    });
+
+    it("fails closed when the allowance cannot be read", async () => {
+      const error = new Error("Allowance unavailable");
+      const quote = fundingQuote();
+      const { config, readContract } = fundingTestConfig(quote);
+      readContract.mockImplementation(async ({ functionName }: { functionName: string }) => {
+        if (functionName === "previewFeeQuote") return quote;
+        if (functionName === "getOperationalFeeAllowance") throw error;
+        return functionName === "balanceOf" ? 100n : [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
+      });
+      await expect(getGaslessBatchFunding(config, input)).rejects.toBe(error);
+    });
   });
 });

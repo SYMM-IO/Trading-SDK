@@ -136,7 +136,10 @@ function BatchFundingCheck({
         fee18: payer.debit18,
         balanceNow18: payer.balanceBefore18,
         balanceAfter18: payer.projectedBalance18,
-        short18: payer.shortfall18,
+        missingBalance18: payer.shortfall18,
+        allowance18: payer.allowance18,
+        missingAllowance18: payer.allowanceShortfall18,
+        missing: payer.missing,
       })),
     };
   else state = { status: "unchecked", disabled: invalid };

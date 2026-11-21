@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # getGaslessBatchFunding
 
-Check whether each quoted payer can cover a batch's fees **after known Core balance movements**. Unlike [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote), this read combines the fee quote with each payer's free and allocated balances. It never signs or submits.
+Check whether every quoted payer can be **charged** a batch's fees once the batch has run. The GaslessLayer charges a payer only when **both** its Core balance (after the batch's own money movements) and its operational-fee allowance cover the fees, so this read checks both and says, per payer, which one falls short. Unlike [`getGaslessBatchFeeQuote`](/core/gasless/get-gasless-batch-fee-quote), it combines the fee quote with each payer's balances and allowance. It never signs or submits.
 
 ```ts
 import { getGaslessBatchFunding } from "@symmio/trading-core";
@@ -17,8 +17,15 @@ const funding = await getGaslessBatchFunding(config, {
   ],
 });
 
-const shortfalls = funding.payers.filter((payer) => payer.shortfall18 > 0n);
+if (!funding.isCovered) {
+  for (const payer of funding.payers) {
+    if (payer.missing.includes("balance")) askForDeposit(payer.payer, payer.shortfall18);
+    if (payer.missing.includes("allowance")) askForApproval(payer.payer, payer.allowanceShortfall18);
+  }
+}
 ```
+
+The two reasons need different fixes: a **balance** shortfall needs more collateral (a deposit, or another way to pay), while an **allowance** shortfall needs a larger fee approval for the GaslessLayer, for example with [`approveOperationalFeeAllowance`](/core/gasless/approve-operational-fee-allowance). Depositing never fixes an allowance.
 
 For one add/remove-margin action, prefer [`getGaslessMarginFunding`](/core/gasless/get-gasless-margin-funding), which builds those movements and calculates an applicable fee-safe add bound.
 
@@ -40,23 +47,33 @@ The SDK does **not** infer arbitrary transfers from calldata. The caller owns th
 `Promise<GaslessBatchFunding>` (`GetGaslessBatchFundingReturnType`):
 
 - `quote: GaslessFeeQuote`: the unmodified batch quote.
-- `hasSufficientBalance: boolean`: true only when every positively charged payer covers its own quoted debit.
-- `payers: readonly GaslessPayerFunding[]`: one row per positively charged payer. Free operations create no row and need no balance reads.
+- `isCovered: boolean`: true only when every positively charged payer covers its fees with **both** balance and allowance. Use this to decide.
+- `hasSufficientBalance: boolean`: the balance half only: every payer covers its own quoted debit.
+- `hasSufficientAllowance: boolean`: the allowance half only: every payer's allowance covers its allowance-bound fees.
+- `payers: readonly GaslessPayerFunding[]`: one row per positively charged payer. Free operations create no row and need no reads.
 
 Every payer row contains:
 
-| Field                | Meaning                                                                                          |
-| -------------------- | ------------------------------------------------------------------------------------------------ |
-| `payer`              | Actual quoted payer, normalized to lowercase.                                                    |
-| `debit18`            | Sum of operational, deposit, wallet-creation and native-top-up fees, plus native gas collateral. |
-| `freeBalance18`      | Current free Core balance.                                                                       |
-| `balanceBefore18`    | Current free plus allocated Core balance.                                                        |
-| `projectedBalance18` | `max(0, balanceBefore18 + supplied movements)`.                                                  |
-| `shortfall18`        | `max(0, debit18 - projectedBalance18)`.                                                          |
+| Field                  | Meaning                                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `payer`                | Actual quoted payer, normalized to lowercase.                                                                 |
+| `debit18`              | Sum of operational, deposit, wallet-creation and native-top-up fees, plus native gas collateral.              |
+| `freeBalance18`        | Current free Core balance.                                                                                    |
+| `balanceBefore18`      | Current free plus allocated Core balance.                                                                     |
+| `projectedBalance18`   | `max(0, balanceBefore18 + supplied movements)`.                                                               |
+| `shortfall18`          | Balance shortfall: `max(0, debit18 - projectedBalance18)`.                                                    |
+| `allowanceDebit18`     | The fees the GaslessLayer charges against the allowance: operational plus wallet-creation fees.               |
+| `allowance18`          | Remaining allowance for the GaslessLayer after the batch's own fee approvals (see below).                     |
+| `allowanceShortfall18` | `max(0, allowanceDebit18 - allowance18)`.                                                                     |
+| `missing`              | `readonly GaslessFundingShortage[]`: `"balance"`, `"allowance"`, both (balance first), or empty when covered. |
 
 All amounts are `bigint` in internal 18-decimal units. Balances are never pooled across payers. The comparison follows the Core fee balance source, not a trading-risk calculation or withdrawal limit.
 
-For a nonzero debit, the SDK fetches one fresh RPC block number and reads every payer's free and allocated balances at that block. This prevents an allocation between reads from counting the same collateral twice or omitting it. The fee quote is read separately; this is not a single snapshot of both pricing and balances. The quote's `blockNumber` is not used as the RPC block selector because it can be an L1 estimate on Arbitrum. If the block or a balance read fails, the check fails rather than falling back to unpinned reads. Zero-debit quotes need neither a block lookup nor balance reads.
+Native gas collateral and top-up fees count against the balance only; the allowance limits only what `chargeOperationalFee` collects.
+
+**Approvals inside the batch.** Every relayed call runs as the batch `account`, and fees are collected after the whole batch. A core `approveOperationalFee` or `approveOperationalFeeWithMultiplier` for the GaslessLayer in the batch therefore sets that account's allowance before its fee is charged, so a first-time setup batch that grants its own allowance is reported as covered. The last such approval wins. A reduction, which the contract may delay, is treated as immediate; that can only understate the allowance. Approvals made by a GaslessWallet call or wrapped in `executeTimelockOp` are not counted. `approveOperationalFeeWithMultiplier` can also change the fee multiplier; the quote was priced before the batch, so the quoted fees do not reflect that change.
+
+For a nonzero debit, the SDK fetches one fresh RPC block number and reads every payer's free balance, allocated balance and operational-fee allowance at that block. This prevents an allocation between reads from counting the same collateral twice or omitting it. The fee quote is read separately; this is not a single snapshot of both pricing and balances. The quote's `blockNumber` is not used as the RPC block selector because it can be an L1 estimate on Arbitrum. If the block, a balance read or an allowance read fails, the check fails rather than falling back to unpinned reads. Zero-debit quotes need neither a block lookup nor any read.
 
 <Callout type="warning">
   This is a projection, not a transaction simulation. The quote's payer, allowance, fees and balances can change during
@@ -69,7 +86,7 @@ For a nonzero debit, the SDK fetches one fresh RPC block number and reads every 
 - `GASLESS_FUNDING_SOURCE_UNSUPPORTED`: a payment uses a source other than `SYMMIO_ACCOUNT`. Wallet-collateral funding is not covered by this helper.
 - `GASLESS_FUNDING_QUOTE_INCONSISTENT`: payment debits are negative or do not sum to `quote.totalDebit18`.
 - Existing quote errors, including `GASLESS_FREE_QUOTA_EXHAUSTED`, propagate. Exhausted free quota is not a zero-fee quote and a deposit may not fix it.
-- RPC/balance errors propagate unchanged. Unavailable funds are never reported as zero or sufficient.
+- RPC, balance and allowance read errors propagate unchanged. Unavailable funds or allowance are never reported as zero or sufficient.
 
 This action is opt-in. Existing relay behavior, signing, fallback and `execution.preflightFee` defaults are unchanged. Before starting a **new** request, reconcile earlier pending operations first, then perform a fresh funding read for the final calls. A failed preview must not trigger a second execution of an uncertain request or automatic wallet payment.
 

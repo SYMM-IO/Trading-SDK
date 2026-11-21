@@ -18,6 +18,9 @@ export interface FundingChargeRow {
   amount18: bigint;
 }
 
+/** Why a payer cannot be charged: too little balance, too little fee allowance, or both. */
+export type FundingShortage = "balance" | "allowance";
+
 /** One charged payer, in 18-decimal Core units. */
 export interface FundingPayerRow {
   payer: Address;
@@ -25,7 +28,11 @@ export interface FundingPayerRow {
   fee18: bigint;
   balanceNow18: bigint;
   balanceAfter18: bigint;
-  short18: bigint;
+  missingBalance18: bigint;
+  allowance18: bigint;
+  missingAllowance18: bigint;
+  /** Empty when the payer is covered. */
+  missing: readonly FundingShortage[];
 }
 
 /** What the funding line shows. */
@@ -47,6 +54,13 @@ interface Props {
 
 function usdc(amount18: bigint): string {
   return `${formatUsd(amount18, WEI_DECIMALS)} USDC`;
+}
+
+/** Allowances granted as "unlimited" are far above this; showing their digits says nothing. */
+const UNLIMITED_ALLOWANCE = 2n ** 128n;
+
+function allowanceText(amount18: bigint): string {
+  return amount18 >= UNLIMITED_ALLOWANCE ? "unlimited" : usdc(amount18);
 }
 
 function plural(count: number, noun: string): string {
@@ -113,14 +127,14 @@ function FundingStatus({ state, onCheck, testId }: Omit<Props, "children">) {
         </span>
       );
     case "ready": {
-      const short = state.payers.reduce((total, payer) => total + payer.short18, 0n);
+      const covered = state.payers.every((payer) => payer.missing.length === 0);
       return (
         <span className="inline-flex items-center gap-2">
           {state.payers.length === 0 ? (
             <span className="text-muted-foreground" data-testid={`${testId}-verdict`}>
               no fee to fund
             </span>
-          ) : short === 0n ? (
+          ) : covered ? (
             <span className="text-positive font-semibold" data-testid={`${testId}-verdict`}>
               ✓ covered
             </span>
@@ -137,7 +151,7 @@ function FundingStatus({ state, onCheck, testId }: Omit<Props, "children">) {
 }
 
 function FundingSummary({ payers, testId }: { payers: readonly FundingPayerRow[]; testId: string }) {
-  const anyShort = payers.some((payer) => payer.short18 > 0n);
+  const anyShort = payers.some((payer) => payer.missing.length > 0);
   // A shortfall opens the details by itself; the user's own choice wins after that.
   const [choice, setChoice] = useState<boolean | null>(null);
   const open = choice ?? anyShort;
@@ -169,7 +183,7 @@ function FundingSummary({ payers, testId }: { payers: readonly FundingPayerRow[]
 }
 
 function PayerCard({ payer }: { payer: FundingPayerRow }) {
-  const short = payer.short18 > 0n;
+  const short = payer.missing.length > 0;
   return (
     <div
       className={cn(
@@ -200,8 +214,16 @@ function PayerCard({ payer }: { payer: FundingPayerRow }) {
         <Row label="Total charged" value={usdc(payer.fee18)} strong />
         <Row label="Balance now" value={usdc(payer.balanceNow18)} />
         <Row label="Balance after the batch" value={usdc(payer.balanceAfter18)} />
-        {short ? (
-          <Row label="Missing balance" value={usdc(payer.short18)} className="text-warning font-semibold" />
+        <Row label="Fee allowance" value={allowanceText(payer.allowance18)} />
+        {payer.missing.includes("balance") ? (
+          <Row label="Missing balance" value={usdc(payer.missingBalance18)} className="text-warning font-semibold" />
+        ) : null}
+        {payer.missing.includes("allowance") ? (
+          <Row
+            label="Missing allowance"
+            value={usdc(payer.missingAllowance18)}
+            className="text-warning font-semibold"
+          />
         ) : null}
       </div>
     </div>

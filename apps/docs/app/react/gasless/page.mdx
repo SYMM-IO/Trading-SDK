@@ -59,7 +59,7 @@ if (!supported) return null;
 
 ### `useGaslessBatchFunding`
 
-Read per-payer funding for an exact batch and explicit projected Core balance movements. Parameters are `GetGaslessBatchFundingOptions` plus optional `config`; the result is a TanStack query of `GaslessBatchFunding` with normalized `SymmioRequestError` failures. All financial calculations live in the [core action](/core/gasless/get-gasless-batch-funding).
+Read whether every payer of an exact batch can be charged its fees: balance after explicit projected Core balance movements, and operational-fee allowance. Branch on `isCovered` and each payer's `missing`. Parameters are `GetGaslessBatchFundingOptions` plus optional `config`; the result is a TanStack query of `GaslessBatchFunding` with normalized `SymmioRequestError` failures. All financial calculations live in the [core action](/core/gasless/get-gasless-batch-funding).
 
 ```tsx
 const funding = useGaslessBatchFunding({ account, calls, balanceChanges });

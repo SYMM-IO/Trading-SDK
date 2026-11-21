@@ -118,4 +118,13 @@ describe("getGaslessMarginFunding", () => {
     });
     expect(readContract).not.toHaveBeenCalled();
   });
+  it("reports an allowance-only shortfall without offering an add bound that cannot help", async () => {
+    const { config } = fundingTestConfig(undefined, undefined, { [ACCOUNT]: 0n });
+    const result = await getGaslessMarginFunding(config, input(10n));
+    expect(result.hasSufficientBalance).toBe(true);
+    expect(result.isCovered).toBe(false);
+    expect(result.payers[0]).toMatchObject({ missing: ["allowance"], allowanceShortfall18: 5n });
+    // Lowering the amount never fixes an allowance, so no fee-safe add bound is offered.
+    expect(result.maxAddAmount18).toBeNull();
+  });
 });

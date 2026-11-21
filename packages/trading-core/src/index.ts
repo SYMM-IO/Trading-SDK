@@ -655,6 +655,7 @@ export {
   type GaslessFeeQuote,
   type GaslessFeeQuoteOperation,
   type GaslessFundingBalanceChange,
+  type GaslessFundingShortage,
   type GaslessMarginFunding,
   type GaslessOperationRequest,
   type GaslessPayerFunding,

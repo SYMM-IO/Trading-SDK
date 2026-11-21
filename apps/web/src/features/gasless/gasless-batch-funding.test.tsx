@@ -33,13 +33,24 @@ const shortfall = {
       balanceBefore18: 50n * 10n ** 18n,
       projectedBalance18: 0n,
       shortfall18: 5n * 10n ** 16n,
+      allowanceDebit18: 5n * 10n ** 16n,
+      allowance18: 2n ** 256n - 1n,
+      allowanceShortfall18: 0n,
+      missing: ["balance"],
     },
   ],
 };
 const covered = {
   hasSufficientBalance: true,
   quote,
-  payers: [{ ...shortfall.payers[0]!, projectedBalance18: 10n ** 18n, shortfall18: 0n }],
+  payers: [{ ...shortfall.payers[0]!, projectedBalance18: 10n ** 18n, shortfall18: 0n, missing: [] }],
+};
+const allowanceShort = {
+  hasSufficientBalance: true,
+  quote,
+  payers: [
+    { ...covered.payers[0]!, allowance18: 10n ** 16n, allowanceShortfall18: 4n * 10n ** 16n, missing: ["allowance"] },
+  ],
 };
 
 function lastParameters() {
@@ -215,4 +226,23 @@ it("names the reason when the batch's fees come from wallet collateral", () => {
   render(<GaslessBatchFunding account={account} calls={calls} />);
   fireEvent.click(screen.getByRole("button", { name: "Check funding" }));
   expect(screen.getByTestId("gasless-batch-funding-failed").textContent).toBe("not supported for wallet-call fees");
+});
+
+it("shows a missing fee allowance as its own reason, apart from the balance", () => {
+  mocks.funding.mockReturnValue({ data: allowanceShort, isFetching: false, isError: false, refetch: mocks.refetch });
+  render(<GaslessBatchFunding account={account} calls={calls} />);
+  fireEvent.click(screen.getByRole("button", { name: "Check funding" }));
+  expect(screen.getByTestId("gasless-batch-funding-verdict").textContent).toBe("⚠ not covered");
+  const payers = screen.getByTestId("gasless-batch-funding-payers").textContent;
+  expect(payers).toContain("Fee allowance0.01 USDC");
+  expect(payers).toContain("Missing allowance0.04 USDC");
+  expect(payers).not.toContain("Missing balance");
+});
+
+it("shows an unlimited allowance as unlimited, not as digits", () => {
+  mocks.funding.mockReturnValue({ data: covered, isFetching: false, isError: false, refetch: mocks.refetch });
+  render(<GaslessBatchFunding account={account} calls={calls} />);
+  fireEvent.click(screen.getByRole("button", { name: "Check funding" }));
+  fireEvent.click(screen.getByRole("button", { name: /Details/ }));
+  expect(screen.getByTestId("gasless-batch-funding-payers").textContent).toContain("Fee allowanceunlimited");
 });

@@ -15,8 +15,19 @@ const props = {
 };
 const shortfall = {
   hasSufficientBalance: false,
+  isCovered: false,
   maxAddAmount18: 95n,
-  payers: [{ payer: props.parentAccount, debit18: 5n, projectedBalance18: 0n, shortfall18: 5n }],
+  payers: [
+    {
+      payer: props.parentAccount,
+      debit18: 5n,
+      projectedBalance18: 0n,
+      shortfall18: 5n,
+      allowanceDebit18: 5n,
+      allowanceShortfall18: 0n,
+      missing: ["balance"],
+    },
+  ],
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -39,9 +50,10 @@ it("only reads on explicit preview and warns that protected execution may differ
 it("shows the SDK shortfall and exact fee-safe Max without calculating them", () => {
   mocks.funding.mockReturnValue({ data: shortfall, isFetching: false, isError: false, refetch: mocks.refetch });
   render(<MarginFundingPreview {...props} />);
-  expect(screen.queryByText(/insufficient projected fee funding/i)).toBeNull();
+  expect(screen.queryByText(/Not covered/)).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Preview gasless funding" }));
-  expect(screen.getByText(/insufficient projected fee funding/i)).toBeTruthy();
+  expect(screen.getByText(/Not covered/)).toBeTruthy();
+  expect(screen.queryByText(/Approve a larger fee allowance/)).toBeNull();
   expect(screen.getByText(/Fee-safe add bound: 0.000000000000000095/)).toBeTruthy();
 });
 
@@ -71,4 +83,19 @@ it("hides the preview on an unsupported chain", () => {
   const { container } = render(<MarginFundingPreview {...props} />);
   expect(container.innerHTML).toBe("");
   expect(mocks.refetch).not.toHaveBeenCalled();
+});
+
+it("tells an allowance shortfall apart from a balance shortfall", () => {
+  const payer = { ...shortfall.payers[0]!, shortfall18: 0n, allowanceShortfall18: 5n, missing: ["allowance"] };
+  mocks.funding.mockReturnValue({
+    data: { ...shortfall, hasSufficientBalance: true, maxAddAmount18: null, payers: [payer] },
+    isFetching: false,
+    isError: false,
+    refetch: mocks.refetch,
+  });
+  render(<MarginFundingPreview {...props} />);
+  fireEvent.click(screen.getByRole("button", { name: "Preview gasless funding" }));
+  expect(screen.getByText(/Not covered/)).toBeTruthy();
+  expect(screen.getByText(/Approve a larger fee allowance; a deposit does not fix it/)).toBeTruthy();
+  expect(screen.queryByText(/Fee-safe add bound/)).toBeNull();
 });

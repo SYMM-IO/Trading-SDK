@@ -64,14 +64,17 @@ export function MarginFundingPreview({
       {requested && !writePending && !funding.isFetching && !funding.isError && funding.data ? (
         <div className="space-y-1" role="status">
           <ResultNote>
-            {funding.data.hasSufficientBalance
-              ? "Quoted fees are covered by projected balances (preview only)."
-              : "Insufficient projected fee funding."}
+            {funding.data.isCovered
+              ? "Quoted fees are covered by projected balances and fee allowances (preview only)."
+              : "Not covered: a payer is missing balance or fee allowance."}
           </ResultNote>
           {funding.data.payers.map((payer) => (
             <ResultNote key={payer.payer}>
               {payer.payer}: debit {formatUnits(payer.debit18, 18)}, projected balance{" "}
-              {formatUnits(payer.projectedBalance18, 18)}, shortfall {formatUnits(payer.shortfall18, 18)} collateral.
+              {formatUnits(payer.projectedBalance18, 18)}, missing balance {formatUnits(payer.shortfall18, 18)};
+              allowance-bound fees {formatUnits(payer.allowanceDebit18, 18)}, missing allowance{" "}
+              {formatUnits(payer.allowanceShortfall18, 18)} collateral.
+              {payer.missing.includes("allowance") ? " Approve a larger fee allowance; a deposit does not fix it." : ""}
             </ResultNote>
           ))}
           {funding.data.maxAddAmount18 !== null ? (

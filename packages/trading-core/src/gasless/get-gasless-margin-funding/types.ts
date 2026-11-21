@@ -19,7 +19,8 @@ export type GetGaslessMarginFundingParameters = Compute<
 /** Margin-specific fee coverage; it does not replace margin/risk or removal-capacity validation. */
 export interface GaslessMarginFunding extends GaslessBatchFunding {
   /**
-   * Fee-safe add bound when the parent is short on an add, otherwise `null`.
+   * Fee-safe add bound when the parent is short of **balance** on an add, otherwise `null`.
+   * An allowance shortfall gets no bound: no add amount fixes it.
    * Capped by the parent's free balance; computed with the current quoted fee.
    * Changing the amount requires re-quoting. This is not a guaranteed executable Max.
    */

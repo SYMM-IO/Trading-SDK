@@ -38,6 +38,7 @@ function setup(): ReturnType<typeof createMockSymmioConfig> & { getBlockNumber: 
     if (functionName === "previewFeeQuote") return quote;
     if (functionName === "balanceOf") return 100n;
     if (functionName === "balanceInfoOfPartyA") return [0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n, 0n];
+    if (functionName === "getOperationalFeeAllowance") return [10n ** 30n, 0n, 0n, 10_000n];
     throw new Error(`Unexpected read: ${functionName}`);
   });
   return { ...mocks, getBlockNumber };
@@ -58,10 +59,17 @@ describe("funding hooks", () => {
     const { config, writeContract, getBlockNumber, readContract } = setup();
     const { result } = renderHookWithProviders(() => useGaslessMarginFunding({ config, ...input() }));
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    expect(result.current.data).toMatchObject({ hasSufficientBalance: false, maxAddAmount18: 95n });
+    expect(result.current.data).toMatchObject({
+      hasSufficientBalance: false,
+      hasSufficientAllowance: true,
+      isCovered: false,
+      maxAddAmount18: 95n,
+    });
+    expect(result.current.data?.payers[0]?.missing).toEqual(["balance"]);
     expect(getBlockNumber).toHaveBeenCalledExactlyOnceWith({ cacheTime: 0 });
-    const balances = readContract.mock.calls.filter(([read]) => read.functionName !== "previewFeeQuote");
-    expect(balances.map(([read]) => read.blockNumber)).toEqual([100n, 100n]);
+    const pinnedReads = readContract.mock.calls.filter(([read]) => read.functionName !== "previewFeeQuote");
+    // Free balance, allocated balance and fee allowance, all at the same block.
+    expect(pinnedReads.map(([read]) => read.blockNumber)).toEqual([100n, 100n, 100n]);
     expect(writeContract).not.toHaveBeenCalled();
   });
 
