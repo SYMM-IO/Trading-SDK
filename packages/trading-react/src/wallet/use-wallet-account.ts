@@ -18,7 +18,10 @@ export interface UseWalletAccountResult {
   isReconnecting: boolean;
   /**
    * Whether the connected wallet's chain is one the SDK supports. `false` when
-   * disconnected or on an unsupported chain.
+   * disconnected or on an unsupported chain. It does not check the provider's
+   * pinned `chainId`: a wallet on another supported chain still reads `true`,
+   * so also compare `chainId` with `useSymmioChainId()` before skipping a
+   * switch prompt.
    */
   isOnExpectedChain: boolean;
 }
@@ -30,9 +33,10 @@ export interface UseWalletAccountResult {
  * component.
  *
  * @example
- * const { address, isOnExpectedChain } = useWalletAccount();
+ * const { address, chainId, isOnExpectedChain } = useWalletAccount();
+ * const targetChainId = useSymmioChainId();
  * if (!address) return <ConnectButton />;
- * if (!isOnExpectedChain) return <SwitchNetworkPrompt />;
+ * if (!isOnExpectedChain || chainId !== targetChainId) return <SwitchNetworkPrompt />;
  */
 export function useWalletAccount(): UseWalletAccountResult {
   const config = useSymmioConfig();

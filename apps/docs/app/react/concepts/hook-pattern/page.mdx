@@ -19,7 +19,7 @@ export function useMarkets(parameters = {}) {
 Three lines of glue:
 
 1. **`useSymmioConfig(parameters)`** — `parameters.config ?? contextConfig`. Every hook accepts an optional `config` override for tests / manual wiring.
-2. **`useSymmioChainId()`** — reads the connected wagmi chain, threading it into the action.
+2. **`useSymmioChainId()`** — the SDK's default chain, threaded into the action: the provider's pinned [`chainId`](/react/provider#chainid) when set, otherwise wagmi's active chain. It is not the wallet's actual chain — read `useWalletAccount().chainId` for that.
 3. **`useQuery(getXyzQueryOptions(config, options))`** — the core factory owns `queryKey`, `queryFn`, `enabled`.
 
 Consumers can pass any TanStack override via `parameters.query`:

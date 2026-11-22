@@ -38,12 +38,13 @@ export interface SymmioProviderProps {
    */
   symmioConfig: CreateConfigParameters["symmioConfig"];
   /**
-   * Fallback chain used when a hook or action omits `chainId` **and** the
-   * connected wallet is not on a supported SYMMIO chain (or is disconnected).
-   * When the wallet *is* on a supported chain, that chain becomes the default
-   * instead — so a no-arg `config.getChainConfig()` always follows the active
-   * chain. Defaults to the SDK's first supported chain. Ignored when `chainId`
-   * is set.
+   * Fallback for `config.defaultChainId` (a no-arg `config.getChainConfig()`
+   * and any core action that omits `chainId`) when wagmi's active chain is not
+   * a supported SYMMIO chain. When it *is* supported, that chain becomes the
+   * default instead. Disconnecting does not trigger the fallback: wagmi keeps
+   * its last active chain. Hooks do not use it either — without a pinned
+   * `chainId`, {@link useSymmioChainId} returns wagmi's active chain as is.
+   * Defaults to the SDK's first supported chain. Ignored when `chainId` is set.
    */
   defaultChainId?: number;
   /**
@@ -142,13 +143,14 @@ export function SymmioProvider({
   const wagmiConfig = useConfig();
   const connectedChainId = useChainId();
 
-  // Track the connected wallet's chain as the config default whenever it is a
-  // supported SYMMIO chain, so a no-arg `config.getChainConfig()` — and any hook
-  // that omits `chainId` — resolves to the ACTIVE chain rather than a hardcoded
-  // first chain. Single fix for the whole class of "reads the wrong chain's
-  // addresses after switching". Falls back to the explicit `defaultChainId` prop
-  // (then the SDK's first supported chain) when the wallet is on an unsupported
-  // chain or disconnected. A pinned `chainId` overrides all of this.
+  // Track wagmi's active chain as the config default whenever it is a supported
+  // SYMMIO chain, so a no-arg `config.getChainConfig()` resolves to the ACTIVE
+  // chain rather than a hardcoded first chain. Single fix for the whole class
+  // of "reads the wrong chain's addresses after switching". Falls back to the
+  // explicit `defaultChainId` prop (then the SDK's first supported chain) when
+  // wagmi's active chain is unsupported. wagmi keeps its last chain after a
+  // disconnect, so disconnecting alone does not trigger the fallback. A pinned
+  // `chainId` overrides all of this.
   const effectiveDefaultChainId =
     pinnedChainId ?? (listSupportedChains().some((id) => id === connectedChainId) ? connectedChainId : defaultChainId);
 

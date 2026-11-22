@@ -14,16 +14,19 @@ The page is split into two groups:
 Read the connected wallet's state plus an `isOnExpectedChain` flag.
 
 ```tsx
-import { useWalletAccount } from "@symmio/trading-react";
+import { useSymmioChainId, useWalletAccount } from "@symmio/trading-react";
 
 const { address, chainId, isConnected, isReconnecting, isOnExpectedChain } = useWalletAccount();
+const targetChainId = useSymmioChainId();
 
 if (!isConnected) return <ConnectButton />;
-if (!isOnExpectedChain) return <SwitchNetworkPrompt />;
+if (!isOnExpectedChain || chainId !== targetChainId) return <SwitchNetworkPrompt />;
 return <Dashboard address={address} />;
 ```
 
-`isOnExpectedChain` is `true` iff the wallet's chainId matches the SDK's configured chain — saves you from manually comparing in every component.
+`isOnExpectedChain` is `true` when the wallet is connected to **any** chain the SDK supports. It does not check the chain your app targets: with `SymmioProvider`'s [`chainId`](/react/provider#chainid) pinned to Arbitrum, a wallet on Base still reads `true`. To decide on a switch prompt, also compare the wallet's `chainId` with [`useSymmioChainId()`](/react/provider#usesymmiochainid), as above.
+
+`chainId` here is the wallet's actual chain. Use it, not `useSymmioChainId()`, whenever you need to know where the connected wallet really is.
 
 ## Writes
 
@@ -55,10 +58,11 @@ const { disconnect } = useDisconnectWallet();
 Ask the wallet to switch to the chain configured in `SymmioProvider`. Convenience wrapper over wagmi's `useSwitchChain` that pulls the target chain id from the SDK config.
 
 ```tsx
-const { isOnExpectedChain } = useWalletAccount();
+const { chainId, isOnExpectedChain } = useWalletAccount();
+const targetChainId = useSymmioChainId();
 const { switchChain, status } = useSwitchToSymmioChain();
 
-if (!isOnExpectedChain) {
+if (!isOnExpectedChain || chainId !== targetChainId) {
   return (
     <button onClick={switchChain} disabled={status === "pending"}>
       Switch to {/* chain name from config */} Arbitrum
