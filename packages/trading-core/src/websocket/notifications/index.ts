@@ -6,3 +6,5 @@ export * from "./to-notifications-error";
 export * from "./types";
 export * from "./watch-notification-envelopes";
 export * from "./watch-notifications";
+
+export * from "./watch-listing-notifications";

@@ -1141,19 +1141,23 @@ export {
   buildRasaSubscribeMessage,
   buildSubscribeMessage,
   classifyNotification,
+  normalizeListingNotification,
   normalizeNotification,
   parseNotificationFrame,
+  watchListingNotifications,
   watchNotificationEnvelopes,
   watchNotifications,
   type BuildSubscribeMessageParameters,
   type EnigmaNotificationEnvelope,
   type EnigmaNotificationFrame,
+  type ListingNotification,
   type Notification,
   type NotificationEnvelopeSubscription,
   type RawEnigmaPositionNotification,
   type RawPositionNotification,
   type RawRasaPositionNotification,
   type Unwatch,
+  type WatchListingNotificationsParameters,
   type WatchNotificationEnvelopesParameters,
   type WatchNotificationsParameters,
 } from "./websocket/notifications";
@@ -3437,47 +3441,3 @@ export {
   type GetListingSignInMessageOptions,
   type GetListingSignInMessageQueryKey,
 } from "./pools/auth/query";
-
-export {
-  authenticateSolver,
-  getSolverSignInMessage,
-  type AuthenticateSolverParameters,
-  type GetSolverSignInMessageParameters,
-  type SolverAuthentication,
-  type SolverSignInChallenge,
-} from "./solvers/legacy-auth";
-export {
-  cancelLegacyConditionalOrder,
-  createLegacyConditionalOrder,
-  getLegacyCollateralLocked,
-  getLegacyOrderHistory,
-  type CancelLegacyConditionalOrderParameters,
-  type CreateLegacyConditionalOrderParameters,
-  type GetLegacyCollateralLockedParameters,
-  type GetLegacyOrderHistoryParameters,
-  type LegacyConditionalOrder,
-  type LegacyConditionalOrderInput,
-  type LegacyOrderHistoryEntry,
-  type LegacyOrderParameters,
-} from "./solvers/legacy-orders";
-
-export { authenticateSolverMutationOptions } from "./solvers/legacy-auth/authenticate-solver/query";
-export { getSolverSignInMessageMutationOptions } from "./solvers/legacy-auth/get-solver-sign-in-message/query";
-export { cancelLegacyConditionalOrderMutationOptions } from "./solvers/legacy-orders/cancel-legacy-conditional-order/query";
-export { createLegacyConditionalOrderMutationOptions } from "./solvers/legacy-orders/create-legacy-conditional-order/query";
-export {
-  getLegacyCollateralLockedQueryKey,
-  getLegacyCollateralLockedQueryOptions,
-  type GetLegacyCollateralLockedData,
-  type GetLegacyCollateralLockedOptions,
-  type GetLegacyCollateralLockedQueryKey,
-  type GetLegacyCollateralLockedQueryOptions,
-} from "./solvers/legacy-orders/get-legacy-collateral-locked/query";
-export {
-  getLegacyOrderHistoryQueryKey,
-  getLegacyOrderHistoryQueryOptions,
-  type GetLegacyOrderHistoryData,
-  type GetLegacyOrderHistoryOptions,
-  type GetLegacyOrderHistoryQueryKey,
-  type GetLegacyOrderHistoryQueryOptions,
-} from "./solvers/legacy-orders/get-legacy-order-history/query";

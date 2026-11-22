@@ -42,7 +42,7 @@ The returned disposer is idempotent — calling it twice is a no-op. Framework l
 
 Some streams multiplex or connect differently:
 
-- On an Enigma solver, `watchNotifications` and `watchNotificationEnvelopes` share one socket per Config/deployment/endpoint. The active account/channel union is sent on connection and changes; delivery is filtered per subscriber.
+- Enigma position watchers share a socket within the same account/channel scope. Advanced envelope watchers share a separate connection for explicitly routed documents.
 - On a Rasa solver, `watchNotifications` keeps one socket per endpoint for every watched account, and re-sends the full account list whenever it changes.
 - The Binance kline and depth watchers behind candles and the orderbook open one connection per call.
 
@@ -57,7 +57,7 @@ Every stream uses one internal reconnecting-socket primitive. The following desc
 - **Subscriptions survive reconnects.** The subscribe frames are re-sent on every open, so a reconnect re-subscribes without any action from you. Frames missed while the connection was down are not replayed; refetch on reopen if a gap matters.
 - **Disposing the last subscriber is final.** It cancels any pending retry and nothing redials, even when you dispose from inside your own `onStatusChange` handler. No frame reaches a disposed watcher's frame handler, even while its connection is still closing.
 
-Enigma envelope subscriptions can override retry limits, delays and jitter through [reconnect options](/core/notifications/watch-notification-envelopes). The first subscriber chooses the shared connection policy, including for normalized position watchers. A finite retry limit can stop automatically; custom delays can exceed the default 10-second cap.
+Enigma envelope subscriptions can override retry limits, delays and jitter through [reconnect options](/core/notifications/watch-notification-envelopes). The first subscriber chooses the shared connection policy. A finite retry limit can stop automatically; custom delays can exceed the default 10-second cap.
 
 ## `SocketStatus`
 

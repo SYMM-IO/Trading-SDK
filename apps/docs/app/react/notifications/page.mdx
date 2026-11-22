@@ -65,7 +65,7 @@ Consumers reading the raw frames typically pass them into `applyNotificationToQu
 
 ### Connection pooling
 
-Socket sharing follows the chain's protocol. On `enigma`, all subscribers within one Config, deployment and endpoint share one connection across account/channel pairs, including `useNotificationEnvelopes`; on `rasa`, every account on the same endpoint multiplexes onto a single hub socket. See [Core `watchNotifications`](../../core/notifications/watch-notifications) and [Core WebSocket](../../core/concepts/websocket).
+Socket sharing follows the chain's protocol. On Enigma, position watchers share within an account/channel scope; on `rasa`, every account on the same endpoint multiplexes onto a single hub socket. See [Core `watchNotifications`](../../core/notifications/watch-notifications) and [Core WebSocket](../../core/concepts/websocket).
 
 ## `useSearchNotifications`
 
@@ -126,7 +126,7 @@ if (page.data?.kind === "rasa") page.data.rows.map((row) => row.quote_id);
 
 ## useNotificationEnvelopes
 
-Use this hook for complete Enigma envelopes across explicit account/channel pairs. It shares transport with `useNotifications` and does not buffer events or invalidate queries.
+Use this hook for complete Enigma envelopes across explicit account/channel pairs. It uses the advanced raw Enigma stream and does not buffer events or invalidate queries.
 
 ```tsx
 import { useNotificationEnvelopes } from "@symmio/trading-react";
@@ -143,3 +143,7 @@ const { status, error } = useNotificationEnvelopes({
 `UseNotificationEnvelopesParameters` extends the [core watcher inputs](/core/notifications/watch-notification-envelopes) with optional `config: Config` and `enabled: boolean` (default true). An empty subscription remains idle. `UseNotificationEnvelopesReturnType` contains `status: SocketStatus` and `error: SymmioRequestError | null`.
 
 Callback changes use the latest callback without reconnecting. Changing config, chain, solver, enabled state, or account/channel pairs releases the previous subscription. Reconnect options are selected when the shared connection is created; changing them does not reconfigure an active connection. See the core reference for routing, missing metadata, and unsubscribe semantics.
+
+## useListingNotifications
+
+Use `useListingNotifications({ subscriptions, onNotification })` for listing deposit and pool-creation updates. It returns the same connection status and error as the envelope hook. The callback receives a typed listing event. For example, check `event.kind === "deposit_received"` and read `event.marketId` to refresh a market.

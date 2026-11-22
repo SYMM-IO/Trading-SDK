@@ -2,6 +2,8 @@ import type { Address } from "viem";
 import type { SymmioEnigmaNotificationsConfig, SymmioNotificationsProtocol } from "../../../core/chains";
 import type { Config } from "../../../core/config";
 import { SymmError } from "../../../shared/errors/symm-error";
+import { createReconnectingSocket } from "../../socket/create-reconnecting-socket";
+import { getSocketPool } from "../../socket/get-socket-pool";
 import { normalizeNotification } from "../normalize-notification";
 import { parseFramePayload } from "../parse-frame-payload";
 import { toNotificationsError } from "../to-notifications-error";
@@ -11,7 +13,6 @@ import type {
   Unwatch,
   WatchNotificationsParameters,
 } from "../types";
-import { acquireEnigmaNotificationEnvelopes } from "./enigma-notifications-hub";
 
 /**
  * Inputs for {@link buildSubscribeMessage}.
@@ -78,7 +79,9 @@ export function parseEnigmaNotificationFrame(data: unknown): RawEnigmaPositionNo
 }
 
 /**
- * Position projection of the shared Enigma envelope transport.
+ * The `enigma` transport: one pooled socket per endpoint+account, scoped
+ * server-side by the channel-patterns subscribe frame sent on every
+ * (re)connect.
  */
 export function watchEnigmaNotifications(
   config: Config,
@@ -87,26 +90,50 @@ export function watchEnigmaNotifications(
 ): Unwatch {
   const { account, onNotification, onStatusChange, onError } = parameters;
 
-  return acquireEnigmaNotificationEnvelopes(config, notifications.url, {
-    chainId: parameters.chainId,
-    solverId: parameters.solverId,
-    subscriptions: [{ account, channel: notifications.channel }],
-    onEnvelope: (data) => {
-      let raw;
-      try {
-        raw = parseEnigmaNotificationFrame(data);
-      } catch (err) {
-        onError?.(toNotificationsError(err));
-        return;
-      }
-      if (!raw) return;
-      try {
-        onNotification(normalizeNotification(raw));
-      } catch (err) {
-        onError?.(toNotificationsError(err));
-      }
-    },
-    onStatusChange,
-    onError,
+  const webSocketConstructor = config.getWebSocketConstructor();
+  const subscribeMessage = buildSubscribeMessage({
+    account,
+    channel: notifications.channel,
+    protocol: notifications.protocol,
   });
+
+  const key = JSON.stringify([
+    config.getChainConfigKey(parameters.chainId),
+    notifications.url,
+    notifications.protocol,
+    notifications.channel,
+    account.toLowerCase(),
+  ]);
+
+  return getSocketPool(config).acquire(
+    key,
+    (handlers) =>
+      createReconnectingSocket({
+        url: notifications.url,
+        webSocketConstructor,
+        getOpenMessages: () => [subscribeMessage],
+        onMessage: handlers.onMessage,
+        onStatusChange: handlers.onStatusChange,
+        onError: handlers.onError,
+      }),
+    {
+      onMessage: (data) => {
+        let raw;
+        try {
+          raw = parseEnigmaNotificationFrame(data);
+        } catch (err) {
+          onError?.(toNotificationsError(err));
+          return;
+        }
+        if (!raw) return;
+        try {
+          onNotification(normalizeNotification(raw));
+        } catch (err) {
+          onError?.(toNotificationsError(err));
+        }
+      },
+      onStatusChange,
+      onError: (event) => onError?.(toNotificationsError(event)),
+    },
+  );
 }

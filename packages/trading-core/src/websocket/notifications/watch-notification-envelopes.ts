@@ -6,7 +6,7 @@ import type { Unwatch, WatchNotificationEnvelopesParameters } from "./types";
 /**
  * Watch full server envelopes for multiple accounts and channels over one shared
  * Enigma connection. This preserves the existing wire format, including listing
- * and transfer metadata. The position watcher shares the same transport.
+ * and transfer metadata. Position subscriptions use their own account/channel scope.
  *
  * @param config - Deployment configuration and injected WebSocket implementation.
  * @param parameters - Subscriptions and callbacks; empty subscriptions remain idle.

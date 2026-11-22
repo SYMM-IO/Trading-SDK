@@ -1,6 +1,6 @@
 # watchNotificationEnvelopes
 
-Receive full Enigma notification envelopes when an application needs listing, withdrawal, or other channel metadata beyond normalized position notifications. This API preserves the existing server format; it does not introduce a new wire envelope.
+Use this advanced Enigma inspector to observe raw server documents. Applications watching positions use the normalized position watcher.
 
 ```ts
 import { watchNotificationEnvelopes } from "@symmio/trading-core";
@@ -19,18 +19,16 @@ stop();
 
 `WatchNotificationEnvelopesParameters` accepts optional `chainId` and `solverId`, a required readonly `subscriptions` array, and required `onEnvelope`. Each `NotificationEnvelopeSubscription` contains an `account: Address` and `channel: string`. Optional `onStatusChange` receives `SocketStatus`; `onError` receives a normalized SDK error. The return value is an idempotent unsubscribe function.
 
-`EnigmaNotificationFrame` retains the server document fields, including `app_name`, `address`, `primary_identifier`, `secondary_identifier`, `type`, `create_time`, and the full `data` object. No metadata or nested fields are rewritten. Older frames may omit routing metadata at runtime.
+`EnigmaNotificationFrame` retains the server document fields, including `app_name`, `address`, `primary_identifier`, `secondary_identifier`, `type`, `create_time`, and the full `data` object. No metadata or nested fields are rewritten. Raw events require top-level address, app_name and object data. Malformed events are reported through onError.
 
 ## Ownership and routing
 
-Within the same Config, chain/deployment, and notification endpoint, this watcher and [watchNotifications](/core/notifications/watch-notifications) share one physical connection. Account matching is case insensitive; channel matching is exact. An empty subscription opens no connection. Reconnect sends the current subscription union. Final unsubscribe closes the socket.
-
-Removed subscriptions stop receiving frames immediately. A server that accumulates subscription patterns may retain old patterns until reconnect; the SDK still filters their delivery locally. Frames missing routing metadata are delivered only to subscribers covering every matching pair requested on the current physical connection, including removed pairs that a cumulative server may retain, avoiding delivery to a narrower ambiguous subscription. Reconnect clears the retained-pair history. If multiple scopes lack enough metadata to distinguish their events, narrow subscribers intentionally receive nothing until routing becomes unambiguous. Consumer callback errors are isolated from other subscribers.
+Raw watchers share a connection within a Config, deployment and endpoint. They match address case-insensitively and channel exactly. Removed subscriptions stop receiving events immediately. Position watchers use a separate account/channel-scoped socket so they can process position events without channel metadata. An empty subscription stays idle. Reconnect sends the current subscriptions and final unsubscribe closes the socket.
 
 Optional `reconnect: ReconnectingSocketReconnectOptions` configures the first connection (attempt limit, delay, maximum delay, and jitter). Later watchers inherit that connection's policy until the final watcher releases it. Omit it for SDK defaults.
 
 This API supports Enigma notification protocol only. It does not replay history, buffer application events, invalidate queries, or implement application confirmation rules. For normalized position events use [watchNotifications](/core/notifications/watch-notifications); for React lifecycle use [useNotificationEnvelopes](/react/notifications#usenotificationenvelopes).
 
-## Legacy unwrapped events
+## Listing events
 
-The callback receives `EnigmaNotificationFrame`, a union of a full `NotificationDocument` with required object `data` and `RawEnigmaPositionNotification & Record<string, unknown>`. Legacy unwrapped events containing `last_seen_action`, `notification_type`, or `state_type` are forwarded unchanged. Check `data` before reading a nested payload. The SDK never synthesizes an envelope; subscription acknowledgements are ignored.
+Use `watchListingNotifications(config, { subscriptions, onNotification })` for listing deposit and pool-creation events. Subscribe to the configured listing channel. The callback provides the event kind, account, channel, market ID and event ID when available. Unknown event kinds are ignored. Use `watchNotifications` for positions. The raw API above is for inspecting vendor documents.

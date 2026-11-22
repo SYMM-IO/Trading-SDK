@@ -3,8 +3,10 @@
 "@symmio/trading-react": minor
 ---
 
-Add shared Enigma notification-envelope subscriptions and a React lifecycle hook. Preserve full metadata while multiplexing account/channel subscriptions with existing position watchers.
+Add shared Enigma notification-envelope subscriptions and a React lifecycle hook. Raw watchers share explicitly routed events. Position watchers keep their account/channel scope across subscription changes.
 
-Expose exact solver minimum collateral and pending-open creation time, optional cancellation for info/search, and an optional pending-open application header. Add typed legacy SIWE and authenticated conditional-order compatibility actions without consumer storage or signing policy.
+Expose exact solver minimum collateral and pending-open creation time, optional cancellation for info/search, and an optional pending-open application header.
 
-Include matching legacy query/mutation factories and React hooks. Preserve existing envelope type compatibility, canonical sign-in timestamps, query cancellation and safe routing after cumulative subscription removal.
+Expose normalized listing deposit and pool-creation events in core and React.
+
+For consumers migrating bearer-authenticated conditional orders, the signed TP/SL flow uses the wallet or session key directly. Both the nonce/sign-in challenge and the bearer-token exchange can be dropped for these operations. Use `setQuoteTpSl` for creation, `deleteQuoteTpSl` for cancellation, and `searchTpSlOrders` for conditional-order reads. Verify history filters and pagination against the records the consumer displays. The generated handler specification exposes locked collateral under v4; equivalence with the application's bearer-authenticated v5 balance read has not been established. Verify that contract before migrating the balance calculation.

@@ -18,8 +18,6 @@ interface Hub {
   socket?: ReconnectingSocket;
   subscribers: Set<Subscriber>;
   status: SocketStatus;
-  /** Patterns sent during this connection; a cumulative server can retain them. */
-  requested: Map<string, NotificationEnvelopeSubscription>;
 }
 
 const registries = new WeakMap<Config, Map<string, Hub>>();
@@ -48,7 +46,6 @@ function subscribeFrame(hub: Hub): string {
 }
 
 function sendSubscriptions(hub: Hub): void {
-  for (const [key, subscription] of activeSubscriptions(hub)) hub.requested.set(key, subscription);
   hub.socket?.send(subscribeFrame(hub));
 }
 
@@ -62,7 +59,6 @@ function reportError(subscriber: Subscriber, error: unknown): void {
 
 function notifyStatus(hub: Hub, status: SocketStatus): void {
   hub.status = status;
-  if (status === "connecting") hub.requested.clear();
   for (const subscriber of hub.subscribers) {
     try {
       subscriber.parameters.onStatusChange?.(status);
@@ -77,42 +73,31 @@ function dispatch(hub: Hub, data: unknown): void {
   try {
     const parsed = parseFramePayload(data);
     if (!parsed) return;
-    if (parsed.data !== undefined) {
-      if (!parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) return;
-    } else if (!("last_seen_action" in parsed) && !("notification_type" in parsed) && !("state_type" in parsed)) {
-      return; // Subscription acknowledgements and control frames are not events.
-    }
+    if (
+      !("data" in parsed) &&
+      !("last_seen_action" in parsed) &&
+      !("notification_type" in parsed) &&
+      !("state_type" in parsed)
+    )
+      return;
+    if (
+      typeof parsed.address !== "string" ||
+      !parsed.address ||
+      typeof parsed.app_name !== "string" ||
+      !parsed.app_name ||
+      !parsed.data ||
+      typeof parsed.data !== "object" ||
+      Array.isArray(parsed.data)
+    )
+      throw new Error("Expected an Enigma event with address, app_name and object data");
     envelope = parsed as EnigmaNotificationFrame;
   } catch (error) {
     for (const subscriber of hub.subscribers) reportError(subscriber, error);
     return;
   }
-  const inner =
-    envelope.data && typeof envelope.data === "object" ? (envelope.data as Record<string, unknown>) : envelope;
-  const account =
-    typeof envelope.address === "string"
-      ? envelope.address.toLowerCase()
-      : typeof inner.address === "string"
-        ? inner.address.toLowerCase()
-        : undefined;
-  const channel =
-    typeof envelope.app_name === "string"
-      ? envelope.app_name
-      : typeof inner.app_name === "string"
-        ? inner.app_name
-        : undefined;
-  // Missing metadata must also consider patterns a cumulative server retained
-  // after unsubscribe. Otherwise an old account's event can reach a new owner.
-  const matches = [...hub.requested].filter(
-    ([, subscription]) =>
-      (account === undefined || subscription.account.toLowerCase() === account) &&
-      (channel === undefined || subscription.channel === channel),
-  );
-  const ambiguous = (account === undefined || channel === undefined) && matches.length > 1;
-  const keys = new Set(matches.map(([key]) => key));
+  const key = JSON.stringify([envelope.address.toLowerCase(), envelope.app_name]);
   for (const subscriber of hub.subscribers) {
-    if (![...subscriber.subscriptions.keys()].some((key) => keys.has(key))) continue;
-    if (ambiguous && ![...keys].every((key) => subscriber.subscriptions.has(key))) continue;
+    if (!subscriber.subscriptions.has(key)) continue;
     try {
       subscriber.parameters.onEnvelope(envelope);
     } catch (error) {
@@ -121,7 +106,7 @@ function dispatch(hub: Hub, data: unknown): void {
   }
 }
 
-/** Join the deployment-scoped Enigma transport. Internal to the two public watchers. */
+/** Join the deployment-scoped Enigma transport. For advanced raw event inspection. */
 export function acquireEnigmaNotificationEnvelopes(
   config: Config,
   url: string,
@@ -143,18 +128,14 @@ export function acquireEnigmaNotificationEnvelopes(
     parameters,
   };
   if (!hub) {
-    hub = { subscribers: new Set([subscriber]), status: "connecting", requested: new Map() };
+    hub = { subscribers: new Set([subscriber]), status: "connecting" };
     registry.set(key, hub);
     const created = hub;
     created.socket = createReconnectingSocket({
       url,
       webSocketConstructor,
       reconnect: parameters.reconnect,
-      getOpenMessages: () => {
-        // Status callbacks may already have sent patterns on this connection.
-        for (const [key, subscription] of activeSubscriptions(created)) created.requested.set(key, subscription);
-        return [subscribeFrame(created)];
-      },
+      getOpenMessages: () => [subscribeFrame(created)],
       onMessage: (data) => dispatch(created, data),
       onStatusChange: (status) => notifyStatus(created, status),
       onError: (error) => {

@@ -123,10 +123,12 @@ export interface EnigmaNotificationEnvelope {
   address: string;
 }
 
-/** Full wire document, including legacy unwrapped position notifications. No wrapper is synthesized. */
-export type EnigmaNotificationFrame =
-  | (NotificationDocument & { data: RawEnigmaPositionNotification & Record<string, unknown> })
-  | (RawEnigmaPositionNotification & Record<string, unknown>);
+/** Advanced Enigma wire event with explicit server routing and a nested payload. */
+export type EnigmaNotificationFrame = NotificationDocument & {
+  address: string;
+  app_name: string;
+  data: Record<string, unknown>;
+};
 
 /** One account/channel pair subscribed through the Enigma notification service. */
 export interface NotificationEnvelopeSubscription {

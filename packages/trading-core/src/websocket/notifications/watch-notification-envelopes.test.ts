@@ -12,96 +12,44 @@ const channel = notifications.protocol === "enigma" ? notifications.channel : ""
 afterEach(() => vi.useRealTimers());
 
 describe("watchNotificationEnvelopes", () => {
-  it("preserves legacy unwrapped events without synthesizing an envelope", () => {
+  it("keeps normalized position delivery scoped through listing subscription, removal and reconnect", () => {
+    vi.useFakeTimers();
     const fake = createFakeWebSocket();
     const { config } = mockConfig({ webSocketConstructor: fake.WebSocket });
-    const onEnvelope = vi.fn();
-    const stop = watchNotificationEnvelopes(config, { subscriptions: [{ account: TEST_USER, channel }], onEnvelope });
-    fake.last().simulateOpen();
-    const frame = { address: TEST_USER, last_seen_action: "SendQuote", quote_id: 4, action_status: "success" };
-    fake.last().simulateMessage(frame);
-    expect(onEnvelope).toHaveBeenCalledWith(frame);
-    fake.last().simulateMessage({ status: "subscribed" });
-    expect(onEnvelope).toHaveBeenCalledTimes(1);
-    stop();
-  });
-
-  it("routes metadata-poor frames only to a subscription covering all matches and isolates callback failures", () => {
-    const fake = createFakeWebSocket();
-    const { config } = mockConfig({ webSocketConstructor: fake.WebSocket });
-    const broad = vi.fn();
-    const narrow = vi.fn();
-    const onError = vi.fn();
-    const stopBroad = watchNotificationEnvelopes(config, {
-      subscriptions: [
-        { account: TEST_USER, channel },
-        { account: TEST_USER, channel: "listing" },
-      ],
-      onEnvelope: broad,
-    });
-    const stopNarrow = watchNotificationEnvelopes(config, {
-      subscriptions: [{ account: TEST_USER, channel }],
-      onEnvelope: narrow,
-    });
-    const stopThrowing = watchNotificationEnvelopes(config, {
-      subscriptions: [{ account: TEST_USER, channel }],
-      onEnvelope: () => {
-        throw new Error("consumer failed");
-      },
+    const onNotification = vi.fn(),
+      onEnvelope = vi.fn(),
+      onError = vi.fn();
+    const stop = watchNotifications(config, { account: TEST_USER, onNotification });
+    const position = fake.last();
+    position.simulateOpen();
+    const frame = {
+      address: TEST_USER,
+      data: { quote_id: 7, last_seen_action: "SendQuote", action_status: "success" },
+    };
+    position.simulateMessage(frame);
+    const release = watchNotificationEnvelopes(config, {
+      subscriptions: [{ account: TEST_USER, channel: "listing" }],
+      onEnvelope,
       onError,
     });
-    fake.last().simulateOpen();
-    fake.last().simulateMessage({ address: TEST_USER, data: { quote_id: 1 } });
-    expect(broad).toHaveBeenCalledTimes(1);
-    expect(narrow).not.toHaveBeenCalled();
-    fake.last().simulateMessage({ address: TEST_USER, app_name: channel, data: { quote_id: 2 } });
-    expect(broad).toHaveBeenCalledTimes(2);
-    expect(narrow).toHaveBeenCalledTimes(1);
+    const listing = fake.last();
+    listing.simulateOpen();
+    position.simulateMessage(frame);
+    listing.simulateMessage(frame);
     expect(onError).toHaveBeenCalledTimes(1);
-    stopThrowing();
-    stopNarrow();
-    stopBroad();
-  });
-
-  it("shares transport with the position watcher, preserves metadata, and isolates account/channel delivery", () => {
-    const fake = createFakeWebSocket();
-    const { config } = mockConfig({ webSocketConstructor: fake.WebSocket });
-    const onEnvelope = vi.fn();
-    const onNotification = vi.fn();
-    const stopPosition = watchNotifications(config, { account: TEST_USER, onNotification });
-    const stopEnvelopes = watchNotificationEnvelopes(config, {
-      subscriptions: [
-        { account: TEST_USER, channel },
-        { account: OTHER, channel: "listing" },
-      ],
-      onEnvelope,
-    });
-    expect(fake.instances).toHaveLength(1);
+    listing.simulateMessage({ ...frame, app_name: channel });
+    expect(onEnvelope).not.toHaveBeenCalled();
+    const listed = { ...frame, app_name: "listing", primary_identifier: 42 };
+    listing.simulateMessage(listed);
+    expect(onEnvelope).toHaveBeenCalledWith(listed);
+    release();
+    position.simulateMessage(frame);
+    position.simulateClose();
+    vi.advanceTimersByTime(11000);
     fake.last().simulateOpen();
-    expect(JSON.parse(fake.last().sent[0]!).channel_patterns).toHaveLength(2);
-    const envelope = {
-      app_name: "listing",
-      address: OTHER,
-      primary_identifier: 366,
-      secondary_identifier: "listing-id",
-      type: "report",
-      create_time: 1780000000,
-      data: { status: "accepted", custom: { preserved: true } },
-      extra: "retained",
-    };
-    fake.last().simulateMessage(envelope);
-    expect(onEnvelope).toHaveBeenCalledWith(envelope);
-    expect(onNotification).not.toHaveBeenCalled();
-    fake
-      .last()
-      .simulateMessage({ app_name: channel, address: TEST_USER, data: { quote_id: 366, action_status: "success" } });
-    expect(onNotification).toHaveBeenCalledTimes(1);
-    stopPosition();
-    expect(fake.last().closeCalls).toHaveLength(0);
-    stopEnvelopes();
-    expect(fake.last().closeCalls).toHaveLength(1);
-    fake.last().simulateMessage(envelope);
-    expect(onEnvelope).toHaveBeenCalledTimes(2);
+    fake.last().simulateMessage(frame);
+    expect(onNotification).toHaveBeenCalledTimes(4);
+    stop();
   });
 
   it("resubscribes only the active union after reconnect and ignores removed subscribers", () => {
@@ -131,62 +79,6 @@ describe("watchNotificationEnvelopes", () => {
     expect(first).not.toHaveBeenCalled();
     expect(second).not.toHaveBeenCalled();
     stopSecond();
-  });
-
-  it.each(["account", "channel"] as const)(
-    "does not reroute retained metadata-poor frames after removing a %s",
-    (dimension) => {
-      vi.useFakeTimers();
-      const fake = createFakeWebSocket();
-      const { config } = mockConfig({ webSocketConstructor: fake.WebSocket });
-      const remaining = vi.fn();
-      const stopFirst = watchNotificationEnvelopes(config, {
-        subscriptions: [{ account: TEST_USER, channel }],
-        onEnvelope: vi.fn(),
-      });
-      const other = dimension === "account" ? { account: OTHER, channel } : { account: TEST_USER, channel: "listing" };
-      const stopOther = watchNotificationEnvelopes(config, { subscriptions: [other], onEnvelope: remaining });
-      fake.last().simulateOpen();
-      const frame =
-        dimension === "account"
-          ? { app_name: channel, data: { quote_id: 1 } }
-          : { address: TEST_USER, data: { quote_id: 1 } };
-      stopFirst();
-      fake.last().simulateMessage(frame);
-      expect(remaining).not.toHaveBeenCalled();
-      fake.last().simulateMessage({ address: other.account, app_name: other.channel, data: { quote_id: 2 } });
-      expect(remaining).toHaveBeenCalledTimes(1);
-      fake.last().simulateClose();
-      vi.advanceTimersByTime(11000);
-      fake.last().simulateOpen();
-      fake.last().simulateMessage(frame);
-      expect(remaining).toHaveBeenCalledTimes(2);
-      stopOther();
-    },
-  );
-
-  it("retains patterns sent by reentrant open-status callbacks", () => {
-    const fake = createFakeWebSocket();
-    const { config } = mockConfig({ webSocketConstructor: fake.WebSocket });
-    const onEnvelope = vi.fn();
-    const stop = watchNotificationEnvelopes(config, {
-      subscriptions: [{ account: TEST_USER, channel }],
-      onEnvelope,
-      onStatusChange: (status) => {
-        if (status !== "open") return;
-        const release = watchNotificationEnvelopes(config, {
-          subscriptions: [{ account: OTHER, channel }],
-          onEnvelope: vi.fn(),
-        });
-        release();
-      },
-    });
-    fake.last().simulateOpen();
-    fake.last().simulateMessage({ app_name: channel, data: { quote_id: 3 } });
-    expect(onEnvelope).not.toHaveBeenCalled();
-    fake.last().simulateMessage({ address: TEST_USER, app_name: channel, data: { quote_id: 4 } });
-    expect(onEnvelope).toHaveBeenCalledTimes(1);
-    stop();
   });
 
   it("does not open a socket for an empty subscription and isolates config instances", () => {

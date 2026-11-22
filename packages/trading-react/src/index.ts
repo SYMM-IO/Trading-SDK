@@ -914,8 +914,10 @@ export {
  * `@symmio/trading-core`.
  */
 export {
+  useListingNotifications,
   useNotificationEnvelopes,
   useNotifications,
+  type UseListingNotificationsParameters,
   type UseNotificationEnvelopesParameters,
   type UseNotificationEnvelopesReturnType,
   type UseNotificationsParameters,
@@ -1479,34 +1481,3 @@ export {
   type UsePoolOpenPositionsParameters,
   type UsePoolOpenPositionsReturnType,
 } from "./pools/use-pool-open-positions";
-
-export {
-  useAuthenticateSolver,
-  type UseAuthenticateSolverParameters,
-  type UseAuthenticateSolverReturnType,
-} from "./solvers/use-authenticate-solver";
-export {
-  useCancelLegacyConditionalOrder,
-  type UseCancelLegacyConditionalOrderParameters,
-  type UseCancelLegacyConditionalOrderReturnType,
-} from "./solvers/use-cancel-legacy-conditional-order";
-export {
-  useCreateLegacyConditionalOrder,
-  type UseCreateLegacyConditionalOrderParameters,
-  type UseCreateLegacyConditionalOrderReturnType,
-} from "./solvers/use-create-legacy-conditional-order";
-export {
-  useGetSolverSignInMessage,
-  type UseGetSolverSignInMessageParameters,
-  type UseGetSolverSignInMessageReturnType,
-} from "./solvers/use-get-solver-sign-in-message";
-export {
-  useLegacyCollateralLocked,
-  type UseLegacyCollateralLockedParameters,
-  type UseLegacyCollateralLockedReturnType,
-} from "./solvers/use-legacy-collateral-locked";
-export {
-  useLegacyOrderHistory,
-  type UseLegacyOrderHistoryParameters,
-  type UseLegacyOrderHistoryReturnType,
-} from "./solvers/use-legacy-order-history";

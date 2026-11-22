@@ -1,7 +1,7 @@
 "use client";
 
 import { ResultError, ResultNote } from "@/components/result";
-import { useNotificationEnvelopes } from "@symmio/trading-react";
+import { useListingNotifications, useNotificationEnvelopes } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@symmio/ui/components/card";
 import { Input } from "@symmio/ui/components/input";
@@ -25,10 +25,18 @@ export function NotificationEnvelopesCard() {
     onEnvelope: (envelope) => setFrames((previous) => [JSON.stringify(envelope, null, 2), ...previous].slice(0, 50)),
   });
 
+  const [listing, setListing] = useState<string>();
+  useListingNotifications({
+    chainId: target.chainId,
+    solverId: target.solverId,
+    subscriptions: subscription ? [subscription] : [],
+    onNotification: (event) => setListing(JSON.stringify(event, null, 2)),
+  });
+
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Full notification envelopes</CardTitle>
+        <CardTitle>Advanced Enigma envelopes</CardTitle>
         <CardDescription>
           Inspect one Enigma account/channel subscription, including server metadata. Status: {status}.
         </CardDescription>
@@ -44,6 +52,7 @@ export function NotificationEnvelopesCard() {
             disabled={!selection.subAccount || !channel.trim()}
             onClick={() => {
               if (!selection.subAccount) return;
+              setListing(undefined);
               setFrames([]);
               setSubscription({ account: selection.subAccount, channel: channel.trim() });
             }}
@@ -58,6 +67,12 @@ export function NotificationEnvelopesCard() {
           </Button>
         </div>
         {error ? <ResultError kind={error.kind} message={error.message} /> : null}
+        {listing && (
+          <div>
+            <Label>Latest listing event</Label>
+            <pre>{listing}</pre>
+          </div>
+        )}
         {frames.length ? (
           <pre className="max-h-96 overflow-auto text-xs">{frames.join("\n\n")}</pre>
         ) : (
