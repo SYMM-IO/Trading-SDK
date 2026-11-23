@@ -79,6 +79,8 @@ const source = createBinanceCandleSource({
 
 `getSymbol` returns `undefined` for a market the venue does not list — the check to run before rendering a chart for it.
 
+The symbol metadata labels volume as `volumeUnit: "base"` and reports `volumeCurrency` from the exchange's base asset when available (for example `"BTC"` for `BTCUSDT`). These candles do not report USD volume. See [`CandleSymbol`](/core/candles/candle-type#candlesymbol) for the source-neutral volume fields.
+
 ## How history is paged
 
 Binance caps a bounded range request from its **start**: sending `startTime`, `endTime`, and `limit` together returns the _oldest_ `limit` bars in the window, which for a chart scrolling back is the wrong end entirely. The source therefore pages backwards from `to`, sending `endTime` only, and applies the `from` bound client-side. Requests are capped at the venue's per-request limit and paged transparently, so ask for as many bars as you need.
@@ -100,7 +102,7 @@ The pieces the source is built from are exported for consumers assembling their 
 | `getBinanceSupportedResolutions` | Resolutions a Binance market can serve, ascending.                                                           |
 | `BinanceMarket`                  | `"usd-m-futures" \| "spot"`.                                                                                 |
 
-Spot additionally serves `1s` klines; futures does not, and neither market has the SDK's `10s` bucket.
+Spot additionally serves `1s` klines; futures does not, and neither market has the SDK's `10s` or `10m` buckets.
 
 ## Throws
 

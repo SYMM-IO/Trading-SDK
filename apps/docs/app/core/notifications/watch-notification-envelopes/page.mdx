@@ -1,0 +1,45 @@
+# watchNotificationEnvelopes
+
+Use this advanced Enigma inspector to observe raw server documents. Applications watching positions use the normalized position watcher.
+
+```ts
+import { watchNotificationEnvelopes } from "@symmio/trading-core";
+
+const stop = watchNotificationEnvelopes(config, {
+  chainId: 42161,
+  solverId: "enigma",
+  subscriptions: [{ account, channel }],
+  onEnvelope: (envelope) => console.log(envelope.app_name, envelope.data),
+  onStatusChange: (status) => console.log(status),
+});
+stop();
+```
+
+## Inputs and result
+
+`WatchNotificationEnvelopesParameters` accepts optional `chainId` and `solverId`, a required readonly `subscriptions` array, and required `onEnvelope`. Each `NotificationEnvelopeSubscription` contains an `account: Address` and `channel: string`. Optional `onStatusChange` receives `SocketStatus`; `onError` receives a normalized SDK error. The return value is an idempotent unsubscribe function.
+
+`EnigmaNotificationFrame` retains the server document fields, including `app_name`, `address`, `primary_identifier`, `secondary_identifier`, `type`, `create_time`, and the full `data` object. No metadata or nested fields are rewritten. Raw events require top-level address, app_name and object data. Malformed events are reported through onError.
+
+## Ownership and routing
+
+Raw watchers share a connection within a Config, deployment and endpoint. They match address case-insensitively and channel exactly. Removed subscriptions stop receiving events immediately. Position watchers use a separate account/channel-scoped socket so they can process position events without channel metadata. An empty subscription stays idle. Reconnect sends the current subscriptions and final unsubscribe closes the socket.
+
+Optional `reconnect: ReconnectingSocketReconnectOptions` configures the first connection (attempt limit, delay, maximum delay, and jitter). Later watchers inherit that connection's policy until the final watcher releases it. Omit it for SDK defaults.
+
+This API supports Enigma notification protocol only. It does not replay history, buffer application events, invalidate queries, or implement application confirmation rules. For normalized position events use [watchNotifications](/core/notifications/watch-notifications); for React lifecycle use [useNotificationEnvelopes](/react/notifications#usenotificationenvelopes).
+
+## Listing events
+
+Use `watchListingNotifications(config, { subscriptions, onNotification })` for listing deposit and pool-creation events. Subscribe to the configured listing channel. The callback receives a `ListingNotification` with `kind`, `account`, and `channel`. Additional fields depend on what the service sends, including values nested in listing details.
+
+| Optional fields                                                                                 | Meaning                                                                     |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `eventId`, `marketId`, `notificationType`, `successful`                                         | Event identity, market and result                                           |
+| `timestamp`, `listingTime`                                                                      | Event time in Unix milliseconds and the service's numeric listing time      |
+| `tokenContractAddress`, `chainId`, `tokenTicker`, `tokenName`, `tokenDecimal`                   | Token and chain metadata                                                    |
+| `depositAmount1e18`, `depositedAmount1e18`, `minimumRequiredAmount1e18`, `listingFeeAmount1e18` | Per-deposit amount, deposited total, minimum and fee as 1e18-scaled strings |
+| `marketStatus`, `depositStatus`, `completedStep`, `statusCode`                                  | Listing progress                                                            |
+| `retryCount`, `retryLimit`, `errorCode`, `errorMessage`                                         | Retry and failure details                                                   |
+
+Unknown event kinds are ignored. Use `watchNotifications` for positions. The raw API above is for inspecting vendor documents.

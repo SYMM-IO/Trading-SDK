@@ -48,9 +48,9 @@ export function useSearchNotifications(parameters: UseSearchNotificationsParamet
 
   return useQuery({
     ...options,
-    queryFn: async () => {
+    queryFn: async (context) => {
       try {
-        return await options.queryFn();
+        return await options.queryFn(context);
       } catch (err) {
         throw normalizeSymmError(err);
       }

@@ -41,6 +41,8 @@ The quote is the same `GaslessFeeQuote` [`getGaslessFeeQuote`](/core/gasless/get
 
 React consumers use [`useGaslessBatchFeeQuote`](/react/gasless#usegaslessbatchfeequote). Plain TanStack Query consumers use `getGaslessBatchFeeQuoteQueryOptions(config, { account, calls })`; its key holds each call's encoded calldata rather than its ABI, and a call whose arguments do not encode yet keys deterministically instead of throwing, so the key is safe to build while a form is still being filled in.
 
+For opt-in affordability checks, use [`getGaslessBatchFunding`](/core/gasless/get-gasless-batch-funding) or the margin-specific [`getGaslessMarginFunding`](/core/gasless/get-gasless-margin-funding). They combine this quote with projected payer balances without changing it or altering relay defaults.
+
 ## Parameters
 
 <Properties>

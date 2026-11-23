@@ -16,6 +16,8 @@ export type GetInstantOpensParameters<K extends SymmioSolverKind = SymmioSolverK
     solverId?: K;
     /** Sub-account (partyA) to read pending instant-open records for. */
     partyA: Address;
+    /** Optional Enigma App-Name request header, supplied by the consumer. */
+    appName?: string;
     /**
      * Hedger base URL to query. One call targets one hedger; fan out across
      * hedgers in the consumer.
@@ -63,7 +65,7 @@ export async function getInstantOpens<K extends SymmioSolverKind = SymmioSolverK
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   const baseURL = parameters.baseUrl ?? solver.url;
   try {
-    const records = await fetchInstantOpensBySolverKind(solver, baseURL, parameters.partyA);
+    const records = await fetchInstantOpensBySolverKind(solver, baseURL, parameters.partyA, parameters.appName);
     return records as GetInstantOpensReturnType<K>;
   } catch (err) {
     throw toInstantOpensError(err, baseURL);
@@ -81,11 +83,18 @@ async function fetchInstantOpensBySolverKind(
   solver: SymmioResolvedSolver,
   baseURL: string,
   partyA: Address,
+  appName?: string,
 ): Promise<readonly PendingInstantOpen[]> {
   switch (solver.id) {
     case "enigma":
-      return fetchEnigmaInstantOpens(baseURL, partyA);
+      return fetchEnigmaInstantOpens(baseURL, partyA, appName);
     case "rasa":
+      if (appName !== undefined)
+        throw new SymmError(
+          "validation",
+          "UNSUPPORTED_BY_SOLVER",
+          "The App-Name header is only supported for Enigma pending opens.",
+        );
       return fetchRasaInstantOpens(baseURL, partyA);
     default: {
       const unreachable: never = solver.id;

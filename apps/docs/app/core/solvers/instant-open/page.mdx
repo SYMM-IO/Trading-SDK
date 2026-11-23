@@ -605,3 +605,9 @@ The React layer wraps this in [`useAvailableInstantOpenMargin`](../../../react/m
 - [Instant Close](../instant-close) — the close-side analog.
 - [Unified Quotes](../../quotes) — `PendingInstantOpen` feeds into `reconcileQuotes`.
 - [TP/SL](../../tpsl) — attach a TP/SL leg via `useInstantOpenWithTpSl` in the React layer.
+
+### Pending-open compatibility fields
+
+Enigma `getInstantOpens` rows expose optional `createTime: number`, the finite Unix-seconds creation timestamp supplied by the server. Missing or malformed timestamps remain absent. Rasa rows are unchanged.
+
+`GetInstantOpensParameters.appName?: string` supplies the Enigma `App-Name` request header for consumers with an existing application routing requirement. Omit it to preserve the default request. Query options forward it and include it in query identity. Supplying it for Rasa throws `UNSUPPORTED_BY_SOLVER` before transport.

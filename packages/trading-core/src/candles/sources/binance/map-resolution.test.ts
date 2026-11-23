@@ -22,6 +22,11 @@ describe("toBinanceInterval", () => {
   it("reports no interval for 10s on either market — no venue has that bucket", () => {
     expect(toBinanceInterval("spot", "10s")).toBeUndefined();
   });
+
+  it.each(["spot", "usd-m-futures"] as const)("does not advertise 10m on %s", (market) => {
+    expect(toBinanceInterval(market, "10m")).toBeUndefined();
+    expect(getBinanceSupportedResolutions(market)).not.toContain("10m");
+  });
 });
 
 describe("getBinanceSupportedResolutions", () => {

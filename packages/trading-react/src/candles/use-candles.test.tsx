@@ -25,6 +25,17 @@ function createStubSource(
 const RANGE = { marketName: "BTCUSDT", resolution: "1m", from: 1_700_000_000_000, to: 1_700_003_600_000 } as const;
 
 describe("useCandles", () => {
+  it("aborts an obsolete history request when the hook unmounts", async () => {
+    const getCandles = vi.fn<CandleSource["getCandles"]>(() => new Promise(() => {}));
+    const { source } = createStubSource("cancellable", getCandles);
+    const { unmount } = renderHookWithProviders(() => useCandles({ source, ...RANGE }));
+    await waitFor(() => expect(getCandles).toHaveBeenCalledOnce());
+    const signal = getCandles.mock.calls[0]?.[0].signal;
+    expect(signal?.aborted).toBe(false);
+    unmount();
+    expect(signal?.aborted).toBe(true);
+  });
+
   it("fetches bars from the source", async () => {
     const { source, getCandles } = createStubSource();
 

@@ -1,6 +1,13 @@
 "use client";
 
-import type { Candle, CandleResolution, CandleSource, CandleUpdateMeta, SocketStatus } from "@symmio/trading-core";
+import type {
+  Candle,
+  CandleHistoryRange,
+  CandleResolution,
+  CandleSource,
+  CandleUpdateMeta,
+  SocketStatus,
+} from "@symmio/trading-core";
 import { useEffect, useRef, useState } from "react";
 import { normalizeSymmError } from "../errors/normalize-symm-error";
 import type { SymmioRequestError } from "../errors/symmio-request-error";
@@ -26,10 +33,11 @@ export interface UseCandleStreamParameters {
    */
   onCandle?: (candle: Candle, meta: CandleUpdateMeta) => void;
   /**
-   * Called after a reconnect, when bars were missed while the socket was down.
-   * Refetch history here rather than splicing a live bar onto a stale series.
+   * Called after reconnects or when the source detects historical corrections.
+   * Forward the optional corrected range to history.refresh(range). Without a
+   * range, refetch all retained history through the present time.
    */
-  onReset?: () => void;
+  onReset?: (range?: CandleHistoryRange) => void;
 }
 
 /**
@@ -86,33 +94,48 @@ export function useCandleStream(parameters: UseCandleStreamParameters): UseCandl
   onResetRef.current = onReset;
 
   useEffect(() => {
+    setCandle(null);
+    setClosed(false);
+    setError(null);
     if (!enabled || !source.watchCandles) {
       setStatus("closed");
       return;
     }
 
-    setError(null);
-
+    let active = true;
     let unwatch: (() => void) | undefined;
     try {
       unwatch = source.watchCandles({
         marketName,
         resolution,
         onCandle: (next, meta) => {
+          if (!active) return;
           onCandleRef.current?.(next, meta);
           setCandle(next);
           setClosed(meta.closed);
         },
-        onReset: () => onResetRef.current?.(),
-        onStatusChange: setStatus,
-        onError: (err) => setError(normalizeSymmError(err)),
+        onReset: (range) => {
+          if (!active) return;
+          setCandle(null);
+          setClosed(false);
+          onResetRef.current?.(range);
+        },
+        onStatusChange: (next) => {
+          if (active) setStatus(next);
+        },
+        onError: (err) => {
+          if (active) setError(normalizeSymmError(err));
+        },
       });
     } catch (err) {
       setError(normalizeSymmError(err));
       setStatus("closed");
     }
 
-    return () => unwatch?.();
+    return () => {
+      active = false;
+      unwatch?.();
+    };
   }, [enabled, source, marketName, resolution]);
 
   return { candle, closed, status, error };

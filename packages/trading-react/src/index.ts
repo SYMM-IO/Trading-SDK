@@ -913,7 +913,16 @@ export {
  * value types (`Notification`, `NotificationType`, `SocketStatus`) from
  * `@symmio/trading-core`.
  */
-export { useNotifications, type UseNotificationsParameters, type UseNotificationsReturnType } from "./websocket";
+export {
+  useListingNotifications,
+  useNotificationEnvelopes,
+  useNotifications,
+  type UseListingNotificationsParameters,
+  type UseNotificationEnvelopesParameters,
+  type UseNotificationEnvelopesReturnType,
+  type UseNotificationsParameters,
+  type UseNotificationsReturnType,
+} from "./websocket";
 
 /**
  * Notification search hooks
@@ -1166,14 +1175,19 @@ export {
  */
 export {
   useBinanceCandleSource,
+  useCandleHistory,
   useCandleStream,
   useCandles,
+  useLowcapCandleSource,
   useTradingViewDatafeed,
   type UseBinanceCandleSourceParameters,
+  type UseCandleHistoryParameters,
+  type UseCandleHistoryReturnType,
   type UseCandleStreamParameters,
   type UseCandleStreamReturnType,
   type UseCandlesParameters,
   type UseCandlesReturnType,
+  type UseLowcapCandleSourceParameters,
   type UseTradingViewDatafeedParameters,
 } from "./candles";
 
@@ -1371,8 +1385,10 @@ export {
   useApproveOperationalFee,
   useApproveOperationalFeeAllowance,
   useGaslessBatchFeeQuote,
+  useGaslessBatchFunding,
   useGaslessDepositPolicy,
   useGaslessFeeQuote,
+  useGaslessMarginFunding,
   useGaslessRequest,
   useGaslessRequestTransactions,
   useGaslessWalletAddress,
@@ -1413,10 +1429,14 @@ export {
   type UseApproveOperationalFeeReturnType,
   type UseGaslessBatchFeeQuoteParameters,
   type UseGaslessBatchFeeQuoteReturnType,
+  type UseGaslessBatchFundingParameters,
+  type UseGaslessBatchFundingReturnType,
   type UseGaslessDepositPolicyParameters,
   type UseGaslessDepositPolicyReturnType,
   type UseGaslessFeeQuoteParameters,
   type UseGaslessFeeQuoteReturnType,
+  type UseGaslessMarginFundingParameters,
+  type UseGaslessMarginFundingReturnType,
   type UseGaslessRequestParameters,
   type UseGaslessRequestReturnType,
   type UseGaslessRequestTransactionsParameters,

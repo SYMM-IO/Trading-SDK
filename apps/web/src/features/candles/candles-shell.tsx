@@ -1,17 +1,12 @@
 import { PageHeader } from "@/components/page-header";
 import { MethodGroup } from "../inspector/method-group";
 import { CandlesConsole } from "./candles-console";
+import { LowcapCandlesConsole } from "./lowcap-candles-console";
 import { LowcapConsole } from "./lowcap-console";
 
 /**
- * Candles page: the SDK's chart-data slice driving a real charting library, and
- * the answer for the markets it cannot cover.
- *
- * The point of the first card is the seam — `useCandles` and `useCandleStream`
- * return plain bars, and the library on the other side is interchangeable. The
- * second card is the other half of the story: a lowcap has no reference-exchange
- * listing to pull bars from, so the SDK hands over the pool it trades in and
- * DexScreener draws the chart.
+ * Chart reference-exchange and price-service candles through the same SDK
+ * hooks, with a separate DexScreener embed for pool-price comparison.
  */
 export function CandlesShell() {
   return (
@@ -19,10 +14,11 @@ export function CandlesShell() {
       <PageHeader
         eyebrow="React SDK · Candles"
         title="Candles"
-        description="Historical and live OHLCV bars from a pluggable CandleSource. Binance USD-M futures backs the majors here; the SDK returns plain bars, so any charting library can render them — this page uses lightweight-charts. Lowcaps have no such listing, so they chart from their liquidity pool instead."
+        description="Historical and live candles through the SDK: Binance for major markets and the price service for lowcaps. Compare lowcap pool prices with the separate DexScreener chart."
       />
-      <MethodGroup label="Chart data" count={2} fullWidth>
+      <MethodGroup label="Chart data" count={3} fullWidth>
         <CandlesConsole />
+        <LowcapCandlesConsole />
         <LowcapConsole />
       </MethodGroup>
     </section>

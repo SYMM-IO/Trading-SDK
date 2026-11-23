@@ -62,6 +62,10 @@ export function EnigmaSolverInfoCard() {
             <dt className="text-muted-foreground">staticSolverFeeClose:</dt>
             <dd className="text-foreground font-mono">{query.data.staticSolverFeeClose ?? "—"}</dd>
           </div>
+          <div className="flex items-center gap-2">
+            <dt className="text-muted-foreground">minInstantOpenCollateralUsd:</dt>
+            <dd className="text-foreground font-mono">{query.data.minInstantOpenCollateralUsd ?? "—"}</dd>
+          </div>
         </dl>
       ) : (
         <ResultNote testId="result-getSolverInfo-idle">Read the solver&apos;s static fee configuration.</ResultNote>

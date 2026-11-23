@@ -97,7 +97,13 @@ export function watchEnigmaNotifications(
     protocol: notifications.protocol,
   });
 
-  const key = `${notifications.url}|${notifications.protocol}|${account.toLowerCase()}`;
+  const key = JSON.stringify([
+    config.getChainConfigKey(parameters.chainId),
+    notifications.url,
+    notifications.protocol,
+    notifications.channel,
+    account.toLowerCase(),
+  ]);
 
   return getSocketPool(config).acquire(
     key,

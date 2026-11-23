@@ -15,6 +15,8 @@ import type { NotificationDocument, NotificationSearchFilter } from "../types";
  */
 export type SearchNotificationsParameters<K extends SolverId = SolverId> = Compute<
   ChainIdParameter & {
+    /** Abort the underlying search request. Not included in query cache keys. */
+    signal?: AbortSignal;
     /** Target solver — selects the search endpoint + result variant. Defaults to the chain's default solver. */
     solverId?: K;
     /** Filter: counterparty (subaccount) address. */

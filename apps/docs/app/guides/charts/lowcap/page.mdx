@@ -2,7 +2,9 @@ import { Callout } from "nextra/components";
 
 # Lowcap Chart
 
-Lowcap markets are not listed on a reference exchange, so there are no venue candles to fetch — the SDK's [Binance `CandleSource`](../majors) has nothing to serve for them. The price has to come from the liquidity pool the token actually trades in, and you pick the rendering approach that fits your UI budget and DX preferences.
+For the price service's OHLCV series, prefer [`useLowcapCandleSource`](/react/candles#uselowcapcandlesource). It works with `useCandles`, `useCandleStream`, and the TradingView adapter, and reports USD volume. See the [source reference](/core/candles/lowcap-source) for staging availability, full market names, flat candles, and history-boundary limitations.
+
+The alternatives below chart the underlying pool's price. They remain useful for comparison or when choosing a different data provider.
 
 <Callout type="info">
   Charting a **major**? Use the [Majors Chart](../majors) guide instead — the SDK fetches and streams real OHLCV for

@@ -13,8 +13,10 @@ const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
  * and a missing `uuid` to `""`.
  */
 export function toEnigmaInstantOpen(raw: ApiGetInstantOpenResponse): EnigmaInstantOpen {
+  const createTime = "create_time" in raw ? raw.create_time : undefined;
   return {
     kind: "enigma",
+    ...(typeof createTime === "number" && Number.isFinite(createTime) ? { createTime } : {}),
     tempQuoteId: raw.temp_quote_id ?? 0,
     marketId: raw.symbol_id ?? 0,
     positionType: (raw.position_type ?? PositionType.LONG) as PositionType,
@@ -36,7 +38,14 @@ export function toEnigmaInstantOpen(raw: ApiGetInstantOpenResponse): EnigmaInsta
  *
  * @internal
  */
-export async function fetchEnigmaInstantOpens(baseURL: string, partyA: Address): Promise<readonly EnigmaInstantOpen[]> {
-  const response = await getInstantOpenAccountAddress(partyA, { baseURL });
+export async function fetchEnigmaInstantOpens(
+  baseURL: string,
+  partyA: Address,
+  appName?: string,
+): Promise<readonly EnigmaInstantOpen[]> {
+  const response = await getInstantOpenAccountAddress(partyA, {
+    baseURL,
+    ...(appName ? { headers: { "App-Name": appName, "Content-Type": "application/json" } } : {}),
+  });
   return (response.data ?? []).map(toEnigmaInstantOpen);
 }
