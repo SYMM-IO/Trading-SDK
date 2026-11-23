@@ -434,6 +434,8 @@ describe("instantOpen — kind dispatch", () => {
   it.each([
     { successful: false, temp_quote_id: 7 },
     { successful: "false", temp_quote_id: 7 },
+    { code: 0, temp_quote_id: 7 },
+    { code: "3401", temp_quote_id: 7 },
     { error_code: 3111, error_message: "Insufficient balance", temp_quote_id: 7 },
     {},
     { temp_quote_id: null },

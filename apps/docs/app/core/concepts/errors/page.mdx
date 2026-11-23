@@ -123,8 +123,10 @@ Codes are stable strings. Group per kind. New codes may appear at any minor vers
 
 Open preparation rejects an unusable reference with validation code `OPEN_PRICE_UNAVAILABLE`.
 For [open estimates](/core/solvers/instant-open#unavailable-estimate-fallback),
-`OPEN_ESTIMATE_UNAVAILABLE` permits reference-price fallback;
-`OPEN_ESTIMATE_REJECTED` and `ESTIMATED_PRICE_CANCELLED` propagate without signing.
+`OPEN_ESTIMATE_UNAVAILABLE` permits reference-price fallback, including when a
+caller-supplied estimate deadline expires. `OPEN_ESTIMATE_REJECTED` covers solver
+refusals such as an unknown market or a slippage rejection. An explicit abort uses
+`ESTIMATED_PRICE_CANCELLED`. Both terminal errors stop preparation before signing.
 A valid out-of-tolerance estimate remains validation code `SLIPPAGE_EXCEEDED`.
 
 Selected — many more surface as `SymmApiError` with a `_FAILED` code per action:

@@ -1,4 +1,4 @@
-import type { SymmApiError } from "../../shared/errors/symm-error";
+import type { SolverErrorEnvelope } from "../shared/solver-error-envelope";
 
 const UNAVAILABLE_TRANSPORT_CODES = new Set([
   "ERR_NETWORK",
@@ -13,42 +13,55 @@ const UNAVAILABLE_TRANSPORT_CODES = new Set([
   "EPIPE",
 ]);
 
-/** Recognize the solver's documented error envelope, including HTTP 200 refusals. */
-export function hasOpenEstimateError(data: unknown): boolean {
-  if (!data || typeof data !== "object") return false;
-  const body = data as Record<string, unknown>;
-  return (
-    (typeof body.code === "number" && Number.isInteger(body.code) && body.code !== 0) ||
-    (typeof body.error_category === "string" && body.error_category.length > 0) ||
-    (typeof body.error_message === "string" && body.error_message.length > 0) ||
-    (typeof body.error_detail === "string" && body.error_detail.length > 0)
-  );
-}
+// Also support responses that omit error_category. Source: https://solver.enigma.bz/api/error_codes/detailed
+const UNAVAILABLE_SOLVER_CODES = new Set([
+  // internal
+  3000,
+  3112,
+  // unavailable
+  3201,
+  3204,
+  3403,
+  3404,
+  3406,
+  3407,
+  3706,
+  3707,
+  3713,
+  3405, // timeout
+  3602,
+  3705, // rate_limit
+]);
+const UNAVAILABLE_CATEGORIES = new Set(["internal", "unavailable", "timeout", "rate_limit"]);
 
 /** Preserve explicit solver refusals; only unavailable estimates permit fallback. */
 export function classifyOpenEstimateError(
-  error: Pick<SymmApiError, "status" | "responseData"> & { transportCode?: string },
+  status: number,
+  envelope: SolverErrorEnvelope | undefined,
+  transportCode?: string,
 ): "OPEN_ESTIMATE_UNAVAILABLE" | "OPEN_ESTIMATE_REJECTED" {
-  const body = error.responseData;
-  const category = body && typeof body === "object" && "error_category" in body ? body.error_category : undefined;
-  switch (category) {
-    case "internal":
-    case "unavailable":
-    case "timeout":
-    case "rate_limit":
+  if (status === 401 || status === 403) return "OPEN_ESTIMATE_REJECTED";
+  if (envelope) {
+    if (
+      status === 404 &&
+      envelope.code === 404 &&
+      envelope.category === "validation" &&
+      envelope.detail === "/estimated-price"
+    ) {
       return "OPEN_ESTIMATE_UNAVAILABLE";
+    }
+    const unavailable =
+      envelope.category !== undefined
+        ? UNAVAILABLE_CATEGORIES.has(envelope.category)
+        : envelope.code !== undefined && UNAVAILABLE_SOLVER_CODES.has(envelope.code);
+    return unavailable ? "OPEN_ESTIMATE_UNAVAILABLE" : "OPEN_ESTIMATE_REJECTED";
   }
-  // Unknown coded refusals remain authoritative. Do not infer a business
-  // decision from its free-form message or assume every HTTP error is technical.
-  if (hasOpenEstimateError(body)) return "OPEN_ESTIMATE_REJECTED";
-  if (error.status === 0) {
+  if (status === 0) {
     // Axios also uses a response-less error for invalid URLs/options and
     // unsupported adapters. Those are not network unavailability.
-    return error.transportCode && UNAVAILABLE_TRANSPORT_CODES.has(error.transportCode)
+    return transportCode && UNAVAILABLE_TRANSPORT_CODES.has(transportCode)
       ? "OPEN_ESTIMATE_UNAVAILABLE"
       : "OPEN_ESTIMATE_REJECTED";
   }
-  return error.status === 408 || error.status === 429 || error.status >= 500
-    ? "OPEN_ESTIMATE_UNAVAILABLE"
-    : "OPEN_ESTIMATE_REJECTED";
+  return status === 408 || status === 429 || status >= 500 ? "OPEN_ESTIMATE_UNAVAILABLE" : "OPEN_ESTIMATE_REJECTED";
 }

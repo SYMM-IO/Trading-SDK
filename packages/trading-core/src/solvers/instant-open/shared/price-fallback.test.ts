@@ -12,6 +12,7 @@ const { estimate, post } = vi.hoisted(() => ({ estimate: vi.fn(), post: vi.fn() 
 vi.mock("../../types/generated/enigma-solver", async (original) => ({
   ...(await original<typeof import("../../types/generated/enigma-solver")>()),
   getEstimatedPrice: estimate,
+  getInfo: vi.fn().mockResolvedValue({ data: { timelock_enabled: false, timelock_approval: null } }),
   postInstantTradeInstantOpen: post,
 }));
 
@@ -126,16 +127,50 @@ describe("instant-open price fallback", () => {
     },
   );
 
-  it.each(["price", "refusal"])("does not sign or submit an out-of-tolerance %s", async (kind) => {
+  it.each([
+    [{ price: "110" }, "SLIPPAGE_EXCEEDED"],
+    [{ code: 3401, error_detail: "Slippage Too Low" }, "OPEN_ESTIMATE_REJECTED"],
+    [{ price: "100", error_code: 3401 }, "OPEN_ESTIMATE_REJECTED"],
+    [{ code: "3401" }, "OPEN_ESTIMATE_REJECTED"],
+    [{ code: 3113, error_category: "symbol_state" }, "OPEN_ESTIMATE_REJECTED"],
+    [{ successful: false }, "OPEN_ESTIMATE_REJECTED"],
+    [{ successful: "false" }, "OPEN_ESTIMATE_REJECTED"],
+    [{ error: "insufficient liquidity" }, "OPEN_ESTIMATE_REJECTED"],
+    [{ code: 3000, error_code: 3401 }, "OPEN_ESTIMATE_REJECTED"],
+  ])("stops before signing or submitting on %j", async (data, code) => {
     const { config, signTypedData } = mockConfig();
-    estimate.mockResolvedValue({
-      status: 200,
-      data: kind === "price" ? { price: "110" } : { code: 3401, error_detail: "Slippage Too Low" },
-    });
-    await expect(instantOpenAuto(config, parameters)).rejects.toMatchObject({
-      code: kind === "price" ? "SLIPPAGE_EXCEEDED" : "OPEN_ESTIMATE_REJECTED",
-    });
+    estimate.mockResolvedValue({ status: 200, data });
+    await expect(instantOpenAuto(config, parameters)).rejects.toMatchObject({ code });
     expect(signTypedData).not.toHaveBeenCalled();
     expect(post).not.toHaveBeenCalled();
+  });
+
+  it("uses the mark for a code-only technical failure and submits once", async () => {
+    const { config } = mockConfig();
+    estimate.mockResolvedValue({ status: 200, data: { error_code: "3405" } });
+    await expect(instantOpenAuto(config, parameters)).resolves.toMatchObject({
+      success: true,
+      openEstimateStatus: "unavailable",
+      estimatedOpenPrice: null,
+    });
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+
+  it("prepares and prices the same order when the estimate route is missing", async () => {
+    const { config } = mockConfig();
+    estimate.mockRejectedValue(
+      Object.assign(new AxiosError("Not found"), {
+        response: {
+          status: 404,
+          data: { code: 404, error_category: "validation", error_detail: "/estimated-price" },
+        },
+      }),
+    );
+    const prepared = await prepareInstantOpenParams(config, parameters);
+    const fees = await getInstantOpenFees(config, parameters);
+    expect(prepared.openEstimateStatus).toBe("unavailable");
+    expect(prepared.order.price).toBe(parseUnits("101", 18));
+    expect(fees).toMatchObject({ openEstimateStatus: "unavailable", expectedSettlementLoss: "2" });
+    expect(parseUnits(fees.quantity, 18)).toBe(prepared.order.quantity);
   });
 });

@@ -133,6 +133,27 @@ describe("getEstimatedPrice", () => {
     await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_REJECTED" });
   });
 
+  it.each([
+    [404, { code: 404, error_category: "validation", error_detail: "/estimated-price" }, "OPEN_ESTIMATE_UNAVAILABLE"],
+    [404, { code: 404, error_category: "validation", error_detail: "/contract-symbols" }, "OPEN_ESTIMATE_REJECTED"],
+    [404, { code: 404, error_category: "not_found" }, "OPEN_ESTIMATE_REJECTED"],
+    [404, {}, "OPEN_ESTIMATE_REJECTED"],
+    [400, { code: 3105, error_category: "validation", error_message: "Market not found." }, "OPEN_ESTIMATE_REJECTED"],
+    [500, { code: 3000, error_message: "Internal error" }, "OPEN_ESTIMATE_UNAVAILABLE"],
+    [503, { error_code: "3201" }, "OPEN_ESTIMATE_UNAVAILABLE"],
+    [500, { code: 3112, error_category: "validation" }, "OPEN_ESTIMATE_REJECTED"],
+    [500, { code: 9999, error_message: "Unknown" }, "OPEN_ESTIMATE_REJECTED"],
+    [401, { code: 3000 }, "OPEN_ESTIMATE_REJECTED"],
+  ] as const)("classifies HTTP %i with %j as %s", async (status, data, code) => {
+    estimatedPriceRequest.mockRejectedValue(httpError(status, data));
+    await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code, status, responseData: data });
+  });
+
+  it.each([0, "0"])("accepts a usable price accompanied by the zero success code %j", async (code) => {
+    estimatedPriceRequest.mockResolvedValue({ status: 200, data: { code, price: "100" } });
+    await expect(getEstimatedPrice(config, OPEN_LONG)).resolves.toEqual({ estimatedPrice: "100" });
+  });
+
   it.each(["internal", "unavailable", "timeout", "rate_limit"])(
     "recognizes the documented temporary category %s",
     async (error_category) => {
@@ -154,6 +175,18 @@ describe("getEstimatedPrice", () => {
     await expect(getEstimatedPrice(config, { ...OPEN_LONG, signal: controller.signal })).rejects.toMatchObject({
       code: "ESTIMATED_PRICE_CANCELLED",
     });
+  });
+
+  it("handles a timeout signal that expired before the call or while a non-cooperative adapter completed", async () => {
+    const controller = new AbortController();
+    estimatedPriceRequest.mockImplementation(() => {
+      controller.abort(new DOMException("deadline", "TimeoutError"));
+      return Promise.resolve({ data: { price: "100" } });
+    });
+    const parameters = { ...OPEN_LONG, signal: controller.signal };
+    await expect(getEstimatedPrice(config, parameters)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_UNAVAILABLE" });
+    await expect(getEstimatedPrice(config, parameters)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_UNAVAILABLE" });
+    expect(estimatedPriceRequest).toHaveBeenCalledTimes(1);
   });
 
   it.each(["ERR_INVALID_URL", "ERR_BAD_OPTION", "ERR_BAD_OPTION_VALUE", "ERR_NOT_SUPPORT", undefined])(

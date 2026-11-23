@@ -132,7 +132,7 @@ export interface BaseInstantOpenFees extends InstantOpenEstimateMetadata {
    */
   quantity: string;
   /**
-   * Sum of every leg the open charges now (decimal string). Includes the
+   * Sum of the projected open costs (decimal string). Includes the
    * settlement provision by default; pass `includeSettlementInTotalFee: false`
    * to sum the fee legs only.
    */
@@ -150,9 +150,9 @@ export interface EnigmaInstantOpenFees extends BaseInstantOpenFees {
   /** Solver open fee: `hedgerFeeOpen × notional` (decimal string). */
   openSolverFee: string;
   /**
-   * Expected settlement loss vs the dry-run estimate: side-aware
-   * `max(0, adverse fill deviation × quantity)` (decimal string). `"0"` when
-   * no usable estimate exists.
+   * Settlement provision for adverse fill deviation from the mark, multiplied
+   * by quantity (decimal string). When the estimate is unavailable, this is
+   * the reserve at the signed slippage limit. Actual settlement depends on the fill.
    */
   expectedSettlementLoss: string;
   /**
