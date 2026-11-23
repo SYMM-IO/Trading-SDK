@@ -146,4 +146,4 @@ Callback changes use the latest callback without reconnecting. Changing config, 
 
 ## useListingNotifications
 
-Use `useListingNotifications({ subscriptions, onNotification })` for listing deposit and pool-creation updates. It returns the same connection status and error as the envelope hook. The callback receives a typed listing event. For example, check `event.kind === "deposit_received"` and read `event.marketId` to refresh a market.
+Use `useListingNotifications({ subscriptions, onNotification })` for listing deposit and pool-creation updates. It returns the same connection status and error as the envelope hook. The callback receives a typed listing event. For example, check `event.kind === "deposit_received"` and read `event.marketId` to refresh a market. For an insufficient-deposit toast, read `event.depositedAmount1e18`, `event.minimumRequiredAmount1e18`, and `event.tokenTicker`. The hook delivers the [core listing event fields](/core/notifications/watch-notification-envelopes#listing-events) directly.

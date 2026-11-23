@@ -21,13 +21,17 @@ it("delivers typed listing events only during the enabled subscription", async (
   rerender();
   await waitFor(() => expect(fake.instances).toHaveLength(1));
   const socket = fake.last();
-  const frame = { address: TEST_EOA, app_name: "listing", data: { event: "pool_created", market_id: 42 } };
+  const frame = {
+    address: TEST_EOA,
+    app_name: "listing",
+    data: { details: { event: "pool_created", token_ticker: "MAD" }, market_id: 42 },
+  };
   act(() => {
     socket.simulateOpen();
     socket.simulateMessage(frame);
   });
   expect(onNotification).toHaveBeenCalledWith(
-    expect.objectContaining({ kind: "pool_created", account: TEST_EOA, marketId: "42" }),
+    expect.objectContaining({ kind: "pool_created", account: TEST_EOA, marketId: "42", tokenTicker: "MAD" }),
   );
   enabled = false;
   rerender();
