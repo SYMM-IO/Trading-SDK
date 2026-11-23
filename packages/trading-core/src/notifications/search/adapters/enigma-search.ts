@@ -47,10 +47,11 @@ export async function searchEnigmaNotifications(
     const response = await axios.post<EnigmaSearchResponse>(
       "/api/v1/search",
       { query: toEnigmaFilter(parameters), size: parameters.size, start: parameters.start },
-      { baseURL },
+      { baseURL, ...(parameters.signal ? { signal: parameters.signal } : {}) },
     );
     const { total, count, data } = response.data;
-    return { kind: "enigma", total: total ?? 0, count: count ?? 0, rows: data ?? [] };
+    const rows = Array.isArray(data) ? data : [];
+    return { kind: "enigma", total: searchCount(total, rows.length), count: searchCount(count, rows.length), rows };
   } catch (err) {
     if (err instanceof SymmError) throw err;
     if (isAxiosError(err)) throw SymmApiError.fromAxios(err, { code: "SEARCH_NOTIFICATIONS_FAILED", baseURL });
@@ -61,4 +62,10 @@ export async function searchEnigmaNotifications(
       { cause: err instanceof Error ? err : undefined },
     );
   }
+}
+
+function searchCount(value: unknown, fallback: number): number {
+  if ((typeof value === "number" || (typeof value === "string" && value.trim())) && Number.isFinite(Number(value)))
+    return Number(value);
+  return fallback;
 }

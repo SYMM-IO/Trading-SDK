@@ -119,7 +119,7 @@ export function SolversShell() {
         <RasaReadinessCard />
       </MethodGroup>
 
-      <MethodGroup label="Notifications" count={2} fullWidth>
+      <MethodGroup label="Notifications" count={3} fullWidth>
         <NotificationsConsole />
         <NotificationSearchCard />
       </MethodGroup>

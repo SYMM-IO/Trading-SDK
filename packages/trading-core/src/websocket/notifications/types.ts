@@ -1,6 +1,8 @@
 import type { Address } from "viem";
 import type { SolverId } from "../../core/chains";
+import type { NotificationDocument } from "../../notifications/types";
 import type { SymmError } from "../../shared/errors/symm-error";
+import type { ReconnectingSocketReconnectOptions } from "../socket/create-reconnecting-socket";
 import type { SocketStatus } from "../socket/socket-status";
 
 /**
@@ -119,6 +121,39 @@ export type RawPositionNotification = RawEnigmaPositionNotification | RawRasaPos
 export interface EnigmaNotificationEnvelope {
   data: RawEnigmaPositionNotification;
   address: string;
+}
+
+/** Advanced Enigma wire event with explicit server routing and a nested payload. */
+export type EnigmaNotificationFrame = NotificationDocument & {
+  address: string;
+  app_name: string;
+  data: Record<string, unknown>;
+};
+
+/** One account/channel pair subscribed through the Enigma notification service. */
+export interface NotificationEnvelopeSubscription {
+  /** Account whose events are requested. */
+  account: Address;
+  /** Publishing app/channel, taken from the consumer's deployment configuration. */
+  channel: string;
+}
+
+/** Inputs for the lossless Enigma notification stream. No query invalidations are performed. */
+export interface WatchNotificationEnvelopesParameters {
+  /** Reconnect policy when opening the shared connection. Later subscribers inherit the active connection policy. */
+  reconnect?: ReconnectingSocketReconnectOptions;
+  /** Target chain; defaults to the config's default chain. */
+  chainId?: number;
+  /** Target solver; the resolved notification protocol must be Enigma. */
+  solverId?: SolverId;
+  /** Account/channel pairs. An empty list does not open a connection. */
+  subscriptions: readonly NotificationEnvelopeSubscription[];
+  /** Receives the existing server envelope, including unknown extension fields. */
+  onEnvelope: (envelope: EnigmaNotificationFrame) => void;
+  /** Shared transport status. */
+  onStatusChange?: (status: SocketStatus) => void;
+  /** Transport, parsing, or callback failure. */
+  onError?: (error: SymmError) => void;
 }
 
 /**
