@@ -192,7 +192,8 @@ describe("portfolio hook composition", () => {
   });
 
   it("keeps five requests in flight across profit/detail and manual refresh", async () => {
-    catalog(Array.from({ length: 12 }, (_, i) => market(String(i))));
+    const markets = Array.from({ length: 12 }, (_, i) => market(String(i)));
+    catalog(markets);
     reads.deposits.mockResolvedValue({ items: [], count: 0 });
     let active = 0,
       peak = 0;
@@ -215,12 +216,13 @@ describe("portfolio hook composition", () => {
     const { result } = renderHookWithProviders(() => usePoolPortfolio(params), { queryClient });
     await waitFor(() => expect(active).toBe(5));
     async function drain() {
-      await waitFor(async () => {
+      for (let remaining = markets.length * 2; remaining > 0; remaining -= 5) {
+        await waitFor(() => expect(releases).toHaveLength(Math.min(remaining, 5)));
         await act(async () => {
           releases.splice(0).forEach((release) => release());
         });
-        expect(result.current.isFetching).toBe(false);
-      });
+      }
+      await waitFor(() => expect(result.current.isFetching).toBe(false));
     }
     await drain();
     expect(result.current.data?.totalBalanceUsd).toBe(24);

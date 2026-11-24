@@ -87,6 +87,8 @@ Production and staging return `has_older` (verified on 2026-11-11). It reports w
   empty windows.
 </Callout>
 
+The lowcap web inspector plots prices only. The price service can return zero when it has no volume data, and the SDK preserves the service's volume field.
+
 In the web inspector, pan toward older dates or zoom out near the left edge to request another history window. The
 chart uses [`useCandleHistory`](/react/candles#usecandlehistory) to keep your position and zoom and retain its candles while loading only the preceding window. Loading older history also preserves all streamed intervals and their volume until authoritative history covers them. Recent stream corrections fetch only corrected intervals and any missing live tail. **Refresh**, reconnects, and hourly resets revalidate all loaded windows. Refreshed windows replace or remove the provisional candles they cover, including intervals omitted from the response. Returning to the browser tab does not refetch the inspector's candle history. The inspector retries a failed history request once before showing an error. Requests are tied to chart interaction;
 an empty response does not start an automatic search through all earlier history. Continue panning to cross a gap.

@@ -106,7 +106,7 @@ export function LowcapCandlesConsole() {
       name="useLowcapCandleSource"
       mutability="view"
       wide
-      description="Lowcap price-service OHLCV history with USD volume. Choose a market and timeframe, then pan or zoom toward older dates to load more history."
+      description="Lowcap price-service candle history. Choose a market and timeframe, then pan or zoom toward older dates to load more history."
     >
       {symbols.error ? <ResultError kind={symbols.error.kind} message={symbols.error.message} /> : null}
       {marketName ? (
@@ -196,7 +196,6 @@ function LowcapHistory({ source, marketName, resolution, controls }: Props) {
           ) : (
             `${candles.length} bars`
           )}
-          <span>· Volume: USD</span>
         </span>
       </div>
       {history.error ? <ResultError kind={history.error.kind} message={history.error.message} /> : null}
@@ -206,6 +205,7 @@ function LowcapHistory({ source, marketName, resolution, controls }: Props) {
         historyPages={data?.pages}
         liveCandle={streaming ? stream.candle : null}
         pricePrecision={8}
+        showVolume={false}
         onLoadOlder={() => {
           void history.loadOlder();
         }}
@@ -220,8 +220,7 @@ function LowcapHistory({ source, marketName, resolution, controls }: Props) {
         }
       />
       <ResultNote>
-        Price basis: price service. Volume is quoted in USD and is refreshed through OHLCV; price ticks do not carry
-        volume.
+        Price basis: price service.
         {data && !history.error
           ? data.noMoreData
             ? " The service confirms there is no older history."
