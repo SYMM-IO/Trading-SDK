@@ -19,8 +19,8 @@ export const CANDLES_CARDS: readonly SearchCardMeta[] = [
     title: "useLowcapCandleSource",
     kind: "read",
     section: "Chart data",
-    summary: "Lowcap price-service candles with USD volume and live updates.",
-    keywords: ["useLowcapCandleSource", "OHLCV", "lowcap", "USD volume", "flat candles", "history"],
+    summary: "Lowcap price-service candles with live updates.",
+    keywords: ["useLowcapCandleSource", "OHLCV", "lowcap", "flat candles", "history"],
   },
   {
     id: "method-useEnigmaPriceServiceMetadata-chart",

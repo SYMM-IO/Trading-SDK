@@ -34,6 +34,7 @@ describe("candle chart history navigation", () => {
   const fitContent = vi.fn();
   const setVisibleLogicalRange = vi.fn();
   const unsubscribe = vi.fn();
+  const applyVolumeOptions = vi.fn();
 
   function moveRange(from: number, to: number) {
     visible = { from, to } as LogicalRange;
@@ -55,6 +56,7 @@ describe("candle chart history navigation", () => {
       onRange?.(visible);
     });
     unsubscribe.mockReset();
+    applyVolumeOptions.mockReset();
     const candleSeries = {
       data: () => data,
       setData: vi.fn((next: typeof data) => {
@@ -67,6 +69,7 @@ describe("candle chart history navigation", () => {
       applyOptions: vi.fn(),
     };
     const volumeSeries = {
+      applyOptions: applyVolumeOptions,
       setData: vi.fn((next: typeof volumeData) => {
         volumeData = [...next];
       }),
@@ -101,6 +104,18 @@ describe("candle chart history navigation", () => {
     cleanup();
     vi.clearAllTimers();
     vi.useRealTimers();
+  });
+
+  it("hides the volume series without rebuilding the price chart", () => {
+    const candles = bars(0, 2);
+    const view = render(<CandleChart candles={candles} />);
+    expect(applyVolumeOptions).toHaveBeenLastCalledWith({ visible: true });
+
+    view.rerender(<CandleChart candles={candles} showVolume={false} />);
+
+    expect(applyVolumeOptions).toHaveBeenLastCalledWith({ visible: false });
+    expect(mocks.createChart).toHaveBeenCalledTimes(1);
+    expect(data).toHaveLength(candles.length);
   });
 
   it("loads only when a user gesture moves toward the left edge", () => {

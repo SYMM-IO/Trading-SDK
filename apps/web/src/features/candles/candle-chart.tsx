@@ -25,6 +25,8 @@ interface Props {
   liveCandle?: Candle | null;
   /** Decimal places to render prices at, from the source's symbol metadata. */
   pricePrecision?: number;
+  /** Whether to display the volume histogram. */
+  showVolume?: boolean;
   /** Rendered when there is nothing to draw yet. */
   emptyLabel?: string;
   /** Request an older window after the user pans or zooms toward the left edge. */
@@ -95,7 +97,15 @@ function readTheme(element: HTMLElement): ChartTheme {
  * re-read when the theme class changes, so the chart matches light and dark
  * without duplicating the palette.
  */
-export function CandleChart({ candles, historyPages, liveCandle, pricePrecision = 2, emptyLabel, onLoadOlder }: Props) {
+export function CandleChart({
+  candles,
+  historyPages,
+  liveCandle,
+  pricePrecision = 2,
+  showVolume = true,
+  emptyLabel,
+  onLoadOlder,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -190,6 +200,10 @@ export function CandleChart({ candles, historyPages, liveCandle, pricePrecision 
      * is pushed through `applyOptions` below instead.
      */
   }, []);
+
+  useEffect(() => {
+    volumeSeriesRef.current?.applyOptions({ visible: showVolume });
+  }, [showVolume]);
 
   /**
    * `next-themes` swaps the palette by toggling a class on `<html>`, which

@@ -59,7 +59,8 @@ describe("lowcap candle inspector", () => {
       fireEvent.click(screen.getByRole("button", { name: resolution }));
       expect(mocks.history.mock.lastCall?.[0]).toMatchObject({ marketName: "EMPTY::Ab_SFLOW", resolution });
     }
-    expect(screen.getByText(/Volume: USD/)).toBeTruthy();
+    expect(mocks.chart.mock.lastCall?.[0]).toMatchObject({ showVolume: false });
+    expect(screen.queryByText(/Volume: USD/)).toBeNull();
     expect(mocks.source.mock.calls[0]?.[0].includeFlat).toBe(false);
     fireEvent.click(screen.getByRole("switch", { name: "Include flat candles" }));
     expect(mocks.source.mock.lastCall?.[0].includeFlat).toBe(true);
