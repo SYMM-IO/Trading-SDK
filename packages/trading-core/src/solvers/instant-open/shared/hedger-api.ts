@@ -3,6 +3,7 @@ import type { Config } from "../../../core/config";
 import { SymmApiError, SymmError } from "../../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../../shared/types/properties";
 import { TimelockSolverError, parseTimelockErrorDetails } from "../../../timelock/errors";
+import { readSolverErrorEnvelope } from "../../shared/solver-error-envelope";
 import {
   postInstantTradeInstantOpen,
   type ApiPostInstantOpenResponse,
@@ -51,31 +52,17 @@ export async function sendInstantOpen(
     const response = await postInstantTradeInstantOpen(parameters.request, { baseURL: solver.url });
     // Business rejections can arrive with HTTP 200; the generated success type
     // does not describe those bodies. Never report acceptance without an id.
-    const body = response.data as ApiPostInstantOpenResponse & {
-      successful?: boolean | string;
-      error_code?: unknown;
-      code?: unknown;
-      error_category?: unknown;
-      error_message?: string;
-      error?: unknown;
-    };
-    const rejected =
-      body?.successful === false ||
-      body?.successful === "false" ||
-      body?.error_code != null ||
-      body?.code != null ||
-      body?.error_category != null ||
-      !!body?.error_message ||
-      !!body?.error;
+    const body = response.data;
+    const rejected = readSolverErrorEnvelope(body, "submission");
     const id = body?.temp_quote_id;
     if (rejected || id == null || !/^-?\d+$/.test(String(id)) || BigInt(id) === 0n) {
       const ErrorType =
-        parseTimelockErrorDetails(body).knownCode || (body && "error_category" in body)
+        parseTimelockErrorDetails(body).knownCode || (body && typeof body === "object" && "error_category" in body)
           ? TimelockSolverError
           : SymmApiError;
       throw new ErrorType({
         code: rejected ? "INSTANT_OPEN_REJECTED" : "INSTANT_OPEN_INVALID_RESPONSE",
-        message: body?.error_message || "The solver did not accept the instant-open request.",
+        message: rejected?.message || "The solver did not accept the instant-open request.",
         status: response.status,
         statusText: response.statusText,
         responseData: response.data,

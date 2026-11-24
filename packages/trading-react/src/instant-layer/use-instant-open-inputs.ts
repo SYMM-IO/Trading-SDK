@@ -2,10 +2,12 @@
 
 import {
   calculateTradeParams,
+  decimalPriceToWei,
   PositionType,
   type ConfigParameter,
   type GetInstantOpenFeesParameters,
 } from "@symmio/trading-core";
+import { Decimal } from "decimal.js";
 import { useMemo } from "react";
 import { useEstimatedPrice } from "../estimated-price/use-estimated-price";
 import { useFeeForUser } from "../fees/use-fee-for-user";
@@ -143,6 +145,8 @@ export function useInstantOpenInputs(
 
   // Mark price — caller's cache-hot value wins; otherwise the shared stream.
   const priceQuery = usePriceByName({
+    config: parameters.config,
+    chainId,
     name: marketName,
     solverId,
     enabled: enabled && parameters.markPrice === undefined,
@@ -166,8 +170,10 @@ export function useInstantOpenInputs(
     });
     return sized?.quantity ?? "";
   }, [enabled, isLowcap, markPrice, pricePrecision, quantityPrecision, positionType, sizingInput, leverage]);
-  const estimateRequestPrice =
-    markPrice !== undefined ? String(Number(markPrice) * (positionType === PositionType.SHORT ? 0.5 : 1.5)) : "";
+  const validMarkPrice = markPrice !== undefined && (decimalPriceToWei(markPrice) ?? 0n) > 0n;
+  const estimateRequestPrice = validMarkPrice
+    ? new Decimal(markPrice).mul(positionType === PositionType.SHORT ? "0.5" : "1.5").toString()
+    : "";
   const estimateQuery = useEstimatedPrice({
     config: parameters.config,
     chainId,
@@ -180,6 +186,7 @@ export function useInstantOpenInputs(
     query: {
       enabled: enabled && isLowcap && parameters.estimatedOpenPrice === undefined && estimateQuantity.length > 0,
       staleTime: 30_000,
+      retry: false,
     },
   });
   // undefined = pending, string = available, null = settled but unavailable.
@@ -189,11 +196,29 @@ export function useInstantOpenInputs(
   const estimateSettled =
     !isLowcap ||
     parameters.estimatedOpenPrice !== undefined ||
-    (!estimateUpdating && (estimateQuery.isFetched || estimateQuery.isError));
+    (markPrice !== undefined && estimateQuantity.length === 0) ||
+    (!estimateUpdating && !estimateQuery.isPlaceholderData && (estimateQuery.isFetched || estimateQuery.isError));
+  const estimateError =
+    enabled &&
+    isLowcap &&
+    parameters.estimatedOpenPrice === undefined &&
+    !estimateUpdating &&
+    estimateQuery.isError &&
+    estimateQuery.error?.code !== "OPEN_ESTIMATE_UNAVAILABLE"
+      ? estimateQuery.error
+      : undefined;
   const resolvedEstimate =
-    parameters.estimatedOpenPrice !== undefined ? parameters.estimatedOpenPrice : estimateQuery.data?.estimatedPrice;
+    parameters.estimatedOpenPrice !== undefined
+      ? parameters.estimatedOpenPrice
+      : estimateQuery.isError
+        ? null
+        : estimateQuery.data?.estimatedPrice;
   const estimatedOpenPrice =
-    !isLowcap || !estimateSettled ? undefined : resolvedEstimate && resolvedEstimate !== "0" ? resolvedEstimate : null;
+    !isLowcap || !estimateSettled
+      ? undefined
+      : resolvedEstimate && (decimalPriceToWei(resolvedEstimate) ?? 0n) > 0n
+        ? resolvedEstimate
+        : null;
   // Only pair diagnostics with the settled SDK-managed estimate, never a
   // caller override or a cached response for inputs that are still changing.
   const estimatedOpenPriceWithoutShadow =
@@ -224,11 +249,21 @@ export function useInstantOpenInputs(
 
   return {
     config,
+    estimateError,
+    estimateErrorUpdatedAt: estimateError ? estimateQuery.errorUpdatedAt : undefined,
     validationError,
     ready,
     refetchEstimatedPrice: estimateQuery.refetch,
     estimatedOpenPriceWithoutShadow,
-    estimatedOpenPriceTimestamp: estimateQuery.isPlaceholderData ? undefined : estimateQuery.dataUpdatedAt || undefined,
+    estimatedOpenPriceTimestamp:
+      enabled &&
+      parameters.estimatedOpenPrice === undefined &&
+      estimatedOpenPrice != null &&
+      !estimateUpdating &&
+      !estimateQuery.isPlaceholderData &&
+      !estimateQuery.isError
+        ? estimateQuery.dataUpdatedAt || undefined
+        : undefined,
     prefills: {
       chainId,
       market: {

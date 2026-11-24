@@ -4,7 +4,7 @@ import {
   getInstantOpensQueryKey,
   instantOpenAutoMutationOptions,
   type ConfigParameter,
-  type InstantOpenReturnType,
+  type InstantOpenAutoReturnType,
   type PrepareInstantOpenParameters,
 } from "@symmio/trading-core";
 import { useMutation, useQueryClient, type UseMutationResult } from "@tanstack/react-query";
@@ -21,7 +21,7 @@ export type UseInstantOpenAutoParameters = ConfigParameter;
 
 /** Return type of {@link useInstantOpenAuto}. */
 export type UseInstantOpenAutoReturnType = UseMutationResult<
-  InstantOpenReturnType,
+  InstantOpenAutoReturnType,
   SymmioRequestError,
   PrepareInstantOpenParameters
 >;
@@ -57,7 +57,7 @@ export function useInstantOpenAuto(parameters: UseInstantOpenAutoParameters = {}
   const queryClient = useQueryClient();
   const base = instantOpenAutoMutationOptions(config);
 
-  return useMutation<InstantOpenReturnType, SymmioRequestError, PrepareInstantOpenParameters>({
+  return useMutation<InstantOpenAutoReturnType, SymmioRequestError, PrepareInstantOpenParameters>({
     mutationKey: base.mutationKey,
     mutationFn: async (variables) => {
       try {

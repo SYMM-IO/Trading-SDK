@@ -8,7 +8,7 @@ import {
   setQuoteTpSlMutationOptions,
   SymmError,
   type ConfigParameter,
-  type InstantOpenReturnType,
+  type InstantOpenAutoReturnType,
   type PrepareInstantOpenParameters,
   type SetQuoteTpSlParameters,
   type SetQuoteTpSlReturnType,
@@ -43,7 +43,7 @@ export interface UseInstantOpenWithTpSlVariables extends PrepareInstantOpenParam
 
 /** Aggregated success payload from {@link useInstantOpenWithTpSl}. */
 export interface UseInstantOpenWithTpSlData {
-  instantOpen: InstantOpenReturnType;
+  instantOpen: InstantOpenAutoReturnType;
   /** Set when the TP/SL leg was attempted and succeeded. */
   tpsl?: SetQuoteTpSlReturnType;
   /** Set when TP/SL attachment could not be submitted or failed — instant open still landed. */
@@ -113,13 +113,17 @@ export function useInstantOpenWithTpSl(
     mutationFn: async (variables) => {
       const resolvedChainId = variables.chainId ?? chainId;
       setPhase("opening");
-      let openResult: InstantOpenReturnType;
+      let openResult: InstantOpenAutoReturnType;
       let quantity = variables.tpsl?.quantity;
       try {
         if (variables.tpslQuantityMode === "prepared" && variables.tpsl) {
           const prepared = await prepareInstantOpenParams(config, { ...variables, chainId: resolvedChainId });
           quantity = formatUnits(prepared.order.quantity, 18);
-          openResult = await instantOpen(config, prepared);
+          openResult = {
+            ...(await instantOpen(config, prepared)),
+            openEstimateStatus: prepared.openEstimateStatus,
+            estimatedOpenPrice: prepared.estimatedOpenPrice,
+          };
         } else {
           openResult = await openBase.mutationFn({ ...variables, chainId: resolvedChainId });
         }

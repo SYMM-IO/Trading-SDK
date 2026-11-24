@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Config } from "../../../core/config";
+import { SymmError } from "../../../shared/errors/symm-error";
 import { PositionType } from "./types";
 
 const getEstimatedPrice = vi.hoisted(() => vi.fn());
@@ -77,7 +78,7 @@ describe("assertOpenEstimateWithinSlippage", () => {
   });
 
   it("skips the gate when the estimate request fails", async () => {
-    getEstimatedPrice.mockRejectedValue(new Error("solver down"));
+    getEstimatedPrice.mockRejectedValue(new SymmError("api", "OPEN_ESTIMATE_UNAVAILABLE", "solver down"));
 
     await expect(assertOpenEstimateWithinSlippage(config, PARAMS)).resolves.toBeUndefined();
   });
@@ -114,7 +115,7 @@ describe("fetchOpenEstimatePrice", () => {
   });
 
   it("returns undefined on a request failure", async () => {
-    getEstimatedPrice.mockRejectedValue(new Error("solver down"));
+    getEstimatedPrice.mockRejectedValue(new SymmError("api", "OPEN_ESTIMATE_UNAVAILABLE", "solver down"));
 
     await expect(fetchOpenEstimatePrice(config, PARAMS)).resolves.toBeUndefined();
   });
@@ -128,6 +129,52 @@ describe("fetchOpenEstimatePrice", () => {
   it("returns undefined without asking on a zero mark price", async () => {
     await expect(fetchOpenEstimatePrice(config, { ...PARAMS, markPrice: "0" })).resolves.toBeUndefined();
     expect(getEstimatedPrice).not.toHaveBeenCalled();
+  });
+
+  it.each(["OPEN_ESTIMATE_REJECTED", "ESTIMATED_PRICE_CANCELLED", "UNSUPPORTED_CHAIN"])(
+    "preserves %s instead of enabling fallback",
+    async (code) => {
+      const error = new SymmError("api", code, "rejected");
+      getEstimatedPrice.mockRejectedValue(error);
+      await expect(fetchOpenEstimatePrice(config, PARAMS)).rejects.toBe(error);
+    },
+  );
+
+  it("preserves unexpected failures", async () => {
+    const error = new TypeError("invalid adapter");
+    getEstimatedPrice.mockRejectedValue(error);
+    await expect(fetchOpenEstimatePrice(config, PARAMS)).rejects.toBe(error);
+  });
+
+  it.each(["-1", "NaN", "Infinity", "invalid", "", "0.00000000000000000001"])(
+    "uses fallback for an unusable estimate %s",
+    async (estimatedPrice) => {
+      getEstimatedPrice.mockResolvedValue({ estimatedPrice });
+      await expect(fetchOpenEstimatePrice(config, PARAMS)).resolves.toBeUndefined();
+    },
+  );
+
+  it("keeps waiting for an estimate without imposing a timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      let resolve!: (result: { estimatedPrice: string }) => void;
+      getEstimatedPrice.mockReturnValue(
+        new Promise((done) => {
+          resolve = done;
+        }),
+      );
+      let settled = false;
+      const pending = fetchOpenEstimatePrice(config, PARAMS).then((result) => {
+        settled = true;
+        return result;
+      });
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(settled).toBe(false);
+      resolve({ estimatedPrice: "101" });
+      await expect(pending).resolves.toBe("101");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

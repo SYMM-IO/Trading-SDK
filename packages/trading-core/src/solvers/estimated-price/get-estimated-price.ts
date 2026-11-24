@@ -1,10 +1,12 @@
-import { isAxiosError } from "axios";
+import { isAxiosError, isCancel } from "axios";
 import type { Config } from "../../core/config";
 import { SymmApiError, SymmError } from "../../shared/errors/symm-error";
 import type { Compute, ReadSolverParameter } from "../../shared/types/properties";
 import { PositionType } from "../../symmio-contracts/symmio/types";
 import { assertSolverKind } from "../assert-solver-kind";
+import { readSolverErrorEnvelope } from "../shared/solver-error-envelope";
 import { getEstimatedPrice as requestEstimatedPrice } from "../types/generated/enigma-solver";
+import { classifyOpenEstimateError } from "./classify-open-estimate-error";
 import { toEstimatedPrice } from "./to-estimated-price";
 
 /** Whether a price estimate is for **opening** or **closing** a position. */
@@ -29,7 +31,7 @@ export type GetEstimatedPriceParameters = Compute<
      * prices the fill relative to it.
      */
     price: string;
-    /** Cancels the underlying HTTP request; no timeout is imposed by default. */
+    /** Cancels the HTTP request. An explicit TimeoutError deadline makes an open estimate unavailable. */
     signal?: AbortSignal;
   }
 >;
@@ -49,6 +51,15 @@ function positionTypeToWire(positionType: PositionType): string {
   return positionType === PositionType.SHORT ? "short" : "long";
 }
 
+function openEstimateAbortError(signal?: AbortSignal, cause?: unknown): SymmError {
+  if (signal?.aborted && signal.reason?.name === "TimeoutError") {
+    return new SymmError("api", "OPEN_ESTIMATE_UNAVAILABLE", "The open estimate deadline elapsed.", {
+      cause: signal.reason,
+    });
+  }
+  return new SymmError("api", "ESTIMATED_PRICE_CANCELLED", "Price estimate cancelled.", { cause });
+}
+
 /**
  * Ask the solver what price an open or close would actually fill at — a
  * read-only simulation of the trade (`GET /estimated-price`; nothing is
@@ -60,8 +71,13 @@ function positionTypeToWire(positionType: PositionType): string {
  * @param config - The SDK config.
  * @param parameters - Market, quantity, side, entry (open/close), and request price.
  * @returns The estimated execution price.
- * @throws {SymmApiError} when the solver request fails.
- * @throws {SymmError} when the chain is unsupported.
+ * Open requests distinguish technical unavailability (`OPEN_ESTIMATE_UNAVAILABLE`)
+ * from solver refusals (`OPEN_ESTIMATE_REJECTED`), including HTTP 200 error
+ * envelopes. Requests wait by default. A caller-supplied timeout signal reports
+ * unavailability when it expires. Other cancellations report `ESTIMATED_PRICE_CANCELLED`.
+ *
+ * @throws {SymmApiError} when the solver request fails or refuses an open estimate.
+ * @throws {SymmError} when the chain is unsupported or an open estimate is cancelled.
  *
  * @example
  * ```ts
@@ -80,6 +96,10 @@ export async function getEstimatedPrice(
 ): Promise<GetEstimatedPriceReturnType> {
   const solver = config.getSolver({ chainId: parameters.chainId, solverId: parameters.solverId });
   assertSolverKind(solver, "enigma", "getEstimatedPrice");
+
+  const isOpen = parameters.entry === "open";
+  const signal = parameters.signal;
+  if (isOpen && signal?.aborted) throw openEstimateAbortError(signal);
   try {
     const response = await requestEstimatedPrice(
       {
@@ -89,13 +109,42 @@ export async function getEstimatedPrice(
         entry: parameters.entry,
         price: parameters.price,
       },
-      { baseURL: solver.url, signal: parameters.signal },
+      { baseURL: solver.url, signal },
     );
-    return toEstimatedPrice(response.data);
+
+    if (isOpen && signal?.aborted) throw openEstimateAbortError(signal);
+
+    const envelope = isOpen ? readSolverErrorEnvelope(response.data, "estimate") : undefined;
+    if (envelope) {
+      const code = classifyOpenEstimateError(response.status ?? 200, envelope);
+      throw new SymmApiError({
+        code,
+        message:
+          code === "OPEN_ESTIMATE_UNAVAILABLE"
+            ? "The solver could not provide an open estimate."
+            : "The solver refused the open estimate.",
+        status: response.status ?? 200,
+        statusText: response.statusText ?? "OK",
+        responseData: response.data,
+        url: `${solver.url}/estimated-price`,
+        method: "GET",
+      });
+    }
+    return toEstimatedPrice(isOpen && (!response.data || typeof response.data !== "object") ? {} : response.data);
   } catch (err) {
     if (err instanceof SymmError) throw err;
+    if (isOpen && (isCancel(err) || (isAxiosError(err) && err.code === "ERR_CANCELED") || signal?.aborted)) {
+      throw openEstimateAbortError(signal, err);
+    }
     if (isAxiosError(err)) {
-      throw SymmApiError.fromAxios(err, { code: "FETCH_ESTIMATED_PRICE_FAILED", baseURL: solver.url });
+      const code = isOpen
+        ? classifyOpenEstimateError(
+            err.response?.status ?? 0,
+            readSolverErrorEnvelope(err.response?.data, "estimate"),
+            err.code,
+          )
+        : "FETCH_ESTIMATED_PRICE_FAILED";
+      throw SymmApiError.fromAxios(err, { code, baseURL: solver.url });
     }
     throw new SymmError(
       "api",

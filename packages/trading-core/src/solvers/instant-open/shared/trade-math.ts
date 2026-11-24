@@ -126,10 +126,15 @@ export function calculateTradeParams(
     partyBmmPercent,
   } = parameters;
 
-  const markPriceDec = toDecimal(markPrice);
-  if (markPriceDec.isZero() || markPriceDec.isNaN()) return null;
-  const userInputDec = toDecimal(userInput);
-  if (userInputDec.isZero() || userInputDec.isNaN()) return null;
+  let markPriceDec;
+  let userInputDec;
+  try {
+    markPriceDec = toDecimal(markPrice);
+    userInputDec = toDecimal(userInput);
+  } catch {
+    return null;
+  }
+  if (!markPriceDec.isFinite() || markPriceDec.lte(0) || !userInputDec.isFinite() || userInputDec.lte(0)) return null;
 
   const signedSlippage = positionType === PositionType.SHORT ? slippage : -slippage;
   const slippageFactor = toDecimal(100 - signedSlippage).div(100);

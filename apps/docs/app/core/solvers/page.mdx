@@ -385,6 +385,8 @@ request and rejects with the existing SDK error normalization. The SDK imposes
 no timeout when the signal is omitted. Query factories use TanStack's own signal
 instead of accepting one in their options; signals never enter the cache key.
 
+For `entry: "open"`, an expired `AbortSignal.timeout(...)` or a technical solver failure rejects with `OPEN_ESTIMATE_UNAVAILABLE`. An ordinary abort rejects with `ESTIMATED_PRICE_CANCELLED`. Solver refusals, including ones delivered with HTTP 200, reject with `OPEN_ESTIMATE_REJECTED`. An HTTP error retains its status, response body and request context. If you manage the deadline yourself, pass `estimatedOpenPrice: null` to preparation only after receiving `OPEN_ESTIMATE_UNAVAILABLE`. Preparation and fee previews apply the same [fallback rules](/core/solvers/instant-open#unavailable-estimate-fallback) to estimates they fetch themselves.
+
 ### `calculatePriceImpact`
 
 Pure helper — signed **price-impact percent** of an estimated fill vs a reference price: `(estimated − reference) / reference × 100`. Returns `0` for a zero / non-finite reference. The UI colors it by side.

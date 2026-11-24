@@ -108,6 +108,15 @@ it("keeps signals out of cache identity", () => {
   );
 });
 
+it("reports an expired caller deadline on a hanging open estimate as unavailable", async () => {
+  hang = true;
+  await expect(
+    getEstimatedPrice(config(), { ...input, entry: "open", signal: AbortSignal.timeout(100) }),
+  ).rejects.toMatchObject({
+    code: "OPEN_ESTIMATE_UNAVAILABLE",
+  });
+});
+
 it("forwards TanStack cancellation to the HTTP request", async () => {
   hang = true;
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });

@@ -33,13 +33,13 @@ This API supports Enigma notification protocol only. It does not replay history,
 
 Use `watchListingNotifications(config, { subscriptions, onNotification })` for listing deposit and pool-creation events. Subscribe to the configured listing channel. The callback receives a `ListingNotification` with `kind`, `account`, and `channel`. Additional fields depend on what the service sends, including values nested in listing details.
 
-| Optional fields | Meaning |
-| --- | --- |
-| `eventId`, `marketId`, `notificationType`, `successful` | Event identity, market and result |
-| `timestamp`, `listingTime` | Event time in Unix milliseconds and the service's numeric listing time |
-| `tokenContractAddress`, `chainId`, `tokenTicker`, `tokenName`, `tokenDecimal` | Token and chain metadata |
+| Optional fields                                                                                 | Meaning                                                                     |
+| ----------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `eventId`, `marketId`, `notificationType`, `successful`                                         | Event identity, market and result                                           |
+| `timestamp`, `listingTime`                                                                      | Event time in Unix milliseconds and the service's numeric listing time      |
+| `tokenContractAddress`, `chainId`, `tokenTicker`, `tokenName`, `tokenDecimal`                   | Token and chain metadata                                                    |
 | `depositAmount1e18`, `depositedAmount1e18`, `minimumRequiredAmount1e18`, `listingFeeAmount1e18` | Per-deposit amount, deposited total, minimum and fee as 1e18-scaled strings |
-| `marketStatus`, `depositStatus`, `completedStep`, `statusCode` | Listing progress |
-| `retryCount`, `retryLimit`, `errorCode`, `errorMessage` | Retry and failure details |
+| `marketStatus`, `depositStatus`, `completedStep`, `statusCode`                                  | Listing progress                                                            |
+| `retryCount`, `retryLimit`, `errorCode`, `errorMessage`                                         | Retry and failure details                                                   |
 
 Unknown event kinds are ignored. Use `watchNotifications` for positions. The raw API above is for inspecting vendor documents.

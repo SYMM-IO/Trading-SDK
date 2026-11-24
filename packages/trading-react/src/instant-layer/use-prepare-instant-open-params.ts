@@ -110,8 +110,23 @@ export function usePrepareInstantOpenParams(
   });
   const query = useQuery({
     ...options,
+    queryKey: [
+      options.queryKey[0],
+      {
+        ...options.queryKey[1],
+        ...(inputs.estimateError
+          ? {
+              estimateError: inputs.estimateError.code,
+              estimateErrorMessage: inputs.estimateError.message,
+              estimateErrorUpdatedAt: inputs.estimateErrorUpdatedAt,
+            }
+          : {}),
+      },
+    ],
+    ...(inputs.estimateError ? { retry: false } : {}),
     queryFn: async () => {
       try {
+        if (inputs.estimateError) throw inputs.estimateError;
         return await options.queryFn();
       } catch (err) {
         throw normalizeSymmError(err);

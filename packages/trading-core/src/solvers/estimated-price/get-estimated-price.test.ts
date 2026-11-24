@@ -1,3 +1,4 @@
+import { AxiosError, AxiosHeaders } from "axios";
 import type { PublicClient } from "viem";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { getDefaultSolver, SymmioSupportedChainId } from "../../core/chains";
@@ -26,8 +27,20 @@ const config = createConfig({
 
 const OPEN_LONG = { symbolId: 1, quantity: "1", positionType: PositionType.LONG, entry: "open" as const, price: "1" };
 
+function httpError(status: number, data: unknown) {
+  return new AxiosError("request failed", "ERR_BAD_RESPONSE", undefined, undefined, {
+    status,
+    statusText: "Failure",
+    data,
+    headers: {},
+    config: { headers: new AxiosHeaders() },
+  });
+}
+
 describe("getEstimatedPrice", () => {
-  beforeEach(() => estimatedPriceRequest.mockReset());
+  beforeEach(() => {
+    estimatedPriceRequest.mockReset();
+  });
 
   it("sends symbol/quantity/side/entry/price to the solver and returns the estimated price", async () => {
     estimatedPriceRequest.mockResolvedValue({ data: { price: "0.0925" } });
@@ -97,5 +110,95 @@ describe("getEstimatedPrice", () => {
 
   it("throws a SymmError for an unsupported chain", async () => {
     await expect(getEstimatedPrice(config, { ...OPEN_LONG, chainId: 1 })).rejects.toBeInstanceOf(SymmError);
+  });
+
+  it.each([200, 400, 503])("preserves a coded solver refusal returned with HTTP %s", async (status) => {
+    const data = { code: 3401, error_detail: "Slippage Too Low" };
+    if (status === 200) estimatedPriceRequest.mockResolvedValue({ status, data });
+    else estimatedPriceRequest.mockRejectedValue(httpError(status, data));
+    await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({
+      code: "OPEN_ESTIMATE_REJECTED",
+      status,
+      responseData: data,
+    });
+  });
+
+  it.each([408, 429, 500, 503])("classifies an uncoded HTTP %s failure as unavailable", async (status) => {
+    estimatedPriceRequest.mockRejectedValue(httpError(status, "upstream unavailable"));
+    await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_UNAVAILABLE" });
+  });
+
+  it.each([401, 403, 422])("preserves HTTP %s input and permission failures", async (status) => {
+    estimatedPriceRequest.mockRejectedValue(httpError(status, {}));
+    await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_REJECTED" });
+  });
+
+  it.each([
+    [404, { code: 404, error_category: "validation", error_detail: "/estimated-price" }, "OPEN_ESTIMATE_UNAVAILABLE"],
+    [404, { code: 404, error_category: "validation", error_detail: "/contract-symbols" }, "OPEN_ESTIMATE_REJECTED"],
+    [404, { code: 404, error_category: "not_found" }, "OPEN_ESTIMATE_REJECTED"],
+    [404, {}, "OPEN_ESTIMATE_REJECTED"],
+    [400, { code: 3105, error_category: "validation", error_message: "Market not found." }, "OPEN_ESTIMATE_REJECTED"],
+    [500, { code: 3000, error_message: "Internal error" }, "OPEN_ESTIMATE_UNAVAILABLE"],
+    [503, { error_code: "3201" }, "OPEN_ESTIMATE_UNAVAILABLE"],
+    [500, { code: 3112, error_category: "validation" }, "OPEN_ESTIMATE_REJECTED"],
+    [500, { code: 9999, error_message: "Unknown" }, "OPEN_ESTIMATE_REJECTED"],
+    [401, { code: 3000 }, "OPEN_ESTIMATE_REJECTED"],
+  ] as const)("classifies HTTP %i with %j as %s", async (status, data, code) => {
+    estimatedPriceRequest.mockRejectedValue(httpError(status, data));
+    await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code, status, responseData: data });
+  });
+
+  it.each([0, "0"])("accepts a usable price accompanied by the zero success code %j", async (code) => {
+    estimatedPriceRequest.mockResolvedValue({ status: 200, data: { code, price: "100" } });
+    await expect(getEstimatedPrice(config, OPEN_LONG)).resolves.toEqual({ estimatedPrice: "100" });
+  });
+
+  it.each(["internal", "unavailable", "timeout", "rate_limit"])(
+    "recognizes the documented temporary category %s",
+    async (error_category) => {
+      estimatedPriceRequest.mockResolvedValue({
+        status: 200,
+        data: { code: 3000, error_category, error_message: "unavailable" },
+      });
+      await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_UNAVAILABLE" });
+    },
+  );
+
+  it("classifies network failures without treating cancellation as fallback", async () => {
+    estimatedPriceRequest.mockRejectedValue(new AxiosError("network unavailable", "ERR_NETWORK"));
+    await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_UNAVAILABLE" });
+    estimatedPriceRequest.mockRejectedValue(new AxiosError("cancelled", "ERR_CANCELED"));
+    await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code: "ESTIMATED_PRICE_CANCELLED" });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(getEstimatedPrice(config, { ...OPEN_LONG, signal: controller.signal })).rejects.toMatchObject({
+      code: "ESTIMATED_PRICE_CANCELLED",
+    });
+  });
+
+  it("handles a timeout signal that expired before the call or while a non-cooperative adapter completed", async () => {
+    const controller = new AbortController();
+    estimatedPriceRequest.mockImplementation(() => {
+      controller.abort(new DOMException("deadline", "TimeoutError"));
+      return Promise.resolve({ data: { price: "100" } });
+    });
+    const parameters = { ...OPEN_LONG, signal: controller.signal };
+    await expect(getEstimatedPrice(config, parameters)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_UNAVAILABLE" });
+    await expect(getEstimatedPrice(config, parameters)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_UNAVAILABLE" });
+    expect(estimatedPriceRequest).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["ERR_INVALID_URL", "ERR_BAD_OPTION", "ERR_BAD_OPTION_VALUE", "ERR_NOT_SUPPORT", undefined])(
+    "does not turn a response-less adapter/configuration failure %s into fallback",
+    async (code) => {
+      estimatedPriceRequest.mockRejectedValue(new AxiosError("Invalid adapter configuration", code));
+      await expect(getEstimatedPrice(config, OPEN_LONG)).rejects.toMatchObject({ code: "OPEN_ESTIMATE_REJECTED" });
+    },
+  );
+
+  it("preserves the existing close-estimate response contract", async () => {
+    estimatedPriceRequest.mockResolvedValue({ status: 200, data: { code: 3401, error_detail: "Slippage Too Low" } });
+    await expect(getEstimatedPrice(config, { ...OPEN_LONG, entry: "close" })).resolves.toEqual({ estimatedPrice: "0" });
   });
 });
