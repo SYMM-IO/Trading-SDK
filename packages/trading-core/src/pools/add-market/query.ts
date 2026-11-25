@@ -9,6 +9,10 @@ import { addMarket, type AddMarketParameters, type AddMarketReturnType } from ".
  * @param config - The SDK config.
  * @returns Options to pass to `useMutation`.
  *
+ * @deprecated Use `listMarketMutationOptions` — the same variables and result,
+ * backed by `listMarket` (`/v2/market/list-market`). These options keep working
+ * and will be removed in the next major release.
+ *
  * @example
  * ```ts
  * const { mutateAsync } = useMutation(addMarketMutationOptions(config));

@@ -2,6 +2,13 @@ import { Callout } from "nextra/components";
 
 # addMarket
 
+<Callout type="warning">
+  **Deprecated — prefer [`listMarket`](/core/pools/list-market).** `listMarket` takes the same parameters and returns
+  the same `CreatedPool`, but calls the listing service's list-market route, which replaces the deprecated
+  `/v2/market/add-market`. `addMarket` and `addMarketMutationOptions` keep working and will be removed in the next major
+  release.
+</Callout>
+
 Create a pool — submit a **create-pool application** to the permissionless listing service. `addMarket` lists a new token: it records the token and its pool economics, resolves the token's name / ticker / decimals from the contract, provisions a custodial deposit wallet to seed the pool, and returns the accepted [`CreatedPool`](#returns).
 
 ```ts
@@ -175,7 +182,8 @@ const pool = await mutateAsync({
 - [`getWeeklyListingLimit`](/core/pools/weekly-limit) — the protocol-wide weekly cap (public); block this write when `remaining` is `0`.
 - [`getUserListingMarkets`](/core/pools/get-user-listing-markets) — the authed read that lists the pools you have created.
 - [`ListingMarket`](/core/pools/listing-market-type) — the catalog row shape and its 18-decimal value contract.
-- [`useAddMarket`](/react/pools#useaddmarket) — the React hook.
+- [`listMarket`](/core/pools/list-market) — the replacement; same parameters and result, on the list-market route.
+- [`useAddMarket`](/react/pools#useaddmarket) — the React hook (deprecated; prefer [`useListMarket`](/react/pools#uselistmarket)).
 - [DexScreener token API](https://api.dexscreener.com/latest/dex/tokens/) — token name, price, market cap, and liquidity to preview a token before listing it (`/latest/dex/tokens/<token_address>`).
 - [Pools](/core/pools) — the slice overview.
 

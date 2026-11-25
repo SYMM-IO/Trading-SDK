@@ -69,6 +69,11 @@ export type AddMarketReturnType = CreatedPool;
  *   backend. Gate with `supportsListingService` to hide the create-pool flow
  *   instead.
  *
+ * @deprecated Use `listMarket` — it takes the same parameters and returns the
+ * same {@link CreatedPool}, but calls `/v2/market/list-market`, the route the
+ * listing service now uses in place of the deprecated `/v2/market/add-market`.
+ * This function keeps working and will be removed in the next major release.
+ *
  * @example
  * ```ts
  * const pool = await addMarket(config, {

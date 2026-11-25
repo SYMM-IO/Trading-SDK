@@ -21,7 +21,7 @@ export type UseWeeklyListingLimitReturnType = UseQueryResult<WeeklyListingLimit,
 /**
  * Read the protocol's **global** remaining new-market listings for the current
  * rolling weekly window — the cap a create-pool flow must check before
- * {@link useAddMarket}.
+ * {@link useListMarket}.
  *
  * The service caps how many pools may be created across the whole protocol each
  * week, not per user. Gate the Create button on `data.remaining <= 0`: when the

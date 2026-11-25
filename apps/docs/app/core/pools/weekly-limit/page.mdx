@@ -5,10 +5,11 @@ import { Callout } from "nextra/components";
 Fetch the protocol's remaining new-market listings for the current rolling weekly window — how many pools may still be listed across the protocol before the window resets. It is a **public** read: no `accessToken`, resolved from the config, safe to read before sign-in. The cap is **global**, not per user.
 
 <Callout type="warning">
-  **Check this before [`addMarket`](/core/pools/add-market).** The service caps how many pools may be created
-  protocol-wide per week. When `remaining` is `0` the cap is spent — the UI must **block** creating another pool until
-  `resetAt`, not just let the write fail. `addMarket`'s own weekly-limit rejection surfaces as an `ADD_MARKET_FAILED`
-  after a round-trip; reading this first lets you disable the Create button and explain why up front.
+  **Check this before [`listMarket`](/core/pools/list-market).** The service caps how many pools may be listed
+  protocol-wide per week, and a relist uses a slot too. When `remaining` is `0` the cap is spent — the UI must **block**
+  listing another pool until `resetAt`, not just let the write fail. `listMarket`'s own weekly-limit rejection surfaces
+  as a `LIST_MARKET_FAILED` after a round-trip; reading this first lets you disable the Create button and explain why up
+  front.
 </Callout>
 
 ```ts
@@ -72,7 +73,7 @@ useQuery(getWeeklyListingLimitQueryOptions(config));
 
 ## Related
 
-- [`addMarket`](/core/pools/add-market) — the create-pool write this gates: block it when `remaining` is `0`.
+- [`listMarket`](/core/pools/list-market) — the listing write this gates: block it when `remaining` is `0`.
 - [`getListingConfig`](/core/pools/listing-config) — the public config that drives the rest of the create-pool form.
 - [`useWeeklyListingLimit`](/react/pools#useweeklylistinglimit) — the React hook.
 - [Pools](/core/pools) — the slice overview.

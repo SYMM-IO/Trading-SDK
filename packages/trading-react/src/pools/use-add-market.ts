@@ -55,6 +55,11 @@ export type UseAddMarketReturnType = UseMutationResult<CreatedPool, SymmioReques
  * expired token comes back as an `ADD_MARKET_FAILED` `401`. Failures are
  * normalized to {@link SymmioRequestError}.
  *
+ * @deprecated Use `useListMarket` — it takes the same variables and returns the
+ * same {@link CreatedPool}, but calls the listing service's list-market route,
+ * which replaces the deprecated add-market route. This hook keeps working and
+ * will be removed in the next major release.
+ *
  * @example
  * ```tsx
  * const create = useAddMarket();

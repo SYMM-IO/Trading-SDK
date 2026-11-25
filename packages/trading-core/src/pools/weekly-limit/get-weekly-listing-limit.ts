@@ -24,7 +24,7 @@ export type GetWeeklyListingLimitReturnType = WeeklyListingLimit;
  *
  * A **public** read (no token): the service caps how many pools may be created
  * across the whole protocol each week, not per user. Read this before an
- * {@link addMarket} flow and block creating a pool when `remaining` is `0` — the
+ * {@link listMarket} flow and block creating a pool when `remaining` is `0` — the
  * cap is spent and no more pools can be listed until `resetAt`. Enigma-only.
  *
  * @param config - The SDK config.
