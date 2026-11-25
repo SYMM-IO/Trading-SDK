@@ -14,6 +14,7 @@ import { useMemo, type ReactNode } from "react";
 import type { PublicClient } from "viem";
 import { useChainId, useConfig } from "wagmi";
 import { getPublicClient, getWalletClient } from "wagmi/actions";
+import { SymmioChainIdContext } from "./symmio-chain-id-context";
 import { SymmioConfigContext } from "./symmio-config-context";
 
 /**
@@ -37,13 +38,35 @@ export interface SymmioProviderProps {
    */
   symmioConfig: CreateConfigParameters["symmioConfig"];
   /**
-   * Fallback chain used when a hook or action omits `chainId` **and** the
-   * connected wallet is not on a supported SYMMIO chain (or is disconnected).
-   * When the wallet *is* on a supported chain, that chain becomes the default
-   * instead — so a no-arg `config.getChainConfig()` always follows the active
-   * chain. Defaults to the SDK's first supported chain.
+   * Fallback for `config.defaultChainId` (a no-arg `config.getChainConfig()`
+   * and any core action that omits `chainId`) when wagmi's active chain is not
+   * a supported SYMMIO chain. When it *is* supported, that chain becomes the
+   * default instead. Disconnecting does not trigger the fallback: wagmi keeps
+   * its last active chain. Hooks do not use it either — without a pinned
+   * `chainId`, {@link useSymmioChainId} returns wagmi's active chain as is.
+   * Defaults to the SDK's first supported chain. Ignored when `chainId` is set.
    */
   defaultChainId?: number;
+  /**
+   * Pin every SDK default to this chain, whatever chain the connected wallet is
+   * on. When set, `config.defaultChainId`, a no-arg `config.getChainConfig()`
+   * and {@link useSymmioChainId} all resolve to this chain, and
+   * `defaultChainId` is ignored. A hook or action's explicit `chainId` still
+   * wins.
+   *
+   * Use it for an app that serves one chain: without it, a wallet on another
+   * supported chain moves the SDK default there, and writes that omit `chainId`
+   * target that chain. Switching the wallet to the pinned chain stays the
+   * host's job. Omit it to keep following the connected wallet.
+   *
+   * @example
+   * ```tsx
+   * <SymmioProvider symmioConfig={symmioConfig} chainId={SymmioSupportedChainId.ARBITRUM}>
+   *   {children}
+   * </SymmioProvider>;
+   * ```
+   */
+  chainId?: number;
   /**
    * Custom read-client resolver. Receives `{ chainId? }` from the SDK and
    * returns the viem `PublicClient` that every on-chain SDK read — and every
@@ -113,22 +136,23 @@ export function SymmioProvider({
   children,
   symmioConfig,
   defaultChainId,
+  chainId: pinnedChainId,
   getClient: getClientProp,
   getWalletClient: getWalletClientProp,
 }: SymmioProviderProps) {
   const wagmiConfig = useConfig();
   const connectedChainId = useChainId();
 
-  // Track the connected wallet's chain as the config default whenever it is a
-  // supported SYMMIO chain, so a no-arg `config.getChainConfig()` — and any hook
-  // that omits `chainId` — resolves to the ACTIVE chain rather than a hardcoded
-  // first chain. Single fix for the whole class of "reads the wrong chain's
-  // addresses after switching". Falls back to the explicit `defaultChainId` prop
-  // (then the SDK's first supported chain) when the wallet is on an unsupported
-  // chain or disconnected.
-  const effectiveDefaultChainId = listSupportedChains().some((id) => id === connectedChainId)
-    ? connectedChainId
-    : defaultChainId;
+  // Track wagmi's active chain as the config default whenever it is a supported
+  // SYMMIO chain, so a no-arg `config.getChainConfig()` resolves to the ACTIVE
+  // chain rather than a hardcoded first chain. Single fix for the whole class
+  // of "reads the wrong chain's addresses after switching". Falls back to the
+  // explicit `defaultChainId` prop (then the SDK's first supported chain) when
+  // wagmi's active chain is unsupported. wagmi keeps its last chain after a
+  // disconnect, so disconnecting alone does not trigger the fallback. A pinned
+  // `chainId` overrides all of this.
+  const effectiveDefaultChainId =
+    pinnedChainId ?? (listSupportedChains().some((id) => id === connectedChainId) ? connectedChainId : defaultChainId);
 
   const config = useMemo<Config>(
     () =>
@@ -186,5 +210,9 @@ export function SymmioProvider({
     [symmioConfig, effectiveDefaultChainId, getClientProp, getWalletClientProp, wagmiConfig],
   );
 
-  return <SymmioConfigContext.Provider value={config}>{children}</SymmioConfigContext.Provider>;
+  return (
+    <SymmioConfigContext.Provider value={config}>
+      <SymmioChainIdContext.Provider value={pinnedChainId}>{children}</SymmioChainIdContext.Provider>
+    </SymmioConfigContext.Provider>
+  );
 }

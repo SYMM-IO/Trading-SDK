@@ -2,7 +2,7 @@ import { Callout } from "nextra/components";
 
 # SymmioProvider
 
-The single React context every other SDK hook consumes. Builds the `core` `Config`, bridges wagmi's viem clients into it, and exposes the config + connected chain via `useSymmioConfig` / `useSymmioChainId`.
+The single React context every other SDK hook consumes. Builds the `core` `Config`, bridges wagmi's viem clients into it, and exposes the config and the SDK's default chain via `useSymmioConfig` / `useSymmioChainId`. The default chain is the provider's pinned [`chainId`](#chainid) when set, otherwise wagmi's active chain. For the connected wallet's actual chain, use [`useWalletAccount().chainId`](/react/wallet#usewalletaccount).
 
 ## Setup
 
@@ -59,7 +59,27 @@ Its one mandatory field is **`addresses.affiliatesAddress`** for every supported
 - Type: `number`
 - Default: first built-in supported chain
 
-Chain used when an action or hook omits `chainId`. Set to pin the SDK in single-chain apps; wagmi's active chain still overrides for the connected wallet.
+Fallback for `config.defaultChainId` (used by a no-arg `config.getChainConfig()` and any core action that omits `chainId`) when wagmi's active chain is not a supported SYMMIO chain. When wagmi's active chain is supported, that chain becomes the default instead, so `defaultChainId` alone does not pin a single-chain app — use [`chainId`](#chainid). Ignored when `chainId` is set.
+
+Two things it does **not** do:
+
+- **It is not a disconnect fallback.** wagmi keeps its last active chain after the wallet disconnects, so the default stays on that chain.
+- **It is not a hook fallback.** Without a pinned `chainId`, [`useSymmioChainId()`](#usesymmiochainid) returns wagmi's active chain as is, and hooks pass that chain explicitly.
+
+### `chainId`
+
+- Type: `number`
+- Default: none (follow the connected wallet)
+
+Pins every SDK default to one chain, whatever chain the wallet is on. `config.defaultChainId`, a no-arg `config.getChainConfig()` and [`useSymmioChainId()`](#usesymmiochainid) all resolve to it. A hook or action's explicit `chainId` still wins.
+
+Use it when your app serves one chain. Without it, a wallet on another supported chain (for example Base while your app trades on Arbitrum) moves the default there, and a write that omits `chainId` asks for a wallet on that chain. Switching the wallet to the pinned chain stays your app's job.
+
+```tsx
+<SymmioProvider symmioConfig={symmioConfig} chainId={SymmioSupportedChainId.ARBITRUM}>
+  {children}
+</SymmioProvider>
+```
 
 ### `getClient`
 
@@ -193,7 +213,7 @@ Throws when called outside `SymmioProvider` **and** no `config` override was pas
 
 ### `useSymmioChainId()`
 
-Reads the connected chain id from wagmi. Falls back to the provider's `defaultChainId` when no wallet is connected.
+The default `chainId` for SDK hooks. Returns the provider's pinned [`chainId`](#chainid) when set; otherwise reads the connected chain id from wagmi.
 
 ```ts
 import { useSymmioChainId } from "@symmio/trading-react";

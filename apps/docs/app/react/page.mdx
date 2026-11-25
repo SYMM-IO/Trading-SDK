@@ -58,7 +58,7 @@ export function useMarkets(parameters = {}) {
 ```
 
 - `useSymmioConfig(parameters)` = `parameters.config ?? contextConfig` (mirrors wagmi's `useConfig`).
-- `useSymmioChainId()` reads the connected chain from wagmi.
+- `useSymmioChainId()` returns the provider's pinned `chainId` when set, otherwise wagmi's active chain.
 - The core factory owns the `queryKey`, `queryFn`, and any `enabled` guard.
 
 Mutations follow the same shape via `useMutation(xyzMutationOptions(config))`. See [Concepts › Hook pattern](/react/concepts/hook-pattern).

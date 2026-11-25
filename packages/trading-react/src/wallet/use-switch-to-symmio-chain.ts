@@ -27,9 +27,10 @@ export interface UseSwitchToSymmioChainResult {
  * comes from the SDK config so callers don't repeat it.
  *
  * @example
- * const { isOnExpectedChain } = useWalletAccount();
+ * const { chainId, isOnExpectedChain } = useWalletAccount();
+ * const targetChainId = useSymmioChainId();
  * const { switchChain, status } = useSwitchToSymmioChain();
- * if (!isOnExpectedChain) {
+ * if (!isOnExpectedChain || chainId !== targetChainId) {
  *   return <button onClick={switchChain} disabled={status === "pending"}>Switch network</button>;
  * }
  */

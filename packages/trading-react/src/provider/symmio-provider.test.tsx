@@ -4,12 +4,13 @@ import { renderHook } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { createPublicClient, createWalletClient, http, type Account, type PublicClient } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { arbitrum } from "viem/chains";
+import { arbitrum, base } from "viem/chains";
 import { describe, expect, it, vi } from "vitest";
 import { WagmiProvider, type Config as WagmiConfig } from "wagmi";
 import { connect } from "wagmi/actions";
 import { createTestQueryClient, createTestWagmiConfig, TEST_EOA } from "../test/test-utils";
 import { SymmioProvider } from "./symmio-provider";
+import { useSymmioChainId } from "./use-symmio-chain-id";
 import { useSymmioConfig } from "./use-symmio-config";
 
 /**
@@ -150,5 +151,60 @@ describe("SymmioProvider read-client resolver", () => {
     const config = await renderSymmioConfig();
 
     expect(config.getClient({ chainId: arbitrum.id }).chain?.id).toBe(arbitrum.id);
+  });
+});
+
+describe("SymmioProvider chain selection", () => {
+  /** Both supported chains configured, so the wallet's chain is a valid default. */
+  const MULTI_CHAIN_SYMMIO_CONFIG = {
+    [arbitrum.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF1" as const } },
+    [base.id]: { addresses: { affiliatesAddress: "0x000000000000000000000000000000000000aFF2" as const } },
+  };
+
+  /**
+   * Render under a wallet connected on Base (the first wagmi chain) and return
+   * the provider config's default chain and `useSymmioChainId()`.
+   */
+  async function renderOnBase(props: { chainId?: number; defaultChainId?: number } = {}) {
+    const wagmiConfig: WagmiConfig = createTestWagmiConfig({ chains: [base, arbitrum] });
+    await connect(wagmiConfig, { connector: wagmiConfig.connectors[0]! });
+
+    const queryClient = createTestQueryClient();
+    const { result } = renderHook(() => ({ config: useSymmioConfig(), chainId: useSymmioChainId() }), {
+      wrapper: ({ children }: PropsWithChildren) => (
+        <WagmiProvider config={wagmiConfig}>
+          <QueryClientProvider client={queryClient}>
+            <SymmioProvider symmioConfig={MULTI_CHAIN_SYMMIO_CONFIG} {...props}>
+              {children}
+            </SymmioProvider>
+          </QueryClientProvider>
+        </WagmiProvider>
+      ),
+    });
+
+    return result.current;
+  }
+
+  it("follows the connected wallet's supported chain when no `chainId` is pinned", async () => {
+    const { config, chainId } = await renderOnBase({ defaultChainId: arbitrum.id });
+
+    expect(config.defaultChainId).toBe(base.id);
+    expect(config.getChainConfig().chainId).toBe(base.id);
+    expect(chainId).toBe(base.id);
+  });
+
+  it("keeps every default on the pinned `chainId` while the wallet is on another supported chain", async () => {
+    const { config, chainId } = await renderOnBase({ chainId: arbitrum.id });
+
+    expect(config.defaultChainId).toBe(arbitrum.id);
+    expect(config.getChainConfig().chainId).toBe(arbitrum.id);
+    expect(chainId).toBe(arbitrum.id);
+  });
+
+  it("lets the pinned `chainId` win over `defaultChainId`", async () => {
+    const { config, chainId } = await renderOnBase({ chainId: arbitrum.id, defaultChainId: base.id });
+
+    expect(config.defaultChainId).toBe(arbitrum.id);
+    expect(chainId).toBe(arbitrum.id);
   });
 });
