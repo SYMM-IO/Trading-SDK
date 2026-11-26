@@ -136,9 +136,6 @@ export const POOLS_CARDS: readonly SearchCardMeta[] = [
       "new listing",
       "relist",
       "delisted",
-      "useAddMarket (deprecated)",
-      "addMarket (deprecated)",
-      "addMarketMutationOptions (deprecated)",
     ],
   },
   {

@@ -33,7 +33,6 @@ export default {
   "listing-auth": "authenticateListing",
   "-- writes": { type: "separator", title: "Writes" },
   "list-market": "listMarket",
-  "add-market": "addMarket (deprecated)",
   withdraw: "withdrawLp",
   "cancel-withdraw": "cancelWithdraw",
   claim: "claimProfit",

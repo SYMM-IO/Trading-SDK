@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { mockConfig } from "../../shared/test/mock-config";
-import type { CreatedPool } from "../add-market/types";
 import { ListingDepositChainId, ListingMarketStatus } from "../types";
 import { listMarketMutationOptions } from "./query";
+import type { CreatedPool } from "./types";
 
 const VARIABLES = {
   accessToken: "eyJhbGc.header.sig",

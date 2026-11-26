@@ -22,8 +22,6 @@ import { useListingAuth } from "./listing-auth-context";
  * One form submits the token address and its pool economics (buy-back ratio,
  * max leverage) through `useListMarket`; on success the service returns the
  * created (or relisted) pool and the custodial **deposit wallet** to seed it.
- * `useListMarket` replaces the deprecated `useAddMarket`, which takes the same
- * variables.
  *
  * The bearer token comes from the shared {@link useListingAuth} session, so the
  * user signs in **once** (here or on the sign-in card) and this card reuses it.
@@ -86,7 +84,7 @@ export function CreatePoolCard() {
       testId="method-listMarket"
       name="listMarket"
       mutability="nonpayable"
-      description="Create pool — list a new token, or relist a delisted one, with the listing backend. Sign in once, submit the token and its pool economics, then seed the returned deposit wallet. Replaces the deprecated addMarket. Enigma-only."
+      description="Create pool — list a new token, or relist a delisted one, with the listing backend. Sign in once, submit the token and its pool economics, then seed the returned deposit wallet. Enigma-only."
     >
       <Field label="tokenContractAddress" htmlFor="create-pool-token-address">
         <Input

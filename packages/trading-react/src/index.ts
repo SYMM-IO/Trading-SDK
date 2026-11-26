@@ -1257,7 +1257,6 @@ export {
  * rather than a re-view of an already-fetched page.
  */
 export {
-  useAddMarket,
   useAuthenticateListing,
   useCancelWithdraw,
   useClaimHistory,
@@ -1288,7 +1287,6 @@ export {
   useUserTransactions,
   useWeeklyListingLimit,
   useWithdrawLp,
-  type AddMarketVariables,
   type AuthenticateListingVariables,
   type CancelWithdrawVariables,
   type ClaimProfitVariables,
@@ -1296,8 +1294,6 @@ export {
   type RefundMarketVariables,
   type RetryListingVariables,
   type UpdateListingMarketConfigVariables,
-  type UseAddMarketParameters,
-  type UseAddMarketReturnType,
   type UseAuthenticateListingParameters,
   type UseAuthenticateListingReturnType,
   type UseCancelWithdrawParameters,

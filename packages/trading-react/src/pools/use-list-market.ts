@@ -59,8 +59,6 @@ export type UseListMarketReturnType = UseMutationResult<CreatedPool, SymmioReque
  * is not delisted, a failed token validation, the weekly limit — comes back as
  * `LIST_MARKET_FAILED` with the service's `status` and `responseData`.
  *
- * Replaces the deprecated {@link useAddMarket}, which takes the same variables.
- *
  * @example
  * ```tsx
  * const list = useListMarket();

@@ -17,7 +17,14 @@ const pool = await listMarket(config, {
 // send the listing deposit to `pool.walletPublicKey` to seed the pool
 ```
 
-`listMarket` replaces the deprecated [`addMarket`](/core/pools/add-market): it takes the same parameters, sends the same request body, and returns the same `CreatedPool`. Only the route differs — the listing service deprecated `/v2/market/add-market` in favour of `/v2/market/list-market`.
+The pool starts at [`ListingMarketStatus.WAITING_FOR_DEPOSIT`](/core/pools/listing-market-type) and stays there until the listing deposit lands at `walletPublicKey`. This is the authenticated write twin of the Pools reads — it takes the same Bearer `accessToken` as [`getUserListingMarkets`](/core/pools/get-user-listing-markets).
+
+<Callout type="info">
+  **Upgrading from `addMarket`?** `addMarket`, `addMarketMutationOptions` and `useAddMarket` are removed. Call
+  `listMarket` / `listMarketMutationOptions` / [`useListMarket`](/react/pools#uselistmarket) with the same parameters:
+  the request body and the `CreatedPool` result are unchanged. Rename `AddMarketParameters` to `ListMarketParameters`,
+  `toAddMarketRequest` to `toListMarketRequest`, and check for `LIST_MARKET_FAILED` instead of `ADD_MARKET_FAILED`.
+</Callout>
 
 ## New listing or relist
 
@@ -49,11 +56,27 @@ Relisting works **only from `DELISTED`**. A relist whose token validation fails 
 
 ## Token metadata for your UI
 
-`listMarket` needs only the token's **contract address** — the listing backend resolves the name, ticker, and decimals from the chain itself and returns them on [`CreatedPool`](#returns). To show the token _before_ the user submits (name, symbol, price, liquidity), see [Token metadata for your UI](/core/pools/add-market#token-metadata-for-your-ui) — the same guidance applies.
+`listMarket` needs only the token's **contract address** — the listing backend resolves the name, ticker, and decimals from the chain itself and returns them on [`CreatedPool`](#returns). A listing form, though, usually wants to **show** the token _before_ the user submits: its name, symbol, price, market cap, and liquidity.
+
+That preview data is not part of this SDK. When you need it, fetch it from **DexScreener** by token address:
+
+```http
+GET https://api.dexscreener.com/latest/dex/tokens/<token_address>
+```
+
+Use the response to display and sanity-check the token — confirm it exists, show its name / logo, and check its liquidity — in your listing UI before calling `listMarket`.
+
+## The access token
+
+`accessToken` is required — the endpoint is authed and rejects an unauthenticated request. Mint it once with [`authenticateListing`](/core/pools/listing-auth) (the SIWE exchange), hold it, and pass it on the call. A bad or expired token comes back as a `401` (see [Throws](#throws)) — refresh it and retry.
+
+## Pre-submit reads
+
+Before submitting, read [token validation](/core/pools/token-validation), [listing config](/core/pools/listing-config), and the [weekly limit](/core/pools/weekly-limit), and read [`getListingMarketDetail`](/core/pools/market-detail) to tell a new listing from a relist or an existing market. Keep the deployment `chainId` separate from the token's `depositChain`. Sending the listing deposit is the app's job: the SDK returns the deposit wallet but does not move funds.
 
 ## Parameters
 
-`accessToken`, `tokenContractAddress`, `buyBackRatio`, `maxLeverage`, and `depositChain` are required. Every other field is an optional listing extra — the SDK leaves it **absent from the request unless you set it**, so an integrating app supplies its own defaults rather than the SDK inventing them. `ListMarketParameters` is the same type as `AddMarketParameters`.
+`accessToken`, `tokenContractAddress`, `buyBackRatio`, `maxLeverage`, and `depositChain` are required. Every other field is an optional listing extra — the SDK leaves it **absent from the request unless you set it**, so an integrating app supplies its own defaults rather than the SDK inventing them.
 
 <Properties>
   <Property name="accessToken" type="string" required>
@@ -95,6 +118,12 @@ Relisting works **only from `DELISTED`**. A relist whose token validation fails 
   </Property>
 </Properties>
 
+<Callout type="warning">
+  The optional extras are **absent unless set** — the SDK does not default them. `isTax` / `userWhitelistTax` are simply
+  omitted when unset; `additionalChains` / `cexList` are omitted when unset and sent as an empty list when set to `[]`.
+  An integrating app (e.g. `apps/web`) decides its own defaults and passes them explicitly.
+</Callout>
+
 ## Returns
 
 <Returns type="Promise<CreatedPool>">
@@ -132,6 +161,18 @@ Relisting works **only from `DELISTED`**. A relist whose token validation fails 
   <Property name="mainPool" type="string | null">
     The main pool address, or `null` when the service has not assigned one yet.
   </Property>
+  <Property name="isTax" type="boolean | null" optional>
+    The token's transfer-tax flag as the service echoed it; `null` when it did not report one.
+  </Property>
+  <Property name="userWhitelistTax" type="boolean | null" optional>
+    Whether the deposit wallet is whitelisted from the token's tax; `null` when not reported.
+  </Property>
+  <Property name="additionalChains" type="number[] | null" optional>
+    The other deposit chain ids the service recorded; `null` when not reported.
+  </Property>
+  <Property name="cexList" type="string[] | null" optional>
+    The CEX names the service recorded; `null` when not reported.
+  </Property>
 </Returns>
 
 <Callout type="info">
@@ -156,7 +197,7 @@ const pool = await mutateAsync({
 });
 ```
 
-`listMarket` is modeled as a **mutation**, not a query: it submits a listing (or relisting) application that provisions a deposit wallet, so it is a one-shot write rather than cached data. `listMarketMutationOptions(config)` returns the `{ mutationKey: ["listMarket"], mutationFn }` bag to hand to `useMutation`. The request and response mappers are the shared [`toAddMarketRequest` and `toCreatedPool`](/core/pools/add-market#mutation-options) helpers.
+`listMarket` is modeled as a **mutation**, not a query: it submits a listing (or relisting) application that provisions a deposit wallet, so it is a one-shot write rather than cached data. `listMarketMutationOptions(config)` returns the `{ mutationKey: ["listMarket"], mutationFn }` bag to hand to `useMutation`. The mapping helpers `toListMarketRequest` (parameters → wire request) and `toCreatedPool` (response → `CreatedPool`) are exported too, for callers driving the request themselves.
 
 ## Throws
 
@@ -174,11 +215,11 @@ const pool = await mutateAsync({
 
 ## Related
 
-- [`addMarket`](/core/pools/add-market) — the deprecated predecessor; same parameters and result, add-market route.
 - [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this write requires.
 - [`getListingConfig`](/core/pools/listing-config) — the recommended initial deposit and the deposit chains a listing form should offer.
 - [`getWeeklyListingLimit`](/core/pools/weekly-limit) — the protocol-wide weekly cap (public); block this write when `remaining` is `0`.
 - [`getListingMarketDetail`](/core/pools/market-detail) — read a token's market first to tell a new listing from a relist or an existing market.
 - [`getUserListingMarkets`](/core/pools/get-user-listing-markets) — the authed read that lists the pools you have created.
 - [`useListMarket`](/react/pools#uselistmarket) — the React hook.
+- [DexScreener token API](https://api.dexscreener.com/latest/dex/tokens/) — token name, price, market cap, and liquidity to preview a token before listing it (`/latest/dex/tokens/<token_address>`).
 - [Pools](/core/pools) — the slice overview.

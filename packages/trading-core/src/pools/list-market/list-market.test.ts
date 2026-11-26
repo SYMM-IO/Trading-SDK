@@ -61,7 +61,7 @@ describe("listMarket", () => {
     listMarketV2MarketListMarketPost.mockReset();
   });
 
-  it("posts the add-market request body with the bearer token to the list-market route and normalizes the response", async () => {
+  it("posts the request body with the bearer token to the list-market route, never add-market, and normalizes the response", async () => {
     const { config } = mockConfig();
     listMarketV2MarketListMarketPost.mockResolvedValue({ data: RESPONSE });
 
