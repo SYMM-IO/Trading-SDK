@@ -1,4 +1,5 @@
 import { SymmioSupportedChainId, type CreateConfigParameters } from "@symmio/trading-core";
+import { mockerConfig } from "./environment";
 
 const AFFILIATE_BY_CHAIN = {
   [SymmioSupportedChainId.BASE]: "0x45Eecd7B4f442388ACD90467E423A5CAAC3a9C3f", // affiliate address
@@ -18,7 +19,7 @@ export const symmioChains: CreateConfigParameters["symmioConfig"] = {
       affiliatesAddress: AFFILIATE_BY_CHAIN[SymmioSupportedChainId.BASE],
     },
   },
-  [SymmioSupportedChainId.ARBITRUM]: {
+  [SymmioSupportedChainId.ARBITRUM]: mockerConfig?.symmioConfig[SymmioSupportedChainId.ARBITRUM] ?? {
     addresses: {
       affiliatesAddress: AFFILIATE_BY_CHAIN[SymmioSupportedChainId.ARBITRUM],
     },

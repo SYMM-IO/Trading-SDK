@@ -1,3 +1,5 @@
+import { parseMockerConfig } from "./mocker-config";
+
 export const IS_TEST_ENVIRONMENT = process.env.NEXT_PUBLIC_IS_TEST_ENVIRONMENT === "true";
 
 /**
@@ -23,3 +25,12 @@ export const IS_E2E_MODE = process.env.NEXT_PUBLIC_E2E_MODE === "1";
  */
 export const E2E_ACCOUNT_ADDRESS = (process.env.NEXT_PUBLIC_E2E_ACCOUNT_ADDRESS ??
   "0x0AF32c77e9431c8a618E821a719A5cdA9D703F67") as `0x${string}`;
+
+/**
+ * Optional Arbitrum RPC URL for live mode. MOCKER supplies its own RPC URL.
+ */
+export const ARBITRUM_RPC_URL_OVERRIDE = process.env.NEXT_PUBLIC_ARBITRUM_RPC_URL || undefined;
+
+/** Public deployment config resolved by the launcher before Next starts. */
+const mockerConfigJson = process.env.NEXT_PUBLIC_MOCKER_CONFIG;
+export const mockerConfig = mockerConfigJson ? parseMockerConfig(JSON.parse(mockerConfigJson)) : undefined;

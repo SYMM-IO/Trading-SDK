@@ -7,11 +7,7 @@ import { defineConfig, devices } from "@playwright/test";
  * the `mock` connector "connected" to the repo's well-known test EOA. No
  * credentials needed in env — the address is public.
  *
- * A `write` E2E layer is **not** included here. The wagmi `mock` connector
- * forwards `eth_sendTransaction` straight to the RPC without signing, so a
- * public RPC will reject the call. Real-broadcast write coverage lives in
- * `packages/trading-react`'s Vitest write integration test, which uses `viem/accounts`
- * + the seed phrase server-side.
+ * Mock writes use the separate `test:e2e:mocker` command and its disposable backend.
  */
 export default defineConfig({
   testDir: "./e2e",
@@ -32,6 +28,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       NEXT_PUBLIC_E2E_MODE: "1",
+      NEXT_PUBLIC_MOCKER_CONFIG: "",
     },
   },
   projects: [

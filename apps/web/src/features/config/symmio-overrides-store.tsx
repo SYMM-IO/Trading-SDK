@@ -1,5 +1,6 @@
 "use client";
 
+import { mockerConfig } from "@/config/environment";
 import { migratePriceServiceOverrides } from "@/config/migrate-price-service-overrides";
 import { symmioChains } from "@/config/symmio";
 import { countOverrides } from "@/config/symmio-config-schema";
@@ -36,7 +37,21 @@ type ChainOverrides = CreateConfigParameters["symmioConfig"];
  * still needs one, because it is the key the rebase identifies a deployment by.
  * Bump the key for a shape change or a moved InstantLayer only.
  */
-const STORAGE_KEY = "symmio.config.overrides.v4";
+const STORAGE_KEY = mockerConfig
+  ? `symmio.config.overrides.v4.mocker.${mockerConfig.rpcUrl}`
+  : "symmio.config.overrides.v4";
+
+/** Apply preferences to MOCKER's current deployment without persisting its addresses or URLs. */
+function mockerOverrides(mode: unknown): ChainOverrides {
+  if (!mockerConfig) return symmioChains;
+  const { chainId, symmioConfig } = mockerConfig;
+  if (mode !== "gasless" && mode !== "wallet") return symmioChains;
+  const chain = symmioConfig[chainId];
+  return {
+    ...symmioChains,
+    [chainId]: { ...chain, gasless: { ...chain.gasless, execution: { ...chain.gasless.execution, mode } } },
+  };
+}
 
 /**
  * Re-apply gasless deployment facts from code onto a set of chain overrides.
@@ -122,7 +137,7 @@ function readStored(): ChainOverrides | undefined {
   }
 }
 
-function writeStored(overrides: ChainOverrides) {
+function writeStored(overrides: object | undefined) {
   if (typeof window === "undefined") return;
   try {
     if (!overrides || Object.keys(overrides).length === 0) window.localStorage.removeItem(STORAGE_KEY);
@@ -151,15 +166,27 @@ export function SymmioOverridesProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const stored = readStored();
     if (stored !== undefined) {
-      const migrated = migratePriceServiceOverrides(stored);
-      const rebased = rebaseStagingTimelockCapability(rebaseGaslessDeploymentFacts(migrated));
-      setOverridesState(rebased);
-      if (migrated !== stored) writeStored(rebased);
+      if (mockerConfig) {
+        setOverridesState(mockerOverrides(stored[mockerConfig.chainId]?.gasless?.execution?.mode));
+      } else {
+        const migrated = migratePriceServiceOverrides(stored);
+        const rebased = rebaseStagingTimelockCapability(rebaseGaslessDeploymentFacts(migrated));
+        setOverridesState(rebased);
+        if (migrated !== stored) writeStored(rebased);
+      }
     }
     setHasHydrated(true);
   }, []);
 
   const setOverrides = useCallback((next: ChainOverrides) => {
+    if (mockerConfig) {
+      const { chainId } = mockerConfig;
+      const mode = next?.[chainId]?.gasless?.execution?.mode;
+      const preferences = mode ? { [chainId]: { gasless: { execution: { mode } } } } : undefined;
+      setOverridesState(mockerOverrides(mode));
+      writeStored(preferences);
+      return;
+    }
     /**
      * Rebase here too, not only on hydration. The config editor models the
      * `execution.mode` and nothing else of the gasless block, so what it hands
