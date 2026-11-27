@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@symmio/ui/components/p
 import { cn } from "@symmio/ui/lib/utils";
 import { useState } from "react";
 import type { Address } from "viem";
+import { useMockerConnection } from "./mocker-connection";
 
 /** Shared shape of the round-cornered navbar icon buttons (search, config, theme…). */
 const ICON_BUTTON =
@@ -66,6 +67,7 @@ interface AccountMenuProps {
 function AccountMenu({ address, chainId, isOnExpectedChain }: AccountMenuProps) {
   const [open, setOpen] = useState(false);
   const { disconnect } = useDisconnectWallet();
+  const mocker = useMockerConnection()?.session;
   const tone = isOnExpectedChain ? "positive" : "warning";
 
   return (
@@ -74,10 +76,11 @@ function AccountMenu({ address, chainId, isOnExpectedChain }: AccountMenuProps) 
         <button
           type="button"
           aria-label="Wallet account"
-          title={address}
+          title={mocker ? `MOCKER · ${address}` : address}
           data-testid="wallet-launcher"
-          className={ICON_BUTTON}
+          className={cn(ICON_BUTTON, mocker && "w-auto gap-1.5 px-2.5")}
         >
+          {mocker && <span className="text-xs font-medium">MOCKER</span>}
           <WalletGlyph className="size-[18px]" />
           <span
             className={cn(
@@ -98,7 +101,7 @@ function AccountMenu({ address, chainId, isOnExpectedChain }: AccountMenuProps) 
             <AddressTag address={address} />
             <span className="text-muted-foreground inline-flex items-center gap-1.5 text-xs">
               <StatusDot tone={tone} pulse={isOnExpectedChain} />
-              {isOnExpectedChain ? `Connected · ${chainLabel(chainId ?? 0)}` : "Wrong network"}
+              {isOnExpectedChain ? `${mocker ? "MOCKER" : "Connected"} · ${chainLabel(chainId ?? 0)}` : "Wrong network"}
             </span>
           </div>
         </div>

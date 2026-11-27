@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppGetWalletClient } from "@/app/use-app-wallet-client";
+import type { MockerSession } from "@/config/mocker";
 import { wagmiConfig } from "@/config/wagmi";
 import { SymmioOverridesProvider, useSymmioOverrides } from "@/features/config/symmio-overrides-store";
 import { GaslessWriteModeProvider } from "@/features/gasless/gasless-write-mode-store";
@@ -8,6 +9,7 @@ import { MagicPopoutProvider } from "@/features/magic-sidebar/magic-popout-store
 import { MagicSidebarDock } from "@/features/magic-sidebar/magic-sidebar-dock";
 import { MagicSidebarProvider } from "@/features/magic-sidebar/magic-sidebar-store";
 import { TimelockRecoveryNoticeProvider } from "@/features/timelock/timelock-recovery-notices";
+import { MockerConnectionProvider, useMockerConnection } from "@/features/wallet/mocker-connection";
 import { SymmioProvider } from "@symmio/trading-react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
@@ -40,8 +42,27 @@ function SymmioConfigBridge({ children }: { children: ReactNode }) {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
+  return (
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <MockerConnectionProvider>
+        <ActiveConsole>{children}</ActiveConsole>
+      </MockerConnectionProvider>
+    </ThemeProvider>
+  );
+}
+
+function ActiveConsole({ children }: { children: ReactNode }) {
+  const session = useMockerConnection()?.session;
+  return (
+    <ConsoleProviders key={session ? "mocker" : "regular"} session={session}>
+      {children}
+    </ConsoleProviders>
+  );
+}
+
+function ConsoleProviders({ children, session }: { children: ReactNode; session?: MockerSession }) {
   /**
-   * One `QueryClient` per browser session. Created lazily inside `useState`
+   * One `QueryClient` per console environment. Created lazily inside `useState`
    * (not at module scope) so Next.js's SSR pass and the client hydration share
    * a single instance — module-scope `new QueryClient()` would create two.
    */
@@ -59,14 +80,12 @@ export function Providers({ children }: { children: ReactNode }) {
   );
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-      <SymmioOverridesProvider>
-        <WagmiProvider config={wagmiConfig}>
-          <QueryClientProvider client={queryClient}>
-            <SymmioConfigBridge>{children}</SymmioConfigBridge>
-          </QueryClientProvider>
-        </WagmiProvider>
-      </SymmioOverridesProvider>
-    </ThemeProvider>
+    <SymmioOverridesProvider mockerOverrides={session?.overrides}>
+      <WagmiProvider config={session?.wagmi ?? wagmiConfig} reconnectOnMount={!session}>
+        <QueryClientProvider client={queryClient}>
+          <SymmioConfigBridge>{children}</SymmioConfigBridge>
+        </QueryClientProvider>
+      </WagmiProvider>
+    </SymmioOverridesProvider>
   );
 }

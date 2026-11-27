@@ -5,8 +5,9 @@ import { SymmioRequestError, useConnectWallet } from "@symmio/trading-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@symmio/ui/components/dialog";
 import { Spinner } from "@symmio/ui/components/spinner";
 import { cn } from "@symmio/ui/lib/utils";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Connector } from "wagmi";
+import { mockerConnectionError, useMockerConnection } from "./mocker-connection";
 
 interface WalletConnectDialogProps {
   /** Whether the picker is open. */
@@ -30,7 +31,27 @@ interface WalletConnectDialogProps {
 export function WalletConnectDialog({ open, onOpenChange }: WalletConnectDialogProps) {
   const { connectors, connect } = useConnectWallet();
   const [pendingUid, setPendingUid] = useState<string>();
-  const [failure, setFailure] = useState<SymmioRequestError>();
+  const [failure, setFailure] = useState<string>();
+  const mocker = useMockerConnection();
+  const request = useRef<AbortController | null>(null);
+  useEffect(() => () => request.current?.abort(), [open]);
+
+  async function handleMocker() {
+    if (!mocker || request.current) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setFailure(undefined);
+    setPendingUid("mocker");
+    try {
+      await mocker.enter(controller.signal);
+      onOpenChange(false);
+    } catch (error) {
+      if (!controller.signal.aborted) setFailure(mockerConnectionError(error));
+    } finally {
+      request.current = null;
+      setPendingUid(undefined);
+    }
+  }
 
   /** Surface installed (icon-bearing) wallets first; keep the generic fallbacks last. */
   const ordered = useMemo(() => [...connectors].sort((a, b) => rank(a) - rank(b)), [connectors]);
@@ -42,14 +63,16 @@ export function WalletConnectDialog({ open, onOpenChange }: WalletConnectDialogP
       await connect(connector);
       onOpenChange(false);
     } catch (error) {
-      if (error instanceof SymmioRequestError) setFailure(error);
+      if (error instanceof SymmioRequestError)
+        setFailure(error.kind === "user-rejected" ? "Connection request rejected." : error.message);
     } finally {
       setPendingUid(undefined);
     }
   }
 
   function handleOpenChange(next: boolean) {
-    if (next) setFailure(undefined);
+    request.current?.abort();
+    setFailure(undefined);
     onOpenChange(next);
   }
 
@@ -67,7 +90,7 @@ export function WalletConnectDialog({ open, onOpenChange }: WalletConnectDialogP
         </DialogHeader>
 
         <div className="relative flex flex-col gap-1.5 px-3 pb-3">
-          {ordered.length === 0 ? (
+          {ordered.length === 0 && !mocker ? (
             <p className="text-muted-foreground px-3 py-8 text-center text-sm">
               No wallet detected. Install a browser wallet such as MetaMask or Rabby and reload.
             </p>
@@ -75,18 +98,33 @@ export function WalletConnectDialog({ open, onOpenChange }: WalletConnectDialogP
             ordered.map((connector) => (
               <WalletOption
                 key={connector.uid}
-                connector={connector}
+                id={connector.id}
+                icon={connector.icon}
+                {...describe(connector)}
                 pending={pendingUid === connector.uid}
-                disabled={pendingUid !== undefined && pendingUid !== connector.uid}
+                disabled={pendingUid !== undefined}
                 onSelect={() => handleConnect(connector)}
               />
             ))
           )}
+          {mocker && !mocker.session && (
+            <WalletOption
+              id="mocker"
+              name="MOCKER"
+              detail="Local test wallet"
+              pending={pendingUid === "mocker"}
+              disabled={pendingUid !== undefined}
+              onSelect={handleMocker}
+            />
+          )}
         </div>
 
         {failure ? (
-          <div className="border-destructive/30 bg-destructive/10 text-destructive relative mx-3 mb-4 rounded-xl border px-3.5 py-2.5 text-xs">
-            {failure.kind === "user-rejected" ? "Connection request rejected." : failure.message}
+          <div
+            role="alert"
+            className="border-destructive/30 bg-destructive/10 text-destructive relative mx-3 mb-4 rounded-xl border px-3.5 py-2.5 text-xs"
+          >
+            {failure}
           </div>
         ) : null}
 
@@ -100,26 +138,28 @@ export function WalletConnectDialog({ open, onOpenChange }: WalletConnectDialogP
 }
 
 interface WalletOptionProps {
-  connector: Connector;
+  id: string;
+  name: string;
+  detail: string;
+  installed?: boolean;
+  icon?: string;
   pending: boolean;
   disabled: boolean;
   onSelect: () => void;
 }
 
 /** One selectable wallet row: icon tile, name, install state, and connecting spinner. */
-function WalletOption({ connector, pending, disabled, onSelect }: WalletOptionProps) {
-  const { name, detail, installed } = describe(connector);
-
+function WalletOption({ id, name, detail, installed, icon, pending, disabled, onSelect }: WalletOptionProps) {
   return (
     <button
       type="button"
       onClick={onSelect}
       disabled={disabled}
-      data-testid={`connect-${connector.id}`}
+      data-testid={`connect-${id}`}
       className="group/wallet border-border/60 hover:border-primary/50 hover:bg-muted focus-visible:ring-ring/40 relative flex w-full items-center gap-3.5 rounded-xl border bg-transparent px-3 py-2.5 text-left transition-all duration-150 outline-none focus-visible:ring-3 disabled:pointer-events-none disabled:opacity-50"
     >
       <span className="ring-border/70 bg-muted flex size-10 shrink-0 items-center justify-center overflow-hidden rounded-lg ring-1">
-        {connector.icon ? (
+        {icon ? (
           /**
            * Wallet icons are inline data-URIs (raw SVG, base64 PNG, …) supplied by the
            * connector. A plain `<img>` renders every format verbatim; CSS `background:
@@ -127,7 +167,7 @@ function WalletOption({ connector, pending, disabled, onSelect }: WalletOptionPr
            * cannot optimize data-URIs — so the lint rule is intentionally suppressed.
            */
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={connector.icon} alt="" className="size-full object-contain" />
+          <img src={icon} alt="" className="size-full object-contain" />
         ) : (
           <WalletGlyph className="text-muted-foreground size-5" />
         )}

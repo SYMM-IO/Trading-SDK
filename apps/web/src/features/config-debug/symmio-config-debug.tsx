@@ -5,6 +5,7 @@ import { DataList, DataRow } from "@/components/data-list";
 import { PageHeader } from "@/components/page-header";
 import { ConfigPanel } from "@/features/config/config-panel";
 import { useSymmioOverrides } from "@/features/config/symmio-overrides-store";
+import { useMockerConnection } from "@/features/wallet/mocker-connection";
 import { useSymmioChainId, useSymmioConfig } from "@symmio/trading-react";
 import { Badge } from "@symmio/ui/components/badge";
 import { Button } from "@symmio/ui/components/button";
@@ -26,6 +27,7 @@ function ConfigGroup({ id, title, children }: { id: string; title: string; child
 }
 
 export function SymmioConfigDebug() {
+  const local = useMockerConnection()?.session;
   const config = useSymmioConfig();
   const chainId = useSymmioChainId();
   const { overrideCount } = useSymmioOverrides();
@@ -56,7 +58,7 @@ export function SymmioConfigDebug() {
         description="Verifies that the web app initializes Wagmi and the Symmio core provider, then reads the resolved chain config from core."
         actions={
           <Button onClick={() => setEditing(true)}>
-            Edit config
+            {local ? "View config" : "Edit config"}
             {overrideCount > 0 ? (
               <span className="bg-primary-foreground/20 ml-0.5 rounded-full px-1.5 py-px font-mono text-[11px] font-semibold">
                 {overrideCount}

@@ -140,7 +140,29 @@ function writeStored(overrides: ChainOverrides) {
  * Mount this **outside** `SymmioProvider` so its value can drive the SDK config,
  * and read it with {@link useSymmioOverrides}.
  */
-export function SymmioOverridesProvider({ children }: { children: ReactNode }) {
+export function SymmioOverridesProvider({
+  children,
+  mockerOverrides,
+}: {
+  children: ReactNode;
+  mockerOverrides?: ChainOverrides;
+}) {
+  if (!mockerOverrides) return <PersistedOverridesProvider>{children}</PersistedOverridesProvider>;
+  return (
+    <SymmioOverridesContext.Provider
+      value={{
+        overrides: mockerOverrides,
+        setOverrides: () => {},
+        overrideCount: countOverrides(mockerOverrides),
+        hasHydrated: true,
+      }}
+    >
+      {children}
+    </SymmioOverridesContext.Provider>
+  );
+}
+
+function PersistedOverridesProvider({ children }: { children: ReactNode }) {
   /**
    * The first render (server + hydration) must be deterministic, so it always
    * uses the app baseline; persisted edits are applied in the effect below.

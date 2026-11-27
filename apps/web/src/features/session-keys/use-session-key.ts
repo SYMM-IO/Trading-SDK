@@ -7,9 +7,9 @@ import {
   type SessionKeyState,
 } from "@symmio/session-key";
 import { useWalletAccount } from "@symmio/trading-react";
-import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import type { Address, Hex } from "viem";
-import { getAppSessionKeyManager } from "./session-key-manager";
+import { useAppSessionKeyManager } from "./session-key-manager";
 
 const EMPTY_STATE: SessionKeyState = {
   isReady: false,
@@ -20,7 +20,7 @@ const EMPTY_STATE: SessionKeyState = {
 
 export function useSessionKey() {
   const { address, isConnected } = useWalletAccount();
-  const manager = useMemo(() => getAppSessionKeyManager(), []);
+  const manager = useAppSessionKeyManager();
   const [isLoading, setIsLoading] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
   const [error, setError] = useState<Error | null>(null);

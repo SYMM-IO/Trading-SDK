@@ -3,7 +3,7 @@
 import { SymmioSupportedChainId, type SymmioSolverKind } from "@symmio/trading-core";
 import { Button } from "@symmio/ui/components/button";
 import { useEffect, useState } from "react";
-import { useChainId } from "wagmi";
+import { useChainId, useChains } from "wagmi";
 
 /** One selectable solver deployment: the `{chainId, solverId}` pair a hook targets. */
 export interface SolverTarget {
@@ -78,10 +78,11 @@ interface Props {
 
 /** Segmented per-card selector between every configured chain/solver deployment. */
 export function SolverTargetSelect({ value, onChange, requireKind, testId }: Props) {
+  const chains = useChains();
   return (
     <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
       <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Solver</span>
-      {SOLVER_TARGETS.map((target) => {
+      {SOLVER_TARGETS.filter((target) => chains.some((chain) => chain.id === target.chainId)).map((target) => {
         const unsupported = requireKind !== undefined && target.solverId !== requireKind;
         return (
           <Button

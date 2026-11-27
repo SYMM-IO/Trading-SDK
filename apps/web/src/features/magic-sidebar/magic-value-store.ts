@@ -1,12 +1,13 @@
 "use client";
 
+import { useConsoleStorageKey } from "@/features/wallet/mocker-connection";
 import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 
 /** Local-storage key prefix for a pinned card's persisted value snapshot. */
 const MAGIC_VALUE_PREFIX = "symmio.magic.value.v1:";
 
-function storageKey(methodId: string): string {
-  return `${MAGIC_VALUE_PREFIX}${methodId}`;
+export function usePinValuePrefix(): string {
+  return useConsoleStorageKey(MAGIC_VALUE_PREFIX);
 }
 
 /**
@@ -29,10 +30,10 @@ function deserialize<T>(text: string): T {
 }
 
 /** Read a pinned card's persisted value snapshot, or `undefined` if none/unavailable. */
-export function readPinValue<T>(methodId: string): T | undefined {
+export function readPinValue<T>(methodId: string, prefix = MAGIC_VALUE_PREFIX): T | undefined {
   if (typeof window === "undefined") return undefined;
   try {
-    const raw = window.localStorage.getItem(storageKey(methodId));
+    const raw = window.localStorage.getItem(prefix + methodId);
     if (!raw) return undefined;
     return deserialize<T>(raw);
   } catch {
@@ -41,10 +42,10 @@ export function readPinValue<T>(methodId: string): T | undefined {
 }
 
 /** Persist a pinned card's value snapshot (bigint-safe). No-op if storage is unavailable. */
-export function writePinValue(methodId: string, value: unknown): void {
+export function writePinValue(methodId: string, value: unknown, prefix = MAGIC_VALUE_PREFIX): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(storageKey(methodId), serialize(value));
+    window.localStorage.setItem(prefix + methodId, serialize(value));
   } catch {
     /** Storage can be unavailable (private mode, quota); the value still lives in-memory. */
   }
@@ -65,10 +66,10 @@ export function magicInputPersistKey(persistKey: string | undefined): string | u
  * namespaced sub-key (e.g. {@link magicInputPersistKey}'s `:input`) as readily as
  * a bare `methodId` — use it to reset one facet of a pin rather than all of it.
  */
-export function removePinValue(key: string): void {
+export function removePinValue(key: string, prefix = MAGIC_VALUE_PREFIX): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(storageKey(key));
+    window.localStorage.removeItem(prefix + key);
   } catch {
     /** Storage can be unavailable; nothing to remove. */
   }
@@ -79,10 +80,10 @@ export function removePinValue(key: string): void {
  * both its main value key and any namespaced sub-keys (e.g. its `:input` form
  * value), so re-pinning the same method starts clean.
  */
-export function clearPinValue(methodId: string): void {
+export function clearPinValue(methodId: string, prefix = MAGIC_VALUE_PREFIX): void {
   if (typeof window === "undefined") return;
   try {
-    const base = storageKey(methodId);
+    const base = prefix + methodId;
     const keys: string[] = [];
     for (let index = 0; index < window.localStorage.length; index += 1) {
       const key = window.localStorage.key(index);
@@ -95,13 +96,13 @@ export function clearPinValue(methodId: string): void {
 }
 
 /** Drop every persisted pin value (call when the board is emptied), guarding against orphans. */
-export function clearAllPinValues(): void {
+export function clearAllPinValues(prefix = MAGIC_VALUE_PREFIX): void {
   if (typeof window === "undefined") return;
   try {
     const keys: string[] = [];
     for (let index = 0; index < window.localStorage.length; index += 1) {
       const key = window.localStorage.key(index);
-      if (key && key.startsWith(MAGIC_VALUE_PREFIX)) keys.push(key);
+      if (key && key.startsWith(prefix)) keys.push(key);
     }
     for (const key of keys) window.localStorage.removeItem(key);
   } catch {
@@ -136,6 +137,7 @@ export function usePersistentPinState<T>(
   initial: T,
   seedToken?: number,
 ): [T, Dispatch<SetStateAction<T>>] {
+  const prefix = usePinValuePrefix();
   const [value, setValue] = useState<T>(initial);
   const [hydrated, setHydrated] = useState(false);
 
@@ -144,15 +146,15 @@ export function usePersistentPinState<T>(
       setHydrated(true);
       return;
     }
-    const stored = readPinValue<T>(methodId);
+    const stored = readPinValue<T>(methodId, prefix);
     if (stored !== undefined) setValue(stored);
     setHydrated(true);
-  }, [methodId]);
+  }, [methodId, prefix]);
 
   useEffect(() => {
     if (!hydrated || !methodId) return;
-    writePinValue(methodId, value);
-  }, [hydrated, methodId, value]);
+    writePinValue(methodId, value, prefix);
+  }, [hydrated, methodId, value, prefix]);
 
   /**
    * Re-adopt `initial` when an external prefill bumps `seedToken` (e.g. the

@@ -1,9 +1,9 @@
 "use client";
 
-import { wagmiConfig } from "@/config/wagmi";
-import { getAppSessionKeyManager } from "@/features/session-keys/session-key-manager";
+import { useAppSessionKeyManager } from "@/features/session-keys/session-key-manager";
 import { createSessionKeyWalletClientResolver, type GetWalletClientFn } from "@symmio/trading-react";
 import { useMemo } from "react";
+import { useConfig } from "wagmi";
 
 /**
  * Builds the app's wallet-client resolver: when `from` matches the loaded
@@ -23,6 +23,8 @@ import { useMemo } from "react";
  * @returns The resolver to pass as `SymmioProvider`'s `getWalletClient` prop.
  */
 export function useAppGetWalletClient(): GetWalletClientFn {
+  const wagmiConfig = useConfig();
+  const manager = useAppSessionKeyManager();
   return useMemo(
     () =>
       createSessionKeyWalletClientResolver({
@@ -32,8 +34,8 @@ export function useAppGetWalletClient(): GetWalletClientFn {
          * account, so initializing, rotating, importing, or destroying the key
          * takes effect without rebuilding the resolver.
          */
-        getSessionAccount: () => getAppSessionKeyManager().getAccount(),
+        getSessionAccount: () => manager.getAccount(),
       }),
-    [],
+    [wagmiConfig, manager],
   );
 }

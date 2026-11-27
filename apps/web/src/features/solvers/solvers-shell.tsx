@@ -1,10 +1,10 @@
 "use client";
 
 import { PageHeader } from "@/components/page-header";
-import { SUPPORTED_CHAIN_IDS } from "@/config/symmio-config-schema";
+import { useMockerConnection } from "@/features/wallet/mocker-connection";
 import { SymmioSupportedChainId } from "@symmio/trading-core";
 import { Button } from "@symmio/ui/components/button";
-import { useChainId, useSwitchChain } from "wagmi";
+import { useChainId, useChains, useSwitchChain } from "wagmi";
 import { MethodGroup } from "../inspector/method-group";
 import { ReadMarkets } from "../inspector/read-markets";
 import { WalletPanel } from "../inspector/wallet-panel";
@@ -42,12 +42,13 @@ const CHAIN_LABELS: Record<number, string> = {
 /** Segmented switch between the supported chains. */
 function ChainSwitch() {
   const activeChainId = useChainId();
+  const chains = useChains();
   const { switchChain } = useSwitchChain();
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       <span className="text-muted-foreground text-xs font-medium tracking-wide uppercase">Chain</span>
-      {SUPPORTED_CHAIN_IDS.map((chainId) => (
+      {chains.map(({ id: chainId }) => (
         <Button
           key={chainId}
           type="button"
@@ -72,6 +73,7 @@ function ChainSwitch() {
  * that solver kind (their endpoints 404 on chains that do not register it).
  */
 export function SolversShell() {
+  const local = useMockerConnection()?.session;
   const activeChainId = useChainId();
 
   return (
@@ -110,14 +112,16 @@ export function SolversShell() {
         <EnigmaSolverInfoCard />
       </MethodGroup>
 
-      <MethodGroup label="Rasa-only reads" count={6} fullWidth>
-        <RasaBalanceInfoCard />
-        <RasaPartyAUpnlCard />
-        <RasaOpenInterestCard />
-        <RasaPriceRangeCard />
-        <RasaErrorMessageCard />
-        <RasaReadinessCard />
-      </MethodGroup>
+      {!local && (
+        <MethodGroup label="Rasa-only reads" count={6} fullWidth>
+          <RasaBalanceInfoCard />
+          <RasaPartyAUpnlCard />
+          <RasaOpenInterestCard />
+          <RasaPriceRangeCard />
+          <RasaErrorMessageCard />
+          <RasaReadinessCard />
+        </MethodGroup>
+      )}
 
       <MethodGroup label="Notifications" count={3} fullWidth>
         <NotificationsConsole />

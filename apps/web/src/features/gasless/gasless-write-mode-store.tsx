@@ -1,6 +1,7 @@
 "use client";
 
 import { useSessionKey } from "@/features/session-keys/use-session-key";
+import { useConsoleStorageKey } from "@/features/wallet/mocker-connection";
 import { useSupportsGaslessService, useSymmioChainId, useSymmioConfig } from "@symmio/trading-react";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Address } from "viem";
@@ -48,6 +49,7 @@ const GaslessWriteModeContext = createContext<GaslessWriteModeContextValue | und
  * and the connected wallet.
  */
 export function GaslessWriteModeProvider({ children }: { children: ReactNode }) {
+  const preferenceKey = useConsoleStorageKey(SESSION_KEY_DEFAULT_STORAGE_KEY);
   const [relayOverrides, setRelayOverrides] = useState<Record<string, boolean>>({});
   const [sessionKeyDefault, setSessionKeyDefaultState] = useState(false);
   const [sessionKeyOverrides, setSessionKeyOverrides] = useState<Record<string, boolean>>({});
@@ -61,22 +63,25 @@ export function GaslessWriteModeProvider({ children }: { children: ReactNode }) 
   /** Restore the persisted default after mount, so the first client render matches the server's. */
   useEffect(() => {
     try {
-      if (localStorage.getItem(SESSION_KEY_DEFAULT_STORAGE_KEY) === "on") setSessionKeyDefaultState(true);
+      if (localStorage.getItem(preferenceKey) === "on") setSessionKeyDefaultState(true);
     } catch {
       /* storage unavailable: keep the wallet as the default signer */
     }
-  }, []);
+  }, [preferenceKey]);
 
-  const setSessionKeyDefault = useCallback((enabled: boolean) => {
-    setSessionKeyDefaultState(enabled);
-    /** Re-baseline every card, so that after "off" nothing signs with the key until a card opts back in. */
-    setSessionKeyOverrides({});
-    try {
-      localStorage.setItem(SESSION_KEY_DEFAULT_STORAGE_KEY, enabled ? "on" : "off");
-    } catch {
-      /* storage unavailable: the choice still holds for this session */
-    }
-  }, []);
+  const setSessionKeyDefault = useCallback(
+    (enabled: boolean) => {
+      setSessionKeyDefaultState(enabled);
+      /** Re-baseline every card, so that after "off" nothing signs with the key until a card opts back in. */
+      setSessionKeyOverrides({});
+      try {
+        localStorage.setItem(preferenceKey, enabled ? "on" : "off");
+      } catch {
+        /* storage unavailable: the choice still holds for this session */
+      }
+    },
+    [preferenceKey],
+  );
 
   const setSessionKeyOverride = useCallback(
     (method: string, enabled: boolean) => {

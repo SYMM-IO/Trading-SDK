@@ -1,14 +1,14 @@
 "use client";
 
 import { useAppGetWalletClient } from "@/app/use-app-wallet-client";
-import { wagmiConfig } from "@/config/wagmi";
 import { useSymmioOverrides } from "@/features/config/symmio-overrides-store";
+import { MockerConnectionContext, useMockerConnection } from "@/features/wallet/mocker-connection";
 import { SymmioProvider, type GetWalletClientFn } from "@symmio/trading-react";
 import { PortalContainerProvider } from "@symmio/ui/lib/portal-container";
 import { QueryClientProvider, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { WagmiProvider } from "wagmi";
+import { useConfig, WagmiProvider, type Config } from "wagmi";
 import { findMagicMethod } from "./magic-catalog";
 import { useMagicSidebar, type MagicPin } from "./magic-sidebar-store";
 import { PopoutCard } from "./popout-card";
@@ -51,6 +51,8 @@ interface PopoutRecord {
  */
 export function MagicPopoutProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
+  const wagmiConfig = useConfig();
+  const mocker = useMockerConnection();
   const { overrides } = useSymmioOverrides();
   const getWalletClient = useAppGetWalletClient();
   const { pins } = useMagicSidebar();
@@ -59,8 +61,8 @@ export function MagicPopoutProvider({ children }: { children: ReactNode }) {
    * Latest provider deps, read fresh when a window opens (avoids stale closures
    * without re-creating `openPopout` on every render).
    */
-  const depsRef = useRef({ queryClient, overrides, getWalletClient });
-  depsRef.current = { queryClient, overrides, getWalletClient };
+  const depsRef = useRef({ mocker, wagmiConfig, queryClient, overrides, getWalletClient });
+  depsRef.current = { mocker, wagmiConfig, queryClient, overrides, getWalletClient };
 
   const recordsRef = useRef(new Map<string, PopoutRecord>());
   /** Method ids with an open window; drives the sidebar's placeholder rendering. */
@@ -119,16 +121,19 @@ export function MagicPopoutProvider({ children }: { children: ReactNode }) {
 
       const cleanupStyles = syncWindowChrome(win);
       const root = createRoot(mount);
-      const { queryClient, overrides, getWalletClient } = depsRef.current;
+      const { mocker, wagmiConfig, queryClient, overrides, getWalletClient } = depsRef.current;
       root.render(
-        <PopoutShell
-          pin={pin}
-          queryClient={queryClient}
-          overrides={overrides}
-          getWalletClient={getWalletClient}
-          container={win.document.body}
-          onRequestClose={() => teardown(pin.methodId)}
-        />,
+        <MockerConnectionContext.Provider value={mocker}>
+          <PopoutShell
+            pin={pin}
+            wagmiConfig={wagmiConfig}
+            queryClient={queryClient}
+            overrides={overrides}
+            getWalletClient={getWalletClient}
+            container={win.document.body}
+            onRequestClose={() => teardown(pin.methodId)}
+          />
+        </MockerConnectionContext.Provider>,
       );
 
       win.addEventListener("pagehide", () => teardown(pin.methodId), { once: true });
@@ -178,6 +183,7 @@ export function MagicPopoutProvider({ children }: { children: ReactNode }) {
 }
 
 interface PopoutShellProps {
+  wagmiConfig: Config;
   pin: MagicPin;
   queryClient: QueryClient;
   /** Captured at open time; overrides change rarely, so a snapshot is fine. */
@@ -196,9 +202,17 @@ interface PopoutShellProps {
  * portals (Select/Popover/Tooltip/Dialog) to this window's `<body>` instead of the
  * main document's.
  */
-function PopoutShell({ pin, queryClient, overrides, getWalletClient, container, onRequestClose }: PopoutShellProps) {
+function PopoutShell({
+  pin,
+  wagmiConfig,
+  queryClient,
+  overrides,
+  getWalletClient,
+  container,
+  onRequestClose,
+}: PopoutShellProps) {
   return (
-    <WagmiProvider config={wagmiConfig}>
+    <WagmiProvider config={wagmiConfig} reconnectOnMount={Boolean(wagmiConfig.storage)}>
       <QueryClientProvider client={queryClient}>
         <SymmioProvider symmioConfig={overrides} getWalletClient={getWalletClient}>
           <PortalContainerProvider container={container}>

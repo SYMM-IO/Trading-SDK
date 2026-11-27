@@ -1,4 +1,7 @@
+"use client";
+
 import { PageHeader } from "@/components/page-header";
+import { useMockerConnection } from "@/features/wallet/mocker-connection";
 import { MethodGroup } from "../inspector/method-group";
 import { ReadBinanceHealth } from "./read-binance-health";
 import { ReadBinancePremiumIndex } from "./read-binance-premium-index";
@@ -24,6 +27,7 @@ import { WatchPrices } from "./watch-prices";
  * configured provider is not Enigma.
  */
 export function PriceServiceShell() {
+  const local = useMockerConnection()?.session;
   return (
     <section className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:px-8">
       <PageHeader
@@ -37,16 +41,19 @@ export function PriceServiceShell() {
         <ReadMarkPrices />
       </MethodGroup>
 
-      <MethodGroup label="Binance-only reads" count={3} fullWidth>
-        <ReadBinanceHealth />
-        <ReadBinancePremiumIndex />
-        <ReadBinanceSymbolsInfo />
-      </MethodGroup>
+      {!local && (
+        <>
+          <MethodGroup label="Binance-only reads" count={3} fullWidth>
+            <ReadBinanceHealth />
+            <ReadBinancePremiumIndex />
+            <ReadBinanceSymbolsInfo />
+          </MethodGroup>
 
-      <MethodGroup label="Binance-only streams" count={1} fullWidth>
-        <WatchBinancePrices />
-      </MethodGroup>
-
+          <MethodGroup label="Binance-only streams" count={1} fullWidth>
+            <WatchBinancePrices />
+          </MethodGroup>
+        </>
+      )}
       <MethodGroup label="Enigma-only reads" count={5} fullWidth>
         <ReadEnigmaPriceServiceHealth />
         <ReadEnigmaPriceServicePricesByAddresses />

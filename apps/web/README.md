@@ -2,6 +2,16 @@
 
 This Next.js app consumes the workspace SDK through its React hooks. When an SDK change affects an existing flow or needs an interactive example, update this app alongside the package and public documentation.
 
+## Local MOCKER wallet
+
+1. Start the standalone MOCKER from its own checkout with `pnpm dev`.
+2. From the Trading-SDK root, run `pnpm --filter @symmio/web dev` (on a fresh checkout, build the workspace packages first with `pnpm exec turbo run build --filter=@symmio/web^...`).
+3. Open [the console](http://localhost:3001/integration), choose **Connect wallet → MOCKER**, and use the Integration flows. The console discovers the RPC, contracts and service URLs from the instance and selects its first test account. A refresh restores the same wallet. **Wallet account → Disconnect** returns to your previous network and SDK configuration.
+
+The MOCKER entry appears in local development alongside installed wallets. Keep `NEXT_PUBLIC_E2E_MODE` unset for interactive use. Setting it to `1` selects the console’s standard Playwright mock connector. For a custom instance, set `NEXT_PUBLIC_MOCKER_URL=http://localhost:4700` in `apps/web/.env.local` and restart the console. The default is `http://localhost:4600`. Optionally set `NEXT_PUBLIC_MOCKER_ACCOUNT` to use a specific test address. MOCKER can sign owner messages for its built-in test accounts.
+
+The read-only browser checks run with `pnpm --filter @symmio/web test:e2e:mocker` while MOCKER is running. Set `NEXT_PUBLIC_MOCKER_URL` to point the tests at a different instance. They cover wallet discovery, local RPC and service routing, refresh, unavailable instances, and returning to a regular wallet.
+
 ## Timelock integration
 
 Open `/contracts/timelock` to check and configure the root policy, request an approval, execute protected account actions and Core batches, or schedule, cancel and execute an exact call. Virtual-account policy and recovery resolve to the root while Core execution preserves the selected account. Setup, Instant Open, Withdraw and the protected inspector cards use the SDK's timelock APIs. An unlocked selector keeps its ordinary write path; a locked withdrawal uses an approval for each locked leg.
@@ -30,7 +40,7 @@ pnpm dev
 bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3001](http://localhost:3001) with your browser to see the result.
 
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 

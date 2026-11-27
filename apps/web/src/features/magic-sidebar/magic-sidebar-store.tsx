@@ -1,9 +1,16 @@
 "use client";
 
+import { useConsoleStorageKey } from "@/features/wallet/mocker-connection";
 import { useAccountChangeEffect } from "@/features/wallet/use-account-change";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { findMagicMethod } from "./magic-catalog";
-import { clearAllPinValues, clearPinValue, magicInputPersistKey, removePinValue } from "./magic-value-store";
+import {
+  clearAllPinValues,
+  clearPinValue,
+  magicInputPersistKey,
+  removePinValue,
+  usePinValuePrefix,
+} from "./magic-value-store";
 
 /**
  * Selectable poll cadences (ms). `0` is the "Off" option — a `refetchInterval` of
@@ -140,10 +147,10 @@ interface MagicSidebarContextValue {
 
 const MagicSidebarContext = createContext<MagicSidebarContextValue | undefined>(undefined);
 
-function readStoredPins(): MagicPin[] {
+function readStoredPins(key: string): MagicPin[] {
   if (typeof window === "undefined") return [];
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(key);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
@@ -167,6 +174,8 @@ function readStoredPins(): MagicPin[] {
  * SDK providers so pinned methods' hooks can resolve config + chain.
  */
 export function MagicSidebarProvider({ children }: { children: ReactNode }) {
+  const pinsKey = useConsoleStorageKey(STORAGE_KEY);
+  const valuePrefix = usePinValuePrefix();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<MagicView>("catalog");
   /** First render (server + hydration) is deterministic; persisted pins load in the effect below. */
@@ -180,7 +189,7 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
   const seedVersionRef = useRef(0);
 
   useEffect(() => {
-    const stored = readStoredPins();
+    const stored = readStoredPins(pinsKey);
     if (stored.length > 0) {
       setPins(stored);
       setView("board");
@@ -188,19 +197,19 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
     setWidthState(readStoredWidth());
     setCloseNoticeDismissed(readStoredCloseNoticeDismissed());
     setHasHydrated(true);
-  }, []);
+  }, [pinsKey]);
 
   useEffect(() => {
     if (!hasHydrated || typeof window === "undefined") return;
     try {
       if (pins.length === 0) {
-        window.localStorage.removeItem(STORAGE_KEY);
-        clearAllPinValues();
-      } else window.localStorage.setItem(STORAGE_KEY, JSON.stringify(pins));
+        window.localStorage.removeItem(pinsKey);
+        clearAllPinValues(valuePrefix);
+      } else window.localStorage.setItem(pinsKey, JSON.stringify(pins));
     } catch {
       /** Storage can be unavailable (private mode, quota); pins still work in-memory. */
     }
-  }, [pins, hasHydrated]);
+  }, [pins, hasHydrated, pinsKey, valuePrefix]);
 
   useEffect(() => {
     if (!hasHydrated || typeof window === "undefined") return;
@@ -232,7 +241,7 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
     const version = seedVersionRef.current;
     for (const entry of pins) {
       const inputKey = magicInputPersistKey(entry.methodId);
-      if (inputKey) removePinValue(inputKey);
+      if (inputKey) removePinValue(inputKey, valuePrefix);
     }
     setPins((prev) => prev.map((entry) => ({ ...entry, seed: undefined, seedVersion: version })));
   });
@@ -249,10 +258,13 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
     );
   }, []);
 
-  const unpin = useCallback((methodId: string) => {
-    setPins((prev) => prev.filter((entry) => entry.methodId !== methodId));
-    clearPinValue(methodId);
-  }, []);
+  const unpin = useCallback(
+    (methodId: string) => {
+      setPins((prev) => prev.filter((entry) => entry.methodId !== methodId));
+      clearPinValue(methodId, valuePrefix);
+    },
+    [valuePrefix],
+  );
 
   const pinMany = useCallback((entries: { methodId: string; seed?: string }[]) => {
     if (entries.length === 0) return;
@@ -276,11 +288,14 @@ export function MagicSidebarProvider({ children }: { children: ReactNode }) {
     setOpen(true);
   }, []);
 
-  const unpinMany = useCallback((methodIds: string[]) => {
-    if (methodIds.length === 0) return;
-    setPins((prev) => prev.filter((entry) => !methodIds.includes(entry.methodId)));
-    for (const methodId of methodIds) clearPinValue(methodId);
-  }, []);
+  const unpinMany = useCallback(
+    (methodIds: string[]) => {
+      if (methodIds.length === 0) return;
+      setPins((prev) => prev.filter((entry) => !methodIds.includes(entry.methodId)));
+      for (const methodId of methodIds) clearPinValue(methodId, valuePrefix);
+    },
+    [valuePrefix],
+  );
 
   const pinAndReveal = useCallback(
     (methodId: string, seed?: string) => {

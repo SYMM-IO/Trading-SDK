@@ -1,6 +1,7 @@
 "use client";
 
 import { StatusDot } from "@/components/status-dot";
+import { MOCKER_URL } from "@/config/mocker";
 import { symmioChains } from "@/config/symmio";
 import {
   buildChainOverrides,
@@ -20,6 +21,7 @@ import {
 import { STAGING_CHAIN_OVERRIDES, STAGING_PRESET } from "@/config/symmio-presets";
 import { ConfigFieldRow } from "@/features/config/config-field-row";
 import { useSymmioOverrides } from "@/features/config/symmio-overrides-store";
+import { useMockerConnection } from "@/features/wallet/mocker-connection";
 import { useSymmioChainId } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@symmio/ui/components/sheet";
@@ -45,7 +47,31 @@ interface Props {
  * and reset-to-default actions apply immediately. All overrides persist through
  * the {@link useSymmioOverrides} store.
  */
-export function ConfigPanel({ open, onOpenChange }: Props) {
+export function ConfigPanel(props: Props) {
+  const session = useMockerConnection()?.session;
+  if (!session) return <EditableConfigPanel {...props} />;
+  return (
+    <Sheet {...props}>
+      <SheetContent className="gap-3 p-6">
+        <SheetTitle>MOCKER configuration</SheetTitle>
+        <SheetDescription>Services and contracts come from the connected MOCKER instance.</SheetDescription>
+        <p className="text-sm">
+          Arbitrum RPC <code className="break-all">{session.rpcUrl}</code>
+        </p>
+        <a
+          className="text-primary text-sm underline"
+          href={new URL("/admin/config/sdk", MOCKER_URL).href}
+          target="_blank"
+          rel="noreferrer"
+        >
+          View service endpoints and contract addresses
+        </a>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
+function EditableConfigPanel({ open, onOpenChange }: Props) {
   const { overrides, setOverrides, overrideCount } = useSymmioOverrides();
   const [draft, setDraft] = useState<ConfigDraft>(() => draftFromOverrides(overrides));
   const { switchChain } = useSwitchChain();
