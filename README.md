@@ -65,12 +65,17 @@ All commands run from the repo root and fan out through Turborepo:
 | Command                | What it does                                                                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------- |
 | `pnpm dev`             | Run every app's dev server (and the packages' watch builds).                                      |
+| `pnpm dev:mocker`      | Start a local MOCKER and run `apps/web` against it — see below.                                   |
 | `pnpm build`           | Build everything in dependency order.                                                             |
 | `pnpm lint`            | ESLint, zero-warnings.                                                                            |
 | `pnpm check-types`     | `tsc --noEmit` across the workspace.                                                              |
 | `pnpm test`            | Unit tests (Vitest). Integration tests stay gated behind `SYMM_RUN_INTEGRATION` and a funded key. |
 | `pnpm format`          | Prettier.                                                                                         |
 | `pnpm verify-packages` | Verify the _published_ shape of the packages — see below.                                         |
+
+`pnpm dev:mocker` requires **Node 22.18+** and a checkout of MOCKER, the private repository that simulates SYMMIO services and the chain. Set `MOCKER_DIR` in the root `.env.local` (see [`.env.example`](.env.example)). The launcher starts MOCKER or uses an existing instance on `MOCKER_BASE_PORT`. It reads the Arbitrum RPC, contract addresses, and service URLs from MOCKER before starting the app. See the [web app environment template](apps/web/.env.example) for wallet settings.
+
+Run `pnpm --filter @symmio/web test:e2e:mocker` with `MOCKER_DIR` set to check the deposit, open, and close flow in a browser. This command starts an in-memory MOCKER on port 14600 and a dedicated web server on port 13001.
 
 Scope any of them to one package with `pnpm --filter @symmio/trading-core test`, or run it from that package's directory.
 

@@ -20,6 +20,7 @@ interface Props {
   chainId: number;
   value: string;
   onChange: (value: string) => void;
+  readOnly?: boolean;
   /** Stagger index for the entrance animation. */
   index: number;
 }
@@ -34,7 +35,7 @@ function shortDisplay(field: ConfigFieldDef, value: string): string {
  * field — that surfaces whether it diverges from the SDK default, with a reset
  * affordance and the default value for reference.
  */
-export function ConfigFieldRow({ field, chainId, value, onChange, index }: Props) {
+export function ConfigFieldRow({ field, chainId, value, onChange, readOnly, index }: Props) {
   const id = `cfg-${chainId}-${field.group}-${field.key}`;
   const error = validateFieldValue(field, value);
   const overridden = isFieldOverridden(field, value, chainId);
@@ -58,7 +59,7 @@ export function ConfigFieldRow({ field, chainId, value, onChange, index }: Props
         </span>
       }
       action={
-        overridden && !error ? (
+        overridden && !error && !readOnly ? (
           <button
             type="button"
             onClick={() => onChange(def)}
@@ -92,6 +93,7 @@ export function ConfigFieldRow({ field, chainId, value, onChange, index }: Props
           <Switch
             id={id}
             checked={value === field.toggle?.on}
+            disabled={readOnly}
             onCheckedChange={(next) => onChange(next ? (field.toggle?.on ?? "") : (field.toggle?.off ?? ""))}
           />
         </div>
@@ -99,6 +101,7 @@ export function ConfigFieldRow({ field, chainId, value, onChange, index }: Props
         <Input
           id={id}
           value={value}
+          readOnly={readOnly}
           spellCheck={false}
           autoComplete="off"
           autoCorrect="off"

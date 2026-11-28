@@ -14,6 +14,7 @@
     "next.config.js",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
+    ".next/mocker-e2e/dev/types/**/*.ts",
     "**/*.mts"
   ],
   "exclude": ["node_modules"]

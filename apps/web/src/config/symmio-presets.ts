@@ -6,6 +6,7 @@ import {
   type SymmioGaslessConfig,
 } from "@symmio/trading-core";
 import type { Address } from "viem";
+import { mockerConfig } from "./environment";
 
 /**
  * A named, one-click set of chain overrides surfaced in the config panel.
@@ -53,8 +54,7 @@ export interface GaslessDeployment {
  * key-injecting `/api/gasless` proxy this app used to carry is gone with it.
  * Server-side consumers that do hold a key still have `gasless.apiKey`.
  *
- * Production comes from the SDK's chain registry. Only staging deployment
- * overrides live here.
+ * Production comes from the SDK's chain registry. MOCKER advertises its own relay.
  */
 export const GASLESS_DEPLOYMENTS = {
   staging: {
@@ -103,6 +103,13 @@ export type GaslessDeploymentKey = keyof typeof GASLESS_DEPLOYMENTS;
  * ```
  */
 export function findGaslessDeployment(chainId: number, instantLayerAddress?: string): GaslessDeployment | undefined {
+  if (mockerConfig?.chainId === chainId) {
+    const chain = mockerConfig.symmioConfig[mockerConfig.chainId];
+    const address = chain.addresses.instantLayerAddress;
+    if (address && (!instantLayerAddress || instantLayerAddress.toLowerCase() === address.toLowerCase())) {
+      return { chainId, instantLayerAddress: address, gasless: chain.gasless };
+    }
+  }
   const override = Object.values(GASLESS_DEPLOYMENTS).find(
     (deployment) =>
       deployment.chainId === chainId &&

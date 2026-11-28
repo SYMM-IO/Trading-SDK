@@ -1,16 +1,25 @@
 import { createConfig, fallback, http } from "wagmi";
 import { arbitrum, base } from "wagmi/chains";
 import { injected, mock } from "wagmi/connectors";
-import { E2E_ACCOUNT_ADDRESS, IS_E2E_MODE } from "./environment";
+import { ARBITRUM_RPC_URL_OVERRIDE, E2E_ACCOUNT_ADDRESS, IS_E2E_MODE, mockerConfig } from "./environment";
 
 /** Public HTTP RPC endpoints for Base main chain (id 8453). */
 const BASE_RPC_URLS = ["https://mainnet.base.org", "https://base.drpc.org"] as const;
 
-/** Public HTTP RPC endpoints shipped with viem's Arbitrum One chain definition. */
-const ARBITRUM_RPC_URLS = arbitrum.rpcUrls.default.http;
+const ARBITRUM_RPC_URL = mockerConfig?.rpcUrl ?? ARBITRUM_RPC_URL_OVERRIDE;
+
+/**
+ * Arbitrum chain definition. With an RPC override, it replaces the first default
+ * RPC URL on the chain itself, not only on the transport: the wagmi `mock`
+ * connector sends through the chain definition's default URL and ignores the
+ * transport. Without one, this is viem's `arbitrum` unchanged.
+ */
+const arbitrumChain = ARBITRUM_RPC_URL
+  ? { ...arbitrum, rpcUrls: { ...arbitrum.rpcUrls, default: { http: [ARBITRUM_RPC_URL] as const } } }
+  : arbitrum;
 
 export const wagmiConfig = createConfig({
-  chains: [arbitrum, base],
+  chains: [arbitrumChain, base],
   /**
    * Per-chain transport. `fallback` lets us add backup RPCs without a code
    * change at call sites; per-URL `batch.wait` enables JSON-RPC batching for
@@ -19,7 +28,7 @@ export const wagmiConfig = createConfig({
    * silently no-op.
    */
   transports: {
-    [arbitrum.id]: fallback(ARBITRUM_RPC_URLS.map((url) => http(url, { batch: { wait: 16 } }))),
+    [arbitrumChain.id]: fallback(arbitrumChain.rpcUrls.default.http.map((url) => http(url, { batch: { wait: 16 } }))),
     [base.id]: fallback(BASE_RPC_URLS.map((url) => http(url, { batch: { wait: 16 } }))),
   },
   /**

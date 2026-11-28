@@ -1,6 +1,7 @@
 "use client";
 
 import { StatusDot } from "@/components/status-dot";
+import { mockerConfig } from "@/config/environment";
 import { symmioChains } from "@/config/symmio";
 import {
   buildChainOverrides,
@@ -180,16 +181,18 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => setOverrides(STAGING_OVERRIDES)}
-                disabled={!canApplyStaging}
-              >
-                <BeakerIcon className="size-4" />
-                Use staging
-              </Button>
+              {mockerConfig ? null : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => setOverrides(STAGING_OVERRIDES)}
+                  disabled={!canApplyStaging}
+                >
+                  <BeakerIcon className="size-4" />
+                  Use staging
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -201,7 +204,9 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
                 Reset to default
               </Button>
             </div>
-            <p className="text-muted-foreground/70 text-[11px] leading-5">{STAGING_PRESET.description}</p>
+            <p className="text-muted-foreground/70 text-[11px] leading-5">
+              {mockerConfig ? `MOCKER Arbitrum RPC · ${mockerConfig.rpcUrl}` : STAGING_PRESET.description}
+            </p>
           </div>
         </div>
 
@@ -238,6 +243,7 @@ export function ConfigPanel({ open, onOpenChange }: Props) {
                           chainId={activeChain}
                           value={draft[activeChain]?.[path] ?? ""}
                           onChange={(value) => updateField(activeChain, path, value)}
+                          readOnly={Boolean(mockerConfig) && field.group !== "gasless"}
                           index={rowIndex++}
                         />
                       );
