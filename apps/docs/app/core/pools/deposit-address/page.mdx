@@ -118,7 +118,7 @@ The rest of the factory's types are exported too: `GetDepositAddressData` is wha
 ## Related
 
 - [`getListingMarkets`](/core/pools/get-listing-markets) — search the catalog to pick the `tokenContractAddress` + `depositChain` pair that names the market.
-- [`addMarket`](/core/pools/add-market) — the create-pool write, which also returns a custodial **deposit wallet** (`walletPublicKey`) to seed a **new** listing. This action reads the deposit wallet for an **existing** market.
+- [`listMarket`](/core/pools/list-market) — the listing write, which also returns a custodial **deposit wallet** (`walletPublicKey`) to seed a **new** listing or a relist. This action reads the deposit wallet for an **existing** market.
 - [Listing auth](/core/pools/listing-auth) — mints the `accessToken` this read requires.
 - [`useDepositAddress`](/react/pools#usedepositaddress) — the React hook.
 - [Pools](/core/pools) — the slice overview.

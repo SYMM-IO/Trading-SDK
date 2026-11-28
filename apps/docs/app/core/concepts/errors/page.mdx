@@ -132,7 +132,7 @@ A valid out-of-tolerance estimate remains validation code `SLIPPAGE_EXCEEDED`.
 Selected — many more surface as `SymmApiError` with a `_FAILED` code per action:
 
 | Code                                                    | Thrown by                                    |
-| ------------------------------------------------------- | -------------------------------------------- | -------------------------------------------- |
+| ------------------------------------------------------- | -------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | `FETCH_MARKETS_FAILED`                                  | `getMarkets`                                 |
 | `FETCH_LOCKED_PARAMS_FAILED`                            | `getLockedParams`                            |
 | `FETCH_NOTIONAL_CAP_FAILED`                             | `getNotionalCap`                             |
@@ -156,9 +156,10 @@ Selected — many more surface as `SymmApiError` with a `_FAILED` code per actio
 | `NOTIFICATIONS_SOCKET_ERROR`                            | `watchNotifications`                         |
 | `FETCH_LISTING_MARKETS_FAILED`                          | `getListingMarkets`                          |
 | `FETCH_INVENTORY_TVL_FAILED`                            | `getInventoryTvl`                            |
-| `FETCH_LISTING_MARKET_DETAIL_FAILED`                    | `getListingMarketDetail`                     | The pool-detail request failed.              |
-| `FETCH_POOL_TRANSACTIONS_FAILED`                        | `getPoolTransactions`                        | The pool transaction-history request failed. |
-| `FETCH_TOKEN_PRICE_FAILED`                              | `getTokenPrice`                              | The pre-listing token-price request failed.  |
+| `FETCH_LISTING_MARKET_DETAIL_FAILED`                    | `getListingMarketDetail`                     | The pool-detail request failed.                                                                                              |
+| `FETCH_POOL_TRANSACTIONS_FAILED`                        | `getPoolTransactions`                        | The pool transaction-history request failed.                                                                                 |
+| `FETCH_TOKEN_PRICE_FAILED`                              | `getTokenPrice`                              | The pre-listing token-price request failed.                                                                                  |
+| `LIST_MARKET_FAILED`                                    | `listMarket`                                 | The listing or relisting request failed, or the service rejected it; `status` and `responseData` carry the service's reason. |
 | `PRICES_SOCKET_ERROR`                                   | `watchEnigmaPrices`                          |
 
 ## viem errors (on-chain / transport)

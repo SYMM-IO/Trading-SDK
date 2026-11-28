@@ -3,7 +3,7 @@ import type { AddMarketDepositResponseSchemaV2 } from "../types/generated/listin
 import type { CreatedPool } from "./types";
 
 /**
- * Map the raw `/v2/market/add-market` response into the SDK's {@link CreatedPool}.
+ * Map the raw `/v2/market/list-market` response into the SDK's {@link CreatedPool}.
  *
  * Renames snake_case wire fields to camelCase and normalizes the two nullable
  * addresses to `null` when absent. `deposit_chain` is a numeric chain id that
@@ -11,7 +11,7 @@ import type { CreatedPool } from "./types";
  * the same string values as {@link ListingMarketStatus}, so both casts are
  * value-preserving.
  *
- * @param raw - The endpoint's `/v2/market/add-market` response body.
+ * @param raw - The endpoint's `/v2/market/list-market` response body.
  * @returns The normalized created pool.
  */
 export function toCreatedPool(raw: AddMarketDepositResponseSchemaV2): CreatedPool {

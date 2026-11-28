@@ -148,8 +148,8 @@ totals are built from **earned** snapshots, so claiming does not reduce them.
 Every pool write is a **REST call against the listing backend**, not a contract call, and every one is authed with the `accessToken` from [`authenticateListing`](/core/pools/listing-auth).
 
 <MethodIndex kind="write">
-  <MethodEntry name="addMarket" href="/core/pools/add-market">
-    Create a pool — submit a create-pool application for a new token and provision the wallet that seeds it.
+  <MethodEntry name="listMarket" href="/core/pools/list-market">
+    List a token as a pool, or relist a delisted one — submit the application and provision the wallet that seeds it.
   </MethodEntry>
   <MethodEntry name="withdrawLp" href="/core/pools/withdraw">
     Queue a withdrawal of LP shares from a pool. Asynchronous — it enters the pool's pending-withdrawal queue.

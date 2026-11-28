@@ -4,10 +4,10 @@ import type {
   KnowCEXs,
   SupportedDepositChains,
 } from "../types/generated/listing-backend";
-import type { AddMarketParameters } from "./add-market";
+import type { ListMarketParameters } from "./list-market";
 
 /**
- * Build the `/v2/market/add-market` request body from {@link AddMarketParameters}.
+ * Build the `/v2/market/list-market` request body from {@link ListMarketParameters}.
  *
  * The five required fields are always set. Every optional listing extra is
  * included **only when the caller defined it** — the SDK does not default the
@@ -16,9 +16,9 @@ import type { AddMarketParameters } from "./add-market";
  * `additionalChains: []`; only `undefined` is dropped.
  *
  * @param parameters - The create-pool inputs.
- * @returns The request body for `addMarketV2MarketAddMarketPost`.
+ * @returns The request body for `listMarketV2MarketListMarketPost`.
  */
-export function toAddMarketRequest(parameters: AddMarketParameters): AddMarketDepositRequestSchemaV2 {
+export function toListMarketRequest(parameters: ListMarketParameters): AddMarketDepositRequestSchemaV2 {
   const body: AddMarketDepositRequestSchemaV2 = {
     token_contract_address: parameters.tokenContractAddress,
     buy_back_ratio: parameters.buyBackRatio,

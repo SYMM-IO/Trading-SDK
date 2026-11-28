@@ -4,20 +4,20 @@ import { Callout } from "nextra/components";
 
 React bindings over the [Pools slice](../../core/pools) — the lowcap **listing backend** that owns the permissionless-listing catalog. There is no contract behind these hooks and no chain state to invalidate: Pools is a REST service configured at chain level, and a solver opts into it.
 
-Twenty-seven hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useTokenPrice` reads the authed, pre-listing **price estimate** for a token by chain name and address; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useAddMarket` creates a pool by listing a new token, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; `useUserTransactions` reads the authed, per-user list of pool deposits and withdrawals across every pool; `useListingStatus` reads where a market sits in the listing pipeline (public); `useListingMarketConfig` reads the signed-in user's own max-leverage and buyback **opinion** for one pool alongside the pool values in force; `useUpdateListingMarketConfig` submits one; and `useListingMarketConfigProjection` estimates where the pool lands before that write. Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables); `usePoolTransactions` also reads every pool's activity at once, so it has [its own section](#usepooltransactions) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
+Twenty-seven hooks. `useSupportsListingService` says whether the feature exists on the connected target; `useListingConfig` reads the public client config that drives a create-pool form; `useListingMarkets` reads a page of the public catalog; `useAuthenticateListing` signs the user in (SIWE) and returns their access token; `useUserListingMarkets` reads **Your Pools** — the authed, per-wallet view of the catalog — using that token; `useUserProfit` reads the authed, per-pool **LP position** for one token; `useDepositAddress` reads (or creates) the authed **deposit wallet** for one market; `useTokenPrice` reads the authed, pre-listing **price estimate** for a token by chain name and address; `useWeeklyListingLimit` reads the protocol's remaining weekly listings (public); `useListMarket` lists a new token as a pool, or relists a delisted one, with that token; `useWithdrawLp` queues a withdrawal of a wallet's LP shares from a pool; `useCancelWithdraw` cancels a pending withdrawal before it settles; `useClaimProfit` claims a pool's accrued LP rewards as USDC to a sub-account; `useClaimHistory` reads the authed, per-user list of past claims; `useUserTransactions` reads the authed, per-user list of pool deposits and withdrawals across every pool; `useListingStatus` reads where a market sits in the listing pipeline (public); `useListingMarketConfig` reads the signed-in user's own max-leverage and buyback **opinion** for one pool alongside the pool values in force; `useUpdateListingMarketConfig` submits one; and `useListingMarketConfigProjection` estimates where the pool lands before that write. Four more fill a pool's detail tables — `useListingMarketDetail`, `usePoolQuotes`, `usePoolTradeHistory` and `usePoolTransactions`, covered under [the detail tables](#the-detail-tables); `usePoolTransactions` also reads every pool's activity at once, so it has [its own section](#usepooltransactions) — and four read its rewards over time, covered under [rewards](#rewards-over-time).
 
-Twenty-one of them are reads. `useAuthenticateListing`, `useAddMarket`, `useWithdrawLp`, `useCancelWithdraw`, `useClaimProfit` and `useUpdateListingMarketConfig` are **mutations** — the first prompts a wallet signature, the other five submit authed writes (a create-pool, an LP withdrawal, a withdrawal cancel, a rewards claim, and a pool-configuration opinion).
+Twenty-one of them are reads. `useAuthenticateListing`, `useListMarket`, `useWithdrawLp`, `useCancelWithdraw`, `useClaimProfit` and `useUpdateListingMarketConfig` are **mutations** — the first prompts a wallet signature, the other five submit authed writes (a listing or relist, an LP withdrawal, a withdrawal cancel, a rewards claim, and a pool-configuration opinion).
 
 ## Import
 
 ```ts
 import {
-  useAddMarket,
   useAuthenticateListing,
   useCancelWithdraw,
   useClaimHistory,
   useClaimProfit,
   useDepositAddress,
+  useListMarket,
   useListingConfig,
   useListingMarketConfig,
   useListingMarketConfigProjection,
@@ -42,12 +42,12 @@ import {
   useUserTransactions,
   useWeeklyListingLimit,
   useWithdrawLp,
-  type AddMarketVariables,
+  type ListMarketVariables,
   type UpdateListingMarketConfigVariables,
-  type UseAddMarketReturnType,
   type UseAuthenticateListingReturnType,
   type UseDepositAddressParameters,
   type UseDepositAddressReturnType,
+  type UseListMarketReturnType,
   type UseListingConfigParameters,
   type UseListingConfigReturnType,
   type UseListingMarketConfigParameters,
@@ -855,24 +855,26 @@ function SignInToPools() {
 
 This slice **returns** the token; it does not persist it or attach it to later requests. Hold it (context, store) yourself until the authed pool reads/writes land.
 
-## `useAddMarket`
+## `useListMarket`
 
-Create a pool — list a new token with the listing backend. It is the authed **write** to Pools: the mutation submits the token and its pool economics, and resolves to the created pool, including the custodial **deposit wallet** to seed it.
+List a token as a pool — or relist a delisted one — with the listing backend. It is the authed **write** to Pools: the mutation submits the token and its pool economics, and resolves to the created (or relisted) pool, including the custodial **deposit wallet** to seed it.
 
 ```tsx
-const create = useAddMarket();
+const list = useListMarket();
 
-create.mutate({
+list.mutate({
   accessToken, // from useAuthenticateListing
   tokenContractAddress: "0xToken…",
   buyBackRatio: 5,
   maxLeverage: 20,
-  depositChain: ListingDepositChainId.HYPER_EVM,
+  depositChain: ListingDepositChainId.BASE,
 });
 
 // on success, seed the pool by sending the listing deposit to:
-create.data?.walletPublicKey;
+list.data?.walletPublicKey;
 ```
+
+The service decides from the token's current market: with no market it opens a new listing; with a `DELISTED` market it relists it through the same flow (the original listing time is kept, the relist time is recorded separately); any other existing market is rejected. A relist whose token validation fails is rejected too and leaves the market delisted. See [`listMarket`](../../core/pools/list-market#new-listing-or-relist) for the full table.
 
 Like [`useUserListingMarkets`](#useuserlistingmarkets), it takes the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting). It is a mutation, not a query, so it stays inert until you call `mutate` / `mutateAsync`.
 
@@ -883,7 +885,7 @@ Three headline inputs plus the deposit chain are required; every other field is 
 | Name                   | Type                    | Notes                                                                                            |
 | ---------------------- | ----------------------- | ------------------------------------------------------------------------------------------------ |
 | `accessToken`          | `string`                | **Required.** Bearer token from `useAuthenticateListing`. A bad or expired token yields a `401`. |
-| `tokenContractAddress` | `string`                | **Required.** The token to list — EVM (`0x…`) or Solana (base58).                                |
+| `tokenContractAddress` | `string`                | **Required.** The token to list or relist — EVM (`0x…`) or Solana (base58).                      |
 | `buyBackRatio`         | `number`                | **Required.** Share of trading fees routed to buy-backs, `0`–`100`.                              |
 | `maxLeverage`          | `number`                | **Required.** Max leverage as a whole multiplier (`20` = 20x), `1`–`100`.                        |
 | `depositChain`         | `ListingDepositChainId` | **Required.** Chain the token lives on and where its deposit is made.                            |
@@ -902,16 +904,18 @@ Three headline inputs plus the deposit chain are required; every other field is 
 
 ### Return type
 
-`UseMutationResult<CreatedPool, SymmioRequestError, AddMarketVariables>`. On success, `data` is the [`CreatedPool`](../../core/pools/add-market#returns): the service-resolved `tokenName` / `tokenTicker` / `tokenDecimal`, the submitted economics, the `marketStatus` (a fresh application is `WAITING_FOR_DEPOSIT`), and the custodial `walletPublicKey` — the deposit wallet to seed the pool. Its money/config fields are plain `number`s, not the 18-decimal `bigint`s of a catalog row.
+`UseMutationResult<CreatedPool, SymmioRequestError, ListMarketVariables>`. On success, `data` is the [`CreatedPool`](../../core/pools/list-market#returns): the service-resolved `tokenName` / `tokenTicker` / `tokenDecimal`, the submitted economics, the `marketStatus` (a new listing and a relist both come back at `WAITING_FOR_DEPOSIT`), and the custodial `walletPublicKey` — the deposit wallet to seed the pool. Its money/config fields are plain `number`s, not the 18-decimal `bigint`s of a catalog row.
+
+On success the hook invalidates every mounted [`useListingMarkets`](#uselistingmarkets), [`useUserListingMarkets`](#useuserlistingmarkets), `useListingMarketDetail`, [`useListingStatus`](#uselistingstatus) and [`useWeeklyListingLimit`](#useweeklylistinglimit) query, whatever their parameters — a listing adds the pool and uses a weekly slot, and a relist moves the market off `DELISTED`.
 
 ```tsx
-import { useAddMarket, useAuthenticateListing } from "@symmio/trading-react";
+import { useAuthenticateListing, useListMarket } from "@symmio/trading-react";
 import { ListingDepositChainId } from "@symmio/trading-core";
 import { useState } from "react";
 
-export function CreatePool() {
+export function ListPool() {
   const login = useAuthenticateListing();
-  const create = useAddMarket();
+  const list = useListMarket();
   const [accessToken, setAccessToken] = useState("");
 
   if (!accessToken) {
@@ -929,23 +933,23 @@ export function CreatePool() {
     <>
       <button
         onClick={() =>
-          create.mutate({
+          list.mutate({
             accessToken,
             tokenContractAddress: "0xToken…",
             buyBackRatio: 5,
             maxLeverage: 20,
-            depositChain: ListingDepositChainId.HYPER_EVM,
+            depositChain: ListingDepositChainId.BASE,
           })
         }
-        disabled={create.isPending}
+        disabled={list.isPending}
       >
-        {create.isPending ? "Creating pool…" : "Create pool"}
+        {list.isPending ? "Listing pool…" : "List pool"}
       </button>
-      {create.error ? <p role="alert">{create.error.message}</p> : null}
-      {create.data ? (
+      {list.error ? <p role="alert">{list.error.message}</p> : null}
+      {list.data ? (
         <p>
-          {create.data.tokenTicker} · {create.data.marketStatus} · send the deposit to{" "}
-          <code>{create.data.walletPublicKey}</code>
+          {list.data.tokenTicker} · {list.data.marketStatus} · send the deposit to{" "}
+          <code>{list.data.walletPublicKey}</code>
         </p>
       ) : null}
     </>
@@ -955,8 +959,10 @@ export function CreatePool() {
 
 <Callout type="info">
   **Enigma-only**, like the rest of Pools. `mutate` rejects with `LISTING_NOT_CONFIGURED` off a chain with no listing
-  backend, and a bad or expired token comes back as an `ADD_MARKET_FAILED` `401`. Gate the create-pool entry point with
-  [`useSupportsListingService`](#gate-the-feature-first), and re-run `useAuthenticateListing` on a `401`.
+  backend. Every service rejection — a bad or expired token (`401`), a market that already exists and is not delisted, a
+  failed token validation, the weekly limit — comes back as `LIST_MARKET_FAILED` with the service's `status` and
+  `responseData`. Gate the entry point with [`useSupportsListingService`](#gate-the-feature-first), and re-run
+  `useAuthenticateListing` on a `401`.
 </Callout>
 
 ## `useWithdrawLp`
@@ -974,7 +980,7 @@ withdraw.mutate({
 });
 ```
 
-Pair it with [`useUserProfit`](#useuserprofit): its derived `availableLpAmount` is the ceiling `amount` may take, and after a successful withdrawal you refetch it to see `pendingWithdrawLpAmount` rise and `availableLpAmount` fall. Like [`useAddMarket`](#useaddmarket) it takes the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting), and it is a mutation, so it stays inert until you call `mutate` / `mutateAsync`.
+Pair it with [`useUserProfit`](#useuserprofit): its derived `availableLpAmount` is the ceiling `amount` may take, and after a successful withdrawal you refetch it to see `pendingWithdrawLpAmount` rise and `availableLpAmount` fall. Like [`useListMarket`](#uselistmarket) it takes the Bearer `accessToken` from [`useAuthenticateListing`](#useauthenticatelisting), and it is a mutation, so it stays inert until you call `mutate` / `mutateAsync`.
 
 ### Variables
 
@@ -1259,7 +1265,7 @@ Retries are capped and rate-limited — only offer this when `useRetryListingInf
 
 ## `useWeeklyListingLimit`
 
-The protocol's remaining new-market listings for the current rolling weekly window — the cap a create-pool flow must check before `useAddMarket`. The service caps how many pools may be created protocol-wide each week; read this so you can **block** the Create button (and explain why) instead of letting the write fail after a round-trip. **Public**, so it needs no token and can be mounted unconditionally.
+The protocol's remaining new-market listings for the current rolling weekly window — the cap a create-pool flow must check before `useListMarket`. The service caps how many pools may be created protocol-wide each week; read this so you can **block** the Create button (and explain why) instead of letting the write fail after a round-trip. **Public**, so it needs no token and can be mounted unconditionally.
 
 ```tsx
 const weekly = useWeeklyListingLimit();
@@ -1709,7 +1715,7 @@ A `send_quote` order opens a quote when a trigger fires, which is a different me
 - [`getListingMarkets`](../../core/pools/get-listing-markets) — the action underneath, with the full sort-key and filter reference.
 - [`getListingConfig`](../../core/pools/listing-config) — the framework-agnostic public config behind `useListingConfig`.
 - [`getWeeklyListingLimit`](../../core/pools/weekly-limit) — the framework-agnostic weekly-cap read behind `useWeeklyListingLimit`.
-- [`addMarket`](../../core/pools/add-market) — the framework-agnostic create-pool action behind `useAddMarket`.
+- [`listMarket`](../../core/pools/list-market) — the framework-agnostic list-or-relist action behind `useListMarket`.
 - [`getDepositAddress`](../../core/pools/deposit-address) — the framework-agnostic deposit-wallet read behind `useDepositAddress`.
 - [`getListingMarketConfig`](../../core/pools/market-config) — the framework-agnostic read behind `useListingMarketConfig`, the `LISTING_MARKET_CONFIG_BOUNDS` constant, and the pure `projectListingMarketConfig` helper the projection hook applies.
 - [`updateListingMarketConfig`](../../core/pools/update-market-config) — the framework-agnostic write behind `useUpdateListingMarketConfig`, with the deposit-weighting model and the rate-limit rules.

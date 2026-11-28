@@ -3,7 +3,7 @@
 import { Field } from "@/components/field";
 import { ResultError, ResultNote, ResultSuccess } from "@/components/result";
 import { ListingDepositChainId } from "@symmio/trading-core";
-import { useAddMarket, useWeeklyListingLimit } from "@symmio/trading-react";
+import { useListMarket, useWeeklyListingLimit } from "@symmio/trading-react";
 import { Button } from "@symmio/ui/components/button";
 import { CopyButton } from "@symmio/ui/components/copy-button";
 import { Input } from "@symmio/ui/components/input";
@@ -16,11 +16,12 @@ import { formatResetAt } from "./format-listing-value";
 import { useListingAuth } from "./listing-auth-context";
 
 /**
- * Create pool — list a new token with the listing backend.
+ * Create pool — list a new token, or relist a delisted one, with the listing
+ * backend.
  *
  * One form submits the token address and its pool economics (buy-back ratio,
- * max leverage) through `useAddMarket`; on success the service returns the
- * created pool and the custodial **deposit wallet** to seed it.
+ * max leverage) through `useListMarket`; on success the service returns the
+ * created (or relisted) pool and the custodial **deposit wallet** to seed it.
  *
  * The bearer token comes from the shared {@link useListingAuth} session, so the
  * user signs in **once** (here or on the sign-in card) and this card reuses it.
@@ -33,7 +34,7 @@ import { useListingAuth } from "./listing-auth-context";
 export function CreatePoolCard() {
   const enigmaActive = useSolverKindActive("enigma");
   const { accessToken, signIn, isSigningIn } = useListingAuth();
-  const create = useAddMarket();
+  const create = useListMarket();
 
   // Weekly-listing gate. Public read of the protocol-global weekly cap — no token,
   // so it loads regardless of sign-in and blocks the create flow at `remaining <= 0`.
@@ -80,10 +81,10 @@ export function CreatePoolCard() {
 
   return (
     <MethodCard
-      testId="method-addMarket"
-      name="addMarket"
+      testId="method-listMarket"
+      name="listMarket"
       mutability="nonpayable"
-      description="Create pool — list a new token with the listing backend. Sign in once, submit the token and its pool economics, then seed the returned deposit wallet. Enigma-only."
+      description="Create pool — list a new token, or relist a delisted one, with the listing backend. Sign in once, submit the token and its pool economics, then seed the returned deposit wallet. Enigma-only."
     >
       <Field label="tokenContractAddress" htmlFor="create-pool-token-address">
         <Input
@@ -173,6 +174,12 @@ export function CreatePoolCard() {
       <ResultNote testId="create-pool-note">
         Max leverage is fixed at 20 for now. The tax, whitelist, extra-chain and CEX options are sent as defaults (
         <code>false</code> / <code>[]</code>).
+      </ResultNote>
+
+      <ResultNote testId="create-pool-relist-note">
+        A delisted token is relisted through the same call: it returns to <code>waiting_for_deposit</code> with a
+        deposit wallet, and its original listing time is kept. A market that exists in any other status is rejected by
+        the service.
       </ResultNote>
 
       {!enigmaActive ? (

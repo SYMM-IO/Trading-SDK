@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ListingDepositChainId } from "../types";
-import { toAddMarketRequest } from "./to-add-market-request";
+import { toListMarketRequest } from "./to-list-market-request";
 
 const REQUIRED = {
   accessToken: "t",
@@ -10,9 +10,9 @@ const REQUIRED = {
   depositChain: ListingDepositChainId.BASE,
 } as const;
 
-describe("toAddMarketRequest", () => {
+describe("toListMarketRequest", () => {
   it("always maps the required fields and the deposit chain", () => {
-    const body = toAddMarketRequest({ ...REQUIRED });
+    const body = toListMarketRequest({ ...REQUIRED });
 
     expect(body.token_contract_address).toBe("0xToken");
     expect(body.buy_back_ratio).toBe(50);
@@ -23,20 +23,20 @@ describe("toAddMarketRequest", () => {
   });
 
   it("sends a defined `isTax: false` as `is_tax: false`", () => {
-    const body = toAddMarketRequest({ ...REQUIRED, isTax: false });
+    const body = toListMarketRequest({ ...REQUIRED, isTax: false });
 
     expect(body).toHaveProperty("is_tax", false);
   });
 
   it("sends a defined empty `additionalChains: []` as `additional_chains: []`", () => {
-    const body = toAddMarketRequest({ ...REQUIRED, additionalChains: [] });
+    const body = toListMarketRequest({ ...REQUIRED, additionalChains: [] });
 
     expect(body).toHaveProperty("additional_chains");
     expect(body.additional_chains).toEqual([]);
   });
 
   it("maps every defined extra to its wire key", () => {
-    const body = toAddMarketRequest({
+    const body = toListMarketRequest({
       ...REQUIRED,
       isTax: true,
       userWhitelistTax: true,
@@ -53,7 +53,7 @@ describe("toAddMarketRequest", () => {
   });
 
   it("omits every extra left undefined", () => {
-    const body = toAddMarketRequest({ ...REQUIRED });
+    const body = toListMarketRequest({ ...REQUIRED });
 
     expect(body).not.toHaveProperty("is_tax");
     expect(body).not.toHaveProperty("user_whitelist_tax");

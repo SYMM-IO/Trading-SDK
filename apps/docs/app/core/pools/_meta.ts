@@ -32,7 +32,7 @@ export default {
   "-- auth": { type: "separator", title: "Auth" },
   "listing-auth": "authenticateListing",
   "-- writes": { type: "separator", title: "Writes" },
-  "add-market": "addMarket",
+  "list-market": "listMarket",
   withdraw: "withdrawLp",
   "cancel-withdraw": "cancelWithdraw",
   claim: "claimProfit",

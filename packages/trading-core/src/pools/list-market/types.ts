@@ -1,14 +1,14 @@
 import type { ListingDepositChainId, ListingMarketStatus } from "../types";
 
 /**
- * A pool the listing service created for a freshly submitted token — the
- * normalized result of {@link addMarket}.
+ * A pool the listing service created for a newly listed or relisted token —
+ * the normalized result of {@link listMarket}.
  *
  * The service both records the token's config and provisions a custodial
  * deposit wallet to seed the pool; this shape carries the config it echoed back
  * plus that wallet. Money/config fields are plain numbers as the service reports
  * them here (unlike the 18-decimal `bigint` scale of the catalog rows), because
- * `addMarket` returns the accepted application, not live pool metrics.
+ * `listMarket` returns the accepted application, not live pool metrics.
  */
 export interface CreatedPool {
   /** Token transfer-tax flag, when reported. */
@@ -41,7 +41,7 @@ export interface CreatedPool {
   maxLeverage: number;
   /** Chain the token lives on and its listing deposit must be made on. */
   depositChain: ListingDepositChainId;
-  /** Where the new market sits in the listing lifecycle — a fresh application starts at {@link ListingMarketStatus.WAITING_FOR_DEPOSIT}. */
+  /** Where the new market sits in the listing lifecycle — a new listing and a relist both start at {@link ListingMarketStatus.WAITING_FOR_DEPOSIT}. */
   marketStatus: ListingMarketStatus;
   /** The custodial deposit wallet the service generated to seed the pool; `null` when the service did not return one. */
   walletPublicKey: string | null;

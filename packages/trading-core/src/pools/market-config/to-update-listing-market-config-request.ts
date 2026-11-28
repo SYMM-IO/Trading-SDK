@@ -10,7 +10,7 @@ import type { UpdateListingMarketConfigParameters } from "./update-listing-marke
  * as `null`. Both are whole integers: the endpoint rejects a fractional value,
  * and a slider that emits `19.5` must round before it gets here.
  *
- * Note the wire field is `buyback_ratio` — one word — while `add-market`'s is
+ * Note the wire field is `buyback_ratio` — one word — while `list-market`'s is
  * `buy_back_ratio`. They are different endpoints with different spellings; the
  * SDK mirrors each one's own field.
  *

@@ -7,7 +7,7 @@ Fetch the listing service's **public client configuration** — the initial-depo
 <Callout type="warning">
   **Read this before building a create-pool UI.** A create-pool form must show the user the recommended and minimum
   initial deposits (this is what they seed the pool with) and must offer **only** the deposit chains
-  `supportedDepositChains` returns — do not hardcode a chain list. The [`addMarket`](/core/pools/add-market) write is
+  `supportedDepositChains` returns — do not hardcode a chain list. The [`listMarket`](/core/pools/list-market) write is
   the end of this flow, and it is additionally capped by [`getWeeklyListingLimit`](/core/pools/weekly-limit); wire both
   in before you let a user submit.
 </Callout>
@@ -56,7 +56,7 @@ Both fields are optional — with neither, the config's default chain and that c
   <Property name="supportedDepositChains" type="ListingDepositChain[]">
     The deposit chains new listings may use — **the source of truth for a create-pool chain picker**. Each entry is a
     `{ chainId: ListingDepositChainId; chainName: string; usdToken?: { address: string; decimals: number } }`.
-    Render `chainName (chainId)` and use `chainId` as the `depositChain` you pass to `addMarket`.
+    Render `chainName (chainId)` and use `chainId` as the `depositChain` you pass to `listMarket`.
     `usdToken` is the USD quote token used for price calls on that deposit chain. Its address is preserved
     verbatim, including case-sensitive Solana mints; its decimals are native token precision.
     Older backends may omit it (or return null), which the SDK exposes as `undefined`.
@@ -109,8 +109,8 @@ useQuery(getListingConfigQueryOptions(config));
 
 ## Related
 
-- [`addMarket`](/core/pools/add-market) — the create-pool write this config feeds: the recommended deposit and the deposit-chain picker come from here.
-- [`getWeeklyListingLimit`](/core/pools/weekly-limit) — the protocol-wide cap (public) that also gates `addMarket`; block creation when `remaining` is `0`.
+- [`listMarket`](/core/pools/list-market) — the listing write this config feeds: the recommended deposit and the deposit-chain picker come from here.
+- [`getWeeklyListingLimit`](/core/pools/weekly-limit) — the protocol-wide cap (public) that also gates `listMarket`; block creation when `remaining` is `0`.
 - [`getListingMarkets`](/core/pools/get-listing-markets) — the public catalog, and the definition of the 18-decimal value contract these USDC figures share.
 - [`useListingConfig`](/react/pools#uselistingconfig) — the React hook.
 - [Pools](/core/pools) — the slice overview.
