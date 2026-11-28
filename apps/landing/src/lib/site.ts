@@ -43,6 +43,6 @@ export const sectionAnchors = {
 
 /** Internal routes on the landing site (pages beyond the home page). */
 export const routes = {
-  /** The affiliate registration page — the one wallet-connected surface. */
+  /** The affiliate program's registration notice. */
   affiliate: "/affiliate",
 } as const;
