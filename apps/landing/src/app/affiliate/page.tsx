@@ -1,22 +1,16 @@
-import { AffiliateProviders } from "@/features/affiliate/affiliate-providers";
-import { AffiliateRegister } from "@/features/affiliate/affiliate-register";
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Become an affiliate",
-  description:
-    "Register as a SYMMIO affiliate on-chain: claim a deterministic affiliate address, set your fee split, and submit for approval.",
+  title: "Affiliate registration paused",
+  description: "SYMMIO has temporarily paused new affiliate registrations.",
 };
 
-/**
- * The affiliate registration route. This is the only wallet-connected surface on
- * the landing site, so the SDK runtime providers are mounted here rather than in
- * the global layout — the rest of the marketing site stays presentational.
- */
 export default function AffiliatePage() {
   return (
-    <AffiliateProviders>
-      <AffiliateRegister />
-    </AffiliateProviders>
+    <section className="mx-auto max-w-3xl px-4 pt-32 pb-20 text-center sm:px-6 sm:pt-40 sm:pb-28">
+      <h1 className="font-display text-foreground text-3xl font-semibold tracking-tight text-balance sm:text-4xl">
+        Affiliate registration is temporarily paused
+      </h1>
+    </section>
   );
 }

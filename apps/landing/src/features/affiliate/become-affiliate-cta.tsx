@@ -1,15 +1,10 @@
 "use client";
 
 import { Reveal } from "@/components/reveal";
-import { routes, siteLinks } from "@/lib/site";
+import { siteLinks } from "@/lib/site";
 import { Button } from "@symmio/ui/components/button";
 
-/**
- * Home-page invitation into the affiliate program. Presentational only — no SDK
- * or wallet code (that lives on `/affiliate`); this band just routes there.
- * A single coral-lit panel with the site's animated live border, so it reads as
- * the one "act now" moment on the page without shouting.
- */
+/** Home-page panel for the affiliate program. */
 export function BecomeAffiliateCta() {
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-20 sm:px-6 sm:py-28 lg:px-8">
@@ -39,8 +34,8 @@ export function BecomeAffiliateCta() {
               </p>
             </div>
             <div className="flex shrink-0 flex-wrap items-center gap-3">
-              <Button asChild size="lg">
-                <a href={routes.affiliate}>Become an affiliate</a>
+              <Button type="button" size="lg" disabled>
+                Registration temporarily paused
               </Button>
               <Button asChild size="lg" variant="outline">
                 <a href={siteLinks.docs} target="_blank" rel="noreferrer">
